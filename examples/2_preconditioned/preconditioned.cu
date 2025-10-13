@@ -228,20 +228,30 @@ int main(int argc, char *argv[]) {
                               sizeof(diag));
 
     // X = 0
-    thrust::device_vector<float> X_vec(n * args.s);
-    thrust::fill(X_vec.begin(), X_vec.end(), 0);
-    float *d_X = thrust::raw_pointer_cast(X_vec.data());
     cusparseDnMatDescr_t X;
+    thrust::device_vector<float> X_vec(n * args.s, 0);
+    float *d_X = thrust::raw_pointer_cast(X_vec.data());
     CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n, d_X, CUDA_R_32F,
                                        CUSPARSE_ORDER_COL));
 
+    if (!args.X_file.empty()) {
+        std::cerr << "Reading X from " << args.X_file << std::endl;
+        // TODO: Implement dense .mat reading
+        throw std::runtime_error("Not implemented");
+    }
+
     // B = 1
-    thrust::device_vector<float> B_vec(n * args.s);
-    thrust::fill(B_vec.begin(), B_vec.end(), 1);
-    float *d_B = thrust::raw_pointer_cast(B_vec.data());
     cusparseDnMatDescr_t B;
+    thrust::device_vector<float> B_vec(n * args.s, 1);
+    float *d_B = thrust::raw_pointer_cast(B_vec.data());
     CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_32F,
                                        CUSPARSE_ORDER_COL));
+
+    if (!args.B_file.empty()) {
+        std::cerr << "Reading B from " << args.B_file << std::endl;
+        // TODO: Implement dense .mat reading
+        throw std::runtime_error("Not implemented");
+    }
 
     constexpr float tolerance = std::numeric_limits<float>::epsilon();
     const int max_iterations = n;
