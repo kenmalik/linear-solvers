@@ -127,12 +127,18 @@ void print_help(std::string_view binary_name) {
 Args parse(int argc, char *argv[]) {
     Args args;
 
+    namespace fs = std::filesystem;
+
     std::array<std::function<void(std::string_view)>, 3> positional_handlers = {
         [&A_file = args.A_file](std::string_view arg) {
-            A_file = std::filesystem::path{arg};
+            A_file = fs::path{arg};
+            if (!fs::exists(A_file))
+                throw std::runtime_error(A_file);
         },
         [&L_file = args.L_file](std::string_view arg) {
-            L_file = std::filesystem::path{arg};
+            L_file = fs::path{arg};
+            if (!fs::exists(L_file))
+                throw std::runtime_error(L_file);
         },
         [&s = args.s](std::string_view arg) {
             s = std::stoi(std::string(arg));
@@ -142,10 +148,14 @@ Args parse(int argc, char *argv[]) {
         option_handlers = {
             {"-X",
              [&X_file = args.X_file](std::string_view arg) {
-                 X_file = std::filesystem::path{arg};
+                 X_file = fs::path{arg};
+                 if (!fs::exists(X_file))
+                     throw std::runtime_error(X_file);
              }},
             {"-B", [&B_file = args.B_file](std::string_view arg) {
-                 B_file = std::filesystem::path{arg};
+                 B_file = fs::path{arg};
+                 if (!fs::exists(B_file))
+                     throw std::runtime_error(B_file);
              }}};
 
     int position = 0;
@@ -161,7 +171,7 @@ Args parse(int argc, char *argv[]) {
             positional_handlers[position](arg);
             ++position;
         } else {
-            throw std::runtime_error("Invalid argument: " + arg);
+            throw std::runtime_error(arg);
         }
     }
     if (position < positional_handlers.size()) {
@@ -178,7 +188,7 @@ int main(int argc, char *argv[]) {
     try {
         args = parse(argc, argv);
     } catch (const std::runtime_error &e) {
-        std::cerr << e.what() << std::endl << std::endl;
+        std::cerr << "Bad argument: " << e.what() << std::endl << std::endl;
         print_help(binary_name);
         return 1;
     } catch (const std::exception &e) {
