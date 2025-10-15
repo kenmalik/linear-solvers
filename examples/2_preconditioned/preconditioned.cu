@@ -236,8 +236,15 @@ int main(int argc, char *argv[]) {
 
     if (!args.X_file.empty()) {
         std::cerr << "Reading X from " << args.X_file << std::endl;
-        // TODO: Implement dense .mat reading
-        throw std::runtime_error("Not implemented");
+        mat_utils::DnMatReader X{args.X_file, {}, "X"};
+        std::vector<float> X_float(X.size());
+        for (int i = 0; i < X.size(); ++i) {
+            X_float[i] = static_cast<float>(X.data()[i]);
+        }
+        assert(X.size() == X_vec.size() && "X read from file must be m by n");
+        CUDA_CHECK(cudaMemcpy(d_X, X_float.data(),
+                              sizeof(float) * X_float.size(),
+                              cudaMemcpyHostToDevice));
     }
 
     // B = 1
@@ -249,8 +256,15 @@ int main(int argc, char *argv[]) {
 
     if (!args.B_file.empty()) {
         std::cerr << "Reading B from " << args.B_file << std::endl;
-        // TODO: Implement dense .mat reading
-        throw std::runtime_error("Not implemented");
+        mat_utils::DnMatReader B{args.B_file, {}, "B"};
+        std::vector<float> B_float(B.size());
+        for (int i = 0; i < B.size(); ++i) {
+            B_float[i] = static_cast<float>(B.data()[i]);
+        }
+        assert(B.size() == B_vec.size() && "B read from file must be m by n");
+        CUDA_CHECK(cudaMemcpy(d_B, B_float.data(),
+                              sizeof(float) * B_float.size(),
+                              cudaMemcpyHostToDevice));
     }
 
     constexpr float tolerance = std::numeric_limits<float>::epsilon();
