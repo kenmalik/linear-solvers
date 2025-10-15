@@ -2,7 +2,7 @@ include(FetchContent)
 FetchContent_Declare(
     mat_utils
     GIT_REPOSITORY https://github.com/kenmalik/mat-utils.git
-    GIT_TAG main
+    GIT_TAG v0.2.1
 )
 FetchContent_MakeAvailable(mat_utils)
 
