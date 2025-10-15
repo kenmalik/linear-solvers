@@ -19,7 +19,7 @@
 
 class DeviceSuiteSparseMatrix {
   public:
-    explicit DeviceSuiteSparseMatrix(mat_utils::MatReader &ssm_A) {
+    explicit DeviceSuiteSparseMatrix(mat_utils::SpMatReader &ssm_A) {
         CUDA_CHECK(cudaMalloc(&d_rowPtr, sizeof(int64_t) * (ssm_A.rows() + 1)));
         CUDA_CHECK(cudaMalloc(&d_colInd, sizeof(int64_t) * ssm_A.nnz()));
         CUDA_CHECK(cudaMalloc(&d_vals, sizeof(float) * ssm_A.nnz()));
@@ -211,13 +211,13 @@ int main(int argc, char *argv[]) {
 
     // Read A
     const std::string A_file = argv[1];
-    mat_utils::MatReader ssm_A(A_file, {"Problem"}, "A");
+    mat_utils::SpMatReader ssm_A(A_file, {"Problem"}, "A");
     DeviceSuiteSparseMatrix A{ssm_A};
     const int n = ssm_A.rows();
 
     // Read L
     const std::string L_file = argv[2];
-    mat_utils::MatReader ssm_L(L_file, {}, "L");
+    mat_utils::SpMatReader ssm_L(L_file, {}, "L");
     DeviceSuiteSparseMatrix L{ssm_L};
 
     cusparseFillMode_t fill = CUSPARSE_FILL_MODE_LOWER;
