@@ -123,7 +123,9 @@ void print_help(std::string_view binary_name) {
               << "Options:" << std::endl
               << "-X [path to X file] Path to initial X matrix file"
               << std::endl
-              << "-B [path to B file] Path to B matrix file" << std::endl;
+              << "-B [path to B file] Path to B matrix file" << std::endl
+              << "-t [tolerance] (float value) Conversion tolerance"
+              << std::endl;
 }
 
 Args parse(int argc, char *argv[]) {
