@@ -101,8 +101,8 @@ class DeviceSuiteSparseMatrix {
 };
 
 struct Args {
-    int s;
-    float tolerance;
+    int s = 1;
+    float tolerance = 0;
     std::filesystem::path A_file;
     std::filesystem::path L_file;
     std::filesystem::path X_file;
