@@ -118,7 +118,10 @@ std::ostream &operator<<(std::ostream &os, const Args &a) {
 
 void print_help(std::string_view binary_name) {
     std::cerr << "Usage: " << binary_name
-              << " [spd matrix] [preconditioner] [block size]" << std::endl
+              << " [spd matrix] [preconditioner] [OPTIONAL block size]"
+              << std::endl
+              << std::endl
+              << "By default, block size is set to 1." << std::endl
               << std::endl
               << "Options:" << std::endl
               << "-X [path to X file] Path to initial X matrix file"
@@ -182,7 +185,7 @@ Args parse(int argc, char *argv[]) {
             throw std::runtime_error(arg);
         }
     }
-    if (position < positional_handlers.size()) {
+    if (position < 2) {
         throw std::runtime_error("Invalid argument count");
     }
 
