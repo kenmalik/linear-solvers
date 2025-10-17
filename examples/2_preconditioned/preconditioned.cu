@@ -102,6 +102,7 @@ class DeviceSuiteSparseMatrix {
 
 struct Args {
     int s;
+    float tolerance;
     std::filesystem::path A_file;
     std::filesystem::path L_file;
     std::filesystem::path X_file;
@@ -109,7 +110,8 @@ struct Args {
 };
 
 std::ostream &operator<<(std::ostream &os, const Args &a) {
-    os << "Args(s=" << a.s << ", A_file=" << a.A_file << ", L_file=" << a.L_file
+    os << "Args(s=" << a.s << ", tolerance=" << a.tolerance
+       << ", A_file=" << a.A_file << ", L_file=" << a.L_file
        << ", X_file=" << a.X_file << ", B_file=" << a.B_file << ")";
     return os;
 }
@@ -152,10 +154,14 @@ Args parse(int argc, char *argv[]) {
                  if (!fs::exists(X_file))
                      throw std::runtime_error(X_file);
              }},
-            {"-B", [&B_file = args.B_file](std::string_view arg) {
+            {"-B",
+             [&B_file = args.B_file](std::string_view arg) {
                  B_file = fs::path{arg};
                  if (!fs::exists(B_file))
                      throw std::runtime_error(B_file);
+             }},
+            {"-t", [&tolerance = args.tolerance](std::string_view arg) {
+                 tolerance = std::stof(std::string(arg));
              }}};
 
     int position = 0;
@@ -210,15 +216,17 @@ int main(int argc, char *argv[]) {
     CUSPARSE_CHECK(cusparseCreate(&cusparseH));
 
     // Read A
-    const std::string A_file = argv[1];
+    const std::string A_file = args.A_file;
     mat_utils::SpMatReader ssm_A(A_file, {"Problem"}, "A");
     DeviceSuiteSparseMatrix A{ssm_A};
     const int n = ssm_A.rows();
+    std::cerr << "Read " << ssm_A.nnz() << " values from A" << std::endl;
 
     // Read L
-    const std::string L_file = argv[2];
+    const std::string L_file = args.L_file;
     mat_utils::SpMatReader ssm_L(L_file, {}, "L");
     DeviceSuiteSparseMatrix L{ssm_L};
+    std::cerr << "Read " << ssm_L.nnz() << " values from L" << std::endl;
 
     cusparseFillMode_t fill = CUSPARSE_FILL_MODE_LOWER;
     cusparseDiagType_t diag = CUSPARSE_DIAG_TYPE_NON_UNIT;
@@ -235,16 +243,16 @@ int main(int argc, char *argv[]) {
                                        CUSPARSE_ORDER_COL));
 
     if (!args.X_file.empty()) {
-        std::cerr << "Reading X from " << args.X_file << std::endl;
         mat_utils::DnMatReader X{args.X_file, {}, "X"};
         std::vector<float> X_float(X.size());
         for (int i = 0; i < X.size(); ++i) {
             X_float[i] = static_cast<float>(X.data()[i]);
         }
-        assert(X.size() == X_vec.size() && "X read from file must be m by n");
+        assert(X.size() == X_vec.size() && "X read from file must be n by s");
         CUDA_CHECK(cudaMemcpy(d_X, X_float.data(),
                               sizeof(float) * X_float.size(),
                               cudaMemcpyHostToDevice));
+        std::cerr << "Read " << X.size() << " values from X" << std::endl;
     }
 
     // B = 1
@@ -255,19 +263,22 @@ int main(int argc, char *argv[]) {
                                        CUSPARSE_ORDER_COL));
 
     if (!args.B_file.empty()) {
-        std::cerr << "Reading B from " << args.B_file << std::endl;
         mat_utils::DnMatReader B{args.B_file, {}, "B"};
         std::vector<float> B_float(B.size());
         for (int i = 0; i < B.size(); ++i) {
             B_float[i] = static_cast<float>(B.data()[i]);
         }
-        assert(B.size() == B_vec.size() && "B read from file must be m by n");
+        assert(B.size() == B_vec.size() && "B read from file must be n by s");
         CUDA_CHECK(cudaMemcpy(d_B, B_float.data(),
                               sizeof(float) * B_float.size(),
                               cudaMemcpyHostToDevice));
+        std::cerr << "Read " << B.size() << " values from B" << std::endl;
     }
 
-    constexpr float tolerance = std::numeric_limits<float>::epsilon();
+    float tolerance = std::numeric_limits<float>::epsilon();
+    if (args.tolerance > 0) {
+        tolerance = args.tolerance;
+    }
     const int max_iterations = n;
 
     int iterations = 0;
