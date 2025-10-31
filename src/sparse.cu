@@ -221,6 +221,52 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         if (relative_residual_norm < tolerance) {
             break;
         }
+
+        {
+            // [w, zeta] = qr(w - A * s * xi, 'econ')
+            constexpr cublasOperation_t op = CUBLAS_OP_N;
+            constexpr float sgemm_alpha = 1.0f;
+            constexpr float sgemm_beta = 0.0f;
+            CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, op, op, n, s, s,
+                                        &sgemm_alpha, d.s, n, d.xi, s,
+                                        &sgemm_beta, d.temp, n));
+
+            constexpr cusparseOperation_t spmm_op =
+                CUSPARSE_OPERATION_NON_TRANSPOSE;
+            constexpr float spmm_alpha = 1.0f;
+            constexpr float spmm_beta = -1.0f;
+            constexpr cudaDataType_t compute_type = CUDA_R_32F;
+            constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
+
+            float *d_temp_2 = nullptr;
+            CUDA_CHECK(
+                cudaMallocAsync(&d_temp_2, sizeof(float) * n * s, stream));
+            CUDA_CHECK(cudaMemcpyAsync(d_temp_2, d.w, sizeof(float) * n * s, cudaMemcpyDeviceToDevice, stream));
+
+            cusparseDnMatDescr_t temp_2;
+            CUSPARSE_CHECK(cusparseCreateDnMat(&temp_2, n, s, n, d_temp_2,
+                                               CUDA_R_32F, CUSPARSE_ORDER_COL));
+
+            std::size_t buffer_size = 0;
+            CUSPARSE_CHECK(cusparseSpMM_bufferSize(
+                handles.cusparse, spmm_op, spmm_op, &spmm_alpha, A, temp,
+                &spmm_beta, temp_2, compute_type, alg, &buffer_size));
+
+            CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
+
+            CUSPARSE_CHECK(cusparseSpMM_preprocess(
+                handles.cusparse, spmm_op, spmm_op, &spmm_alpha, A, temp,
+                &spmm_beta, temp_2, compute_type, alg, scratch_d));
+
+            CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, spmm_op, spmm_op,
+                                        &spmm_alpha, A, temp, &spmm_beta,
+                                        temp_2, compute_type, alg, scratch_d));
+
+            CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+
+            // qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
+            //                  d.zeta, n, s, d_temp_2);
+        }
     }
 
     return iterations;
