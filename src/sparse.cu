@@ -58,7 +58,6 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     void *scratch_d = nullptr;
 
-    CUDA_CHECK(cudaMalloc(&d.temp, sizeof(float) * n * s));
     cusparseDnMatDescr_t temp;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, CUDA_R_32F,
                                        CUSPARSE_ORDER_COL));
@@ -217,6 +216,7 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             relative_residual_norm = numerator / B1_norm;
         }
+        std::cerr << iterations << " " << relative_residual_norm << std::endl;
 
         if (relative_residual_norm < tolerance) {
             break;
