@@ -92,7 +92,6 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         CUSPARSE_CHECK(cusparseDnMatGetValues(B, &d_B));
         CUDA_CHECK(cudaMemcpyAsync(d_R, d_B, sizeof(float) * n * s,
                                    cudaMemcpyDeviceToDevice, stream));
-        CUDA_CHECK(cudaDeviceSynchronize());
 
         CUSPARSE_CHECK(cusparseSpMM_bufferSize(handles.cusparse, op, op, &alpha,
                                                A, X, &beta, B, compute_type,
@@ -122,8 +121,10 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                    cudaMemcpyDeviceToDevice, stream));
     }
 
-    int iterations;
-    for (iterations = 1; iterations < max_iterations; ++iterations) {
+    int iterations = 0;
+    while (iterations < max_iterations) {
+        ++iterations;
+
         {
             // xi = (s' * A * s)^-1
             std::size_t buffer_size;
