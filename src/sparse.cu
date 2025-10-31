@@ -2,6 +2,7 @@
 #include "dr_bcg/helper.h"
 #include "dr_bcg/sparse.h"
 
+#include <iostream>
 #include <tuple>
 
 struct Handles {
@@ -47,8 +48,6 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
 
 int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
            cusparseDnMatDescr_t B, float tolerance, int max_iterations) {
-    int iterations = 0;
-
     auto [n, s] = get_size(B);
 
     cudaStream_t stream;
@@ -113,6 +112,52 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         // s = w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(float) * n * s,
                                    cudaMemcpyDeviceToDevice, stream));
+    }
+
+    int iterations;
+    for (iterations = 1; iterations < max_iterations; ++iterations) {
+        {
+            // xi = (s' * A * s)^-1
+            std::size_t buffer_size;
+            constexpr float alpha = 1.0f;
+            constexpr float beta = 0.0f;
+            constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
+            constexpr cudaDataType_t compute_type = CUDA_R_32F;
+            constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
+
+            cusparseDnMatDescr_t s_mat;
+            CUSPARSE_CHECK(cusparseCreateDnMat(&s_mat, n, s, n, d.s, CUDA_R_32F,
+                                               CUSPARSE_ORDER_COL));
+
+            CUSPARSE_CHECK(cusparseSpMM_bufferSize(
+                handles.cusparse, op, op, &alpha, A, s_mat, &beta, temp,
+                compute_type, alg, &buffer_size));
+
+            CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
+
+            CUSPARSE_CHECK(cusparseSpMM_preprocess(
+                handles.cusparse, op, op, &alpha, A, s_mat, &beta, temp,
+                compute_type, alg, scratch_d));
+
+            CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
+                                        s_mat, &beta, temp, compute_type, alg,
+                                        scratch_d));
+
+            constexpr cublasOperation_t op_t = CUBLAS_OP_T;
+            constexpr cublasOperation_t op_n = CUBLAS_OP_N;
+            CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, op_t, op_n, s, s, n,
+                                        &alpha, d.s, n, d_temp, n, &beta, d.xi,
+                                        s));
+
+            invert_square_matrix(handles.cusolver, handles.cusolver_params,
+                                 d.xi, s);
+
+            CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+        }
+
+        {
+            // X = X + s * xi * sigma
+        }
     }
 
     return iterations;
