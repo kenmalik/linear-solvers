@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
         cusparseCreateDnMat(&B, n, s, n, d_B, CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     constexpr float tolerance = std::numeric_limits<float>::epsilon();
-    constexpr int max_iterations = 10;
+    constexpr int max_iterations = 1000;
 
     std::cout << "n: " << n << std::endl;
     std::cout << "s: " << s << std::endl;
