@@ -63,9 +63,16 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d_temp, CUDA_R_32F,
                                        CUSPARSE_ORDER_COL));
 
-    void *X_vals = nullptr;
-    CUSPARSE_CHECK(cusparseDnMatGetValues(X, &X_vals));
-    float *d_X = static_cast<float *>(X_vals);
+    float *d_X = nullptr;
+    CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
+
+    // Precalculate B1 norm for conversion checks
+    float *d_B = nullptr;
+    CUSPARSE_CHECK(cusparseDnMatGetValues(B, reinterpret_cast<void **>(&d_B)));
+
+    constexpr int incx = 1;
+    float B1_norm = 0;
+    cublasSnrm2_v2(handles.cublas, n, d_B, incx, &B1_norm);
 
     float *d_R = nullptr;
     CUDA_CHECK(cudaMalloc(&d_R, sizeof(float) * n * s));
@@ -171,7 +178,11 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr float beta_2 = 1.0f;
             CUBLAS_CHECK(cublasSgemm_v2(
                 handles.cublas, CUBLAS_OP_N, CUBLAS_OP_N, n, s, s, &alpha_2,
-                d.s, n, d.temp, n, &beta_2, static_cast<float *>(d_X), n));
+                d.s, n, d.temp, n, &beta_2, d_X, n));
+        }
+
+        {
+            // norm(B(:,1) - A * X(:,1)) / norm(B(:,1))
         }
     }
 
