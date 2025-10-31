@@ -282,6 +282,19 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                      &sgeam_alpha, d.s, n, &sgeam_beta, d.w, n,
                                      d.s, n));
         }
+
+        {
+            // sigma = zeta * sigma
+            constexpr float alpha = 1.0f;
+            constexpr cublasSideMode_t side = CUBLAS_SIDE_LEFT;
+            constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
+            constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
+            constexpr cublasOperation_t op_zeta = CUBLAS_OP_N;
+
+            CUBLAS_CHECK(cublasStrmm_v2(handles.cublas, side, fill_mode,
+                                        op_zeta, diag_type, s, s, &alpha,
+                                        d.zeta, s, d.sigma, s, d.sigma, s));
+        }
     }
 
     return iterations;
