@@ -6,8 +6,10 @@
 #include <limits>
 
 #include <mat_utils/mat_reader.h>
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 
-#include "dr_bcg/dr_bcg.h"
+#include "dr_bcg/sparse.h"
 #include "dr_bcg/helper.h"
 
 __global__ void set_val(float *A_d, float val, size_t num_elements)
@@ -109,14 +111,8 @@ int main(int argc, char *argv[])
     CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, s, n, d_X, CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     cusparseDnMatDescr_t B;
-    float *d_B = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_B, sizeof(float) * n * s));
-
-    constexpr int block_size = 256;
-    const size_t num_elements = n * s;
-    const size_t num_blocks = (num_elements + block_size - 1) / block_size;
-    set_val<<<num_blocks, block_size>>>(d_B, 1, num_elements);
-
+    thrust::device_vector<float> B_v(n * s, 1.0f);
+    float *d_B = thrust::raw_pointer_cast(B_v.data());
     CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, s, n, d_B, CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     constexpr float tolerance = std::numeric_limits<float>::epsilon();
@@ -126,8 +122,7 @@ int main(int argc, char *argv[])
     std::cout << "s: " << s << std::endl;
 
     std::cerr << "Running..." << std::endl;
-    int iterations = 0;
-    dr_bcg::dr_bcg(cusolverH, cusolverP, cublasH, cusparseH, A, X, B, tolerance, max_iterations, &iterations);
+    int iterations = dr_bcg(A, X, B, tolerance, max_iterations);
     std::cerr << "Finished!" << std::endl;
 
     // Verification
