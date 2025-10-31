@@ -49,6 +49,7 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
 int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
            cusparseDnMatDescr_t B, float tolerance, int max_iterations) {
     auto [n, s] = get_size(B);
+    DeviceBuffer d(n, s);
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream));
@@ -57,10 +58,9 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     void *scratch_d = nullptr;
 
-    float *d_temp = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_temp, sizeof(float) * n * s));
+    CUDA_CHECK(cudaMalloc(&d.temp, sizeof(float) * n * s));
     cusparseDnMatDescr_t temp;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d_temp, CUDA_R_32F,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, CUDA_R_32F,
                                        CUSPARSE_ORDER_COL));
 
     float *d_X = nullptr;
@@ -79,8 +79,6 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     cusparseDnMatDescr_t R;
     CUSPARSE_CHECK(
         cusparseCreateDnMat(&R, n, s, n, d_R, CUDA_R_32F, CUSPARSE_ORDER_COL));
-
-    DeviceBuffer d(n, s);
 
     {
         // R = B - A * X
@@ -157,7 +155,7 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_t = CUBLAS_OP_T;
             constexpr cublasOperation_t op_n = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, op_t, op_n, s, s, n,
-                                        &alpha, d.s, n, d_temp, n, &beta, d.xi,
+                                        &alpha, d.s, n, d.temp, n, &beta, d.xi,
                                         s));
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
@@ -190,11 +188,11 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cudaDataType_t compute_type = CUDA_R_32F;
             constexpr cusparseSpMVAlg_t alg = CUSPARSE_SPMV_ALG_DEFAULT;
 
-            CUDA_CHECK(cudaMemcpyAsync(d_temp, d_B, sizeof(float) * n,
+            CUDA_CHECK(cudaMemcpyAsync(d.temp, d_B, sizeof(float) * n,
                                        cudaMemcpyDeviceToDevice, stream));
 
             cusparseDnVecDescr_t temp1;
-            CUSPARSE_CHECK(cusparseCreateDnVec(&temp1, n, d_temp, CUDA_R_32F));
+            CUSPARSE_CHECK(cusparseCreateDnVec(&temp1, n, d.temp, CUDA_R_32F));
 
             cusparseDnVecDescr_t X1;
             CUSPARSE_CHECK(cusparseCreateDnVec(&X1, n, d_X, CUDA_R_32F));
@@ -215,7 +213,7 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr int incx = 1;
             float numerator = 0;
             CUBLAS_CHECK(
-                cublasSnrm2_v2(handles.cublas, n, d_temp, incx, &numerator));
+                cublasSnrm2_v2(handles.cublas, n, d.temp, incx, &numerator));
 
             relative_residual_norm = numerator / B1_norm;
         }
