@@ -239,8 +239,8 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
             cusparseDnMatDescr_t w;
-            CUSPARSE_CHECK(cusparseCreateDnMat(&w, n, s, n, d.w,
-                                               CUDA_R_32F, CUSPARSE_ORDER_COL));
+            CUSPARSE_CHECK(cusparseCreateDnMat(&w, n, s, n, d.w, CUDA_R_32F,
+                                               CUSPARSE_ORDER_COL));
 
             std::size_t buffer_size = 0;
             CUSPARSE_CHECK(cusparseSpMM_bufferSize(
@@ -254,13 +254,13 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                 &spmm_beta, w, compute_type, alg, scratch_d));
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, spmm_op, spmm_op,
-                                        &spmm_alpha, A, temp, &spmm_beta,
-                                        w, compute_type, alg, scratch_d));
+                                        &spmm_alpha, A, temp, &spmm_beta, w,
+                                        compute_type, alg, scratch_d));
 
             CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
 
-            // qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
-            //                  d.zeta, n, s, d_w);
+            qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
+                             d.zeta, n, s, d.w);
         }
     }
 
