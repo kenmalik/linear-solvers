@@ -105,7 +105,7 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                                alg, scratch_d));
 
         CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A, X,
-                                    &beta, B, compute_type, alg, scratch_d));
+                                    &beta, R, compute_type, alg, scratch_d));
 
         CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     }
