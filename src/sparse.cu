@@ -176,13 +176,52 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             constexpr float alpha_2 = 1.0f;
             constexpr float beta_2 = 1.0f;
-            CUBLAS_CHECK(cublasSgemm_v2(
-                handles.cublas, CUBLAS_OP_N, CUBLAS_OP_N, n, s, s, &alpha_2,
-                d.s, n, d.temp, n, &beta_2, d_X, n));
+            CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, CUBLAS_OP_N,
+                                        CUBLAS_OP_N, n, s, s, &alpha_2, d.s, n,
+                                        d.temp, n, &beta_2, d_X, n));
         }
 
+        float relative_residual_norm = 0;
         {
             // norm(B(:,1) - A * X(:,1)) / norm(B(:,1))
+            constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
+            constexpr float alpha = -1.0f;
+            constexpr float beta = 1.0f;
+            constexpr cudaDataType_t compute_type = CUDA_R_32F;
+            constexpr cusparseSpMVAlg_t alg = CUSPARSE_SPMV_ALG_DEFAULT;
+
+            CUDA_CHECK(cudaMemcpyAsync(d_temp, d_B, sizeof(float) * n,
+                                       cudaMemcpyDeviceToDevice, stream));
+
+            cusparseDnVecDescr_t temp1;
+            CUSPARSE_CHECK(cusparseCreateDnVec(&temp1, n, d_temp, CUDA_R_32F));
+
+            cusparseDnVecDescr_t X1;
+            CUSPARSE_CHECK(cusparseCreateDnVec(&X1, n, d_X, CUDA_R_32F));
+
+            std::size_t buffer_size = 0;
+            CUSPARSE_CHECK(cusparseSpMV_bufferSize(
+                handles.cusparse, op, &alpha, A, X1, &beta, temp1, compute_type,
+                alg, &buffer_size));
+
+            CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
+
+            CUSPARSE_CHECK(cusparseSpMV(handles.cusparse, op, &alpha, A, X1,
+                                        &beta, temp1, compute_type, alg,
+                                        scratch_d));
+
+            CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+
+            constexpr int incx = 1;
+            float numerator = 0;
+            CUBLAS_CHECK(
+                cublasSnrm2_v2(handles.cublas, n, d_temp, incx, &numerator));
+
+            relative_residual_norm = numerator / B1_norm;
+        }
+
+        if (relative_residual_norm < tolerance) {
+            break;
         }
     }
 
