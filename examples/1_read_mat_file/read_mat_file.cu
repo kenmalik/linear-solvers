@@ -1,46 +1,35 @@
-#include <tuple>
-#include <iostream>
-#include <vector>
-#include <string>
 #include <cmath>
+#include <iostream>
 #include <limits>
+#include <string>
+#include <tuple>
+#include <vector>
 
 #include <mat_utils/mat_reader.h>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 
-#include "dr_bcg/sparse.h"
 #include "dr_bcg/helper.h"
+#include "dr_bcg/sparse.h"
 
-__global__ void set_val(float *A_d, float val, size_t num_elements)
-{
+__global__ void set_val(float *A_d, float val, size_t num_elements) {
     const int idx = blockIdx.x * blockDim.y + threadIdx.x;
-    if (idx < num_elements)
-    {
+    if (idx < num_elements) {
         A_d[idx] = val;
     }
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     int s;
-    try
-    {
-        if (argc == 2)
-        {
+    try {
+        if (argc == 2) {
             s = 1;
-        }
-        else if (argc == 3)
-        {
+        } else if (argc == 3) {
             s = std::atoi(argv[2]);
-        }
-        else
-        {
+        } else {
             throw std::invalid_argument("Invalid arg count");
         }
-    }
-    catch (const std::exception &e)
-    {
+    } catch (const std::exception &e) {
         std::cerr << "Usage: ./example_2 [.mat file] [block size]" << std::endl;
         return 1;
     }
@@ -69,7 +58,8 @@ int main(int argc, char *argv[])
     float *b_d = nullptr;
     std::vector<float> b_h(ssm.rows(), 1);
     CUDA_CHECK(cudaMalloc(&b_d, sizeof(float) * b_h.size()));
-    CUDA_CHECK(cudaMemcpy(b_d, b_h.data(), sizeof(float) * b_h.size(), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(b_d, b_h.data(), sizeof(float) * b_h.size(),
+                          cudaMemcpyHostToDevice));
 
     CUDA_CHECK(cudaMalloc(&jc_d, sizeof(int64_t) * ssm.jc_size()));
     CUDA_CHECK(cudaMalloc(&ir_d, sizeof(int64_t) * ssm.ir_size()));
@@ -77,46 +67,49 @@ int main(int argc, char *argv[])
 
     // Convert from default Matlab types
     std::vector<int64_t> jc_64i(ssm.jc_size());
-    for (int i = 0; i < ssm.jc_size(); i++)
-    {
+    for (int i = 0; i < ssm.jc_size(); i++) {
         jc_64i[i] = static_cast<int64_t>(ssm.jc()[i]);
     }
-    CUDA_CHECK(cudaMemcpy(jc_d, jc_64i.data(), sizeof(int64_t) * jc_64i.size(), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(jc_d, jc_64i.data(), sizeof(int64_t) * jc_64i.size(),
+                          cudaMemcpyHostToDevice));
 
     std::vector<int64_t> ir_64i(ssm.ir_size());
-    for (int i = 0; i < ssm.ir_size(); i++)
-    {
+    for (int i = 0; i < ssm.ir_size(); i++) {
         ir_64i[i] = static_cast<int64_t>(ssm.ir()[i]);
     }
-    CUDA_CHECK(cudaMemcpy(ir_d, ir_64i.data(), sizeof(int64_t) * ir_64i.size(), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(ir_d, ir_64i.data(), sizeof(int64_t) * ir_64i.size(),
+                          cudaMemcpyHostToDevice));
 
     std::vector<float> nonzeros_32f(ssm.nnz());
-    for (int i = 0; i < ssm.nnz(); i++)
-    {
+    for (int i = 0; i < ssm.nnz(); i++) {
         nonzeros_32f[i] = static_cast<float>(ssm.data()[i]);
     }
-    CUDA_CHECK(cudaMemcpy(vals_d, nonzeros_32f.data(), sizeof(float) * nonzeros_32f.size(), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(vals_d, nonzeros_32f.data(),
+                          sizeof(float) * nonzeros_32f.size(),
+                          cudaMemcpyHostToDevice));
 
     cusparseSpMatDescr_t A;
-    CUSPARSE_CHECK(cusparseCreateCsr(
-        &A, ssm.rows(), ssm.cols(), ssm.nnz(),
-        jc_d, ir_d, vals_d, CUSPARSE_INDEX_64I, CUSPARSE_INDEX_64I,
-        CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F));
+    CUSPARSE_CHECK(cusparseCreateCsr(&A, ssm.rows(), ssm.cols(), ssm.nnz(),
+                                     jc_d, ir_d, vals_d, CUSPARSE_INDEX_64I,
+                                     CUSPARSE_INDEX_64I,
+                                     CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F));
 
     const int n = ssm.rows();
 
     cusparseDnMatDescr_t X;
-    float *d_X = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_X, sizeof(float) * n * s));
-    CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, s, n, d_X, CUDA_R_32F, CUSPARSE_ORDER_COL));
+    thrust::device_vector<float> X_v(n * s, 0);
+    float *d_X = thrust::raw_pointer_cast(X_v.data());
+    CUSPARSE_CHECK(
+        cusparseCreateDnMat(&X, n, s, n, d_X, CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     cusparseDnMatDescr_t B;
     thrust::device_vector<float> B_v(n * s, 1.0f);
     float *d_B = thrust::raw_pointer_cast(B_v.data());
-    CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, s, n, d_B, CUDA_R_32F, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(
+        cusparseCreateDnMat(&B, n, s, n, d_B, CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     constexpr float tolerance = std::numeric_limits<float>::epsilon();
-    constexpr int max_iterations = 10000;
+    constexpr int max_iterations = 1000;
 
     std::cout << "n: " << n << std::endl;
     std::cout << "s: " << s << std::endl;
@@ -129,7 +122,8 @@ int main(int argc, char *argv[])
     cusparseDnMatDescr_t B_check;
     float *B_check_d = nullptr;
     CUDA_CHECK(cudaMalloc(&B_check_d, sizeof(float) * n * s));
-    CUSPARSE_CHECK(cusparseCreateDnMat(&B_check, n, s, n, B_check_d, CUDA_R_32F, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&B_check, n, s, n, B_check_d, CUDA_R_32F,
+                                       CUSPARSE_ORDER_COL));
 
     constexpr cusparseOperation_t transpose = CUSPARSE_OPERATION_NON_TRANSPOSE;
     constexpr float alpha = 1;
@@ -139,28 +133,25 @@ int main(int argc, char *argv[])
     size_t buffer_size = 0;
 
     CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-        cusparseH, transpose, transpose,
-        &alpha, A, X, &beta, B_check,
+        cusparseH, transpose, transpose, &alpha, A, X, &beta, B_check,
         CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, &buffer_size));
 
-    if (buffer_size > 0)
-    {
+    if (buffer_size > 0) {
         CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
     }
 
-    CUSPARSE_CHECK(cusparseSpMM(
-        cusparseH, transpose, transpose,
-        &alpha, A, X, &beta, B_check,
-        CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, buffer));
+    CUSPARSE_CHECK(cusparseSpMM(cusparseH, transpose, transpose, &alpha, A, X,
+                                &beta, B_check, CUDA_R_32F,
+                                CUSPARSE_SPMM_ALG_DEFAULT, buffer));
 
-    if (buffer)
-    {
+    if (buffer) {
         CUDA_CHECK(cudaFree(buffer));
     }
 
     std::vector<float> B_expected(n * s, 1);
     std::vector<float> B_got(n * s);
-    CUDA_CHECK(cudaMemcpy(B_got.data(), B_check_d, sizeof(float) * B_got.size(), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(B_got.data(), B_check_d, sizeof(float) * B_got.size(),
+                          cudaMemcpyDeviceToHost));
 
     constexpr float check_tolerance = 0.001;
     float min_error = std::numeric_limits<float>::max();
@@ -169,32 +160,27 @@ int main(int argc, char *argv[])
 
     int bad_count = 0;
     int good_count = 0;
-    for (int i = 0; i < B_expected.size(); ++i)
-    {
+    for (int i = 0; i < B_expected.size(); ++i) {
         const float error = std::abs(B_expected.at(i) - B_got.at(i));
-        if (error < min_error)
-        {
+        if (error < min_error) {
             min_error = error;
         }
-        if (error > max_error)
-        {
+        if (error > max_error) {
             max_error = error;
         }
         avg_error += error;
 
-        if (error > check_tolerance)
-        {
+        if (error > check_tolerance) {
             ++bad_count;
-        }
-        else
-        {
+        } else {
             ++good_count;
         }
     }
 
     std::cout << "Iterations: " << iterations << std::endl;
 
-    std::cout << "\nWith check_tolerance=" << check_tolerance << ':' << std::endl;
+    std::cout << "\nWith check_tolerance=" << check_tolerance << ':'
+              << std::endl;
     std::cout << "  Good values: " << good_count << std::endl;
     std::cout << "  Bad values: " << bad_count << std::endl;
 
