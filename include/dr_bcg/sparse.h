@@ -4,6 +4,6 @@
 #include <cusolverDn.h>
 #include <cusparse_v2.h>
 
-int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t B,
-           cusparseDnMatDescr_t X, float tolerance = 1e-6,
+int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+           cusparseDnMatDescr_t B, float tolerance = 1e-6,
            int max_iterations = 100);
