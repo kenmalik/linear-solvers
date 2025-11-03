@@ -98,17 +98,17 @@ int main(int argc, char *argv[]) {
 
     cusparseDnMatDescr_t X;
     thrust::device_vector<float> X_v(n * s, 0);
-    float *d_X = thrust::raw_pointer_cast(X_v.data());
-    CUSPARSE_CHECK(
-        cusparseCreateDnMat(&X, n, s, n, d_X, CUDA_R_32F, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, s, n,
+                                       thrust::raw_pointer_cast(X_v.data()),
+                                       CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     cusparseDnMatDescr_t B;
     thrust::device_vector<float> B_v(n * s, 1.0f);
-    float *d_B = thrust::raw_pointer_cast(B_v.data());
-    CUSPARSE_CHECK(
-        cusparseCreateDnMat(&B, n, s, n, d_B, CUDA_R_32F, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, s, n,
+                                       thrust::raw_pointer_cast(B_v.data()),
+                                       CUDA_R_32F, CUSPARSE_ORDER_COL));
 
-    constexpr float tolerance = std::numeric_limits<float>::epsilon();
+    constexpr float tolerance = 1e-6;
     constexpr int max_iterations = 1000;
 
     std::cout << "n: " << n << std::endl;
@@ -119,11 +119,11 @@ int main(int argc, char *argv[]) {
     std::cerr << "Finished!" << std::endl;
 
     // Verification
-    cusparseDnMatDescr_t B_check;
-    float *B_check_d = nullptr;
-    CUDA_CHECK(cudaMalloc(&B_check_d, sizeof(float) * n * s));
-    CUSPARSE_CHECK(cusparseCreateDnMat(&B_check, n, s, n, B_check_d, CUDA_R_32F,
-                                       CUSPARSE_ORDER_COL));
+    cusparseDnMatDescr_t AX;
+    thrust::device_vector<float> AX_v(n * s);
+    CUSPARSE_CHECK(cusparseCreateDnMat(&AX, n, s, n,
+                                       thrust::raw_pointer_cast(AX_v.data()),
+                                       CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     constexpr cusparseOperation_t transpose = CUSPARSE_OPERATION_NON_TRANSPOSE;
     constexpr float alpha = 1;
@@ -133,25 +133,20 @@ int main(int argc, char *argv[]) {
     size_t buffer_size = 0;
 
     CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-        cusparseH, transpose, transpose, &alpha, A, X, &beta, B_check,
-        CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, &buffer_size));
+        cusparseH, transpose, transpose, &alpha, A, X, &beta, AX, CUDA_R_32F,
+        CUSPARSE_SPMM_ALG_DEFAULT, &buffer_size));
 
     if (buffer_size > 0) {
         CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
     }
 
     CUSPARSE_CHECK(cusparseSpMM(cusparseH, transpose, transpose, &alpha, A, X,
-                                &beta, B_check, CUDA_R_32F,
+                                &beta, AX, CUDA_R_32F,
                                 CUSPARSE_SPMM_ALG_DEFAULT, buffer));
 
     if (buffer) {
         CUDA_CHECK(cudaFree(buffer));
     }
-
-    std::vector<float> B_expected(n * s, 1);
-    std::vector<float> B_got(n * s);
-    CUDA_CHECK(cudaMemcpy(B_got.data(), B_check_d, sizeof(float) * B_got.size(),
-                          cudaMemcpyDeviceToHost));
 
     constexpr float check_tolerance = 0.001;
     float min_error = std::numeric_limits<float>::max();
@@ -160,8 +155,12 @@ int main(int argc, char *argv[]) {
 
     int bad_count = 0;
     int good_count = 0;
-    for (int i = 0; i < B_expected.size(); ++i) {
-        const float error = std::abs(B_expected.at(i) - B_got.at(i));
+
+    thrust::host_vector<float> expected = B_v;
+    thrust::host_vector<float> got = AX_v;
+
+    for (int i = 0; i < AX_v.size(); ++i) {
+        const float error = std::abs(expected[i] - got[i]);
         if (error < min_error) {
             min_error = error;
         }
@@ -187,9 +186,8 @@ int main(int argc, char *argv[]) {
     std::cout << "\nSummary:" << std::endl;
     std::cout << "  min_error=" << min_error << std::endl;
     std::cout << "  max_error=" << max_error << std::endl;
-    std::cout << "  avg_error=" << avg_error / B_expected.size() << std::endl;
+    std::cout << "  avg_error=" << avg_error / expected.size() << std::endl;
 
-    CUDA_CHECK(cudaFree(B_check_d));
     CUDA_CHECK(cudaFree(jc_d));
     CUDA_CHECK(cudaFree(ir_d));
     CUDA_CHECK(cudaFree(vals_d));
@@ -199,12 +197,7 @@ int main(int argc, char *argv[]) {
     CUSPARSE_CHECK(cusparseDestroySpMat(A));
     CUSPARSE_CHECK(cusparseDestroyDnMat(X));
     CUSPARSE_CHECK(cusparseDestroyDnMat(B));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(B_check));
-
-    CUSPARSE_CHECK(cusparseDestroy(cusparseH));
-    CUBLAS_CHECK(cublasDestroy_v2(cublasH));
-    CUSOLVER_CHECK(cusolverDnDestroy(cusolverH));
-    CUSOLVER_CHECK(cusolverDnDestroyParams(cusolverP));
+    CUSPARSE_CHECK(cusparseDestroyDnMat(AX));
 
     return 0;
 }
