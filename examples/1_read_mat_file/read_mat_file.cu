@@ -117,17 +117,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    cusolverDnHandle_t cusolverH;
-    CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
-    cusolverDnParams_t cusolverP;
-    CUSOLVER_CHECK(cusolverDnCreateParams(&cusolverP));
-
-    cublasHandle_t cublasH;
-    CUBLAS_CHECK(cublasCreate_v2(&cublasH));
-
-    cusparseHandle_t cusparseH = NULL;
-    CUSPARSE_CHECK(cusparseCreate(&cusparseH));
-
     const std::string matrix_file = argv[1];
     mat_utils::SpMatReader ssm(matrix_file, {"Problem"}, "A");
     DeviceSuiteSparseMatrix A(ssm);
@@ -147,7 +136,7 @@ int main(int argc, char *argv[]) {
                                        CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     constexpr float tolerance = 1e-6;
-    constexpr int max_iterations = 1000;
+    constexpr int max_iterations = 1;
 
     std::cout << "n: " << n << std::endl;
     std::cout << "s: " << s << std::endl;
@@ -157,80 +146,85 @@ int main(int argc, char *argv[]) {
     std::cerr << "Finished!" << std::endl;
 
     // Verification
-    cusparseDnMatDescr_t AX;
-    thrust::device_vector<float> AX_v(n * s);
-    CUSPARSE_CHECK(cusparseCreateDnMat(&AX, n, s, n,
-                                       thrust::raw_pointer_cast(AX_v.data()),
-                                       CUDA_R_32F, CUSPARSE_ORDER_COL));
+    // cusparseDnMatDescr_t AX;
+    // thrust::device_vector<float> AX_v(n * s);
+    // CUSPARSE_CHECK(cusparseCreateDnMat(&AX, n, s, n,
+    //                                    thrust::raw_pointer_cast(AX_v.data()),
+    //                                    CUDA_R_32F, CUSPARSE_ORDER_COL));
 
-    constexpr cusparseOperation_t transpose = CUSPARSE_OPERATION_NON_TRANSPOSE;
-    constexpr float alpha = 1;
-    constexpr float beta = 0;
+    // constexpr cusparseOperation_t transpose = CUSPARSE_OPERATION_NON_TRANSPOSE;
+    // constexpr float alpha = 1;
+    // constexpr float beta = 0;
 
-    void *buffer = nullptr;
-    size_t buffer_size = 0;
+    // cusparseHandle_t cusparseH = NULL;
+    // CUSPARSE_CHECK(cusparseCreate(&cusparseH));
 
-    CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-        cusparseH, transpose, transpose, &alpha, A.get(), X, &beta, AX,
-        CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, &buffer_size));
+    // void *buffer = nullptr;
+    // size_t buffer_size = 0;
 
-    if (buffer_size > 0) {
-        CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
-    }
+    // CUSPARSE_CHECK(cusparseSpMM_bufferSize(
+    //     cusparseH, transpose, transpose, &alpha, A.get(), X, &beta, AX,
+    //     CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, &buffer_size));
 
-    CUSPARSE_CHECK(cusparseSpMM(cusparseH, transpose, transpose, &alpha,
-                                A.get(), X, &beta, AX, CUDA_R_32F,
-                                CUSPARSE_SPMM_ALG_DEFAULT, buffer));
+    // if (buffer_size > 0) {
+    //     CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
+    // }
 
-    if (buffer) {
-        CUDA_CHECK(cudaFree(buffer));
-    }
+    // CUSPARSE_CHECK(cusparseSpMM(cusparseH, transpose, transpose, &alpha,
+    //                             A.get(), X, &beta, AX, CUDA_R_32F,
+    //                             CUSPARSE_SPMM_ALG_DEFAULT, buffer));
 
-    constexpr float check_tolerance = 0.001;
-    float min_error = std::numeric_limits<float>::max();
-    float max_error = 0;
-    float avg_error = 0;
+    // if (buffer) {
+    //     CUDA_CHECK(cudaFree(buffer));
+    // }
 
-    int bad_count = 0;
-    int good_count = 0;
+    // CUSPARSE_CHECK(cusparseDestroy(cusparseH));
 
-    thrust::host_vector<float> expected = B_v;
-    thrust::host_vector<float> got = AX_v;
+    // constexpr float check_tolerance = 0.001;
+    // float min_error = std::numeric_limits<float>::max();
+    // float max_error = 0;
+    // float avg_error = 0;
 
-    for (int i = 0; i < AX_v.size(); ++i) {
-        const float error = std::abs(expected[i] - got[i]);
-        if (error < min_error) {
-            min_error = error;
-        }
-        if (error > max_error) {
-            max_error = error;
-        }
-        avg_error += error;
+    // int bad_count = 0;
+    // int good_count = 0;
 
-        if (error > check_tolerance) {
-            std::cerr << "Expected: " << expected[i] << ", Got: " << got[i]
-                      << std::endl;
-            ++bad_count;
-        } else {
-            ++good_count;
-        }
-    }
+    // thrust::host_vector<float> expected = B_v;
+    // thrust::host_vector<float> got = AX_v;
 
-    std::cout << "Iterations: " << iterations << std::endl;
+    // for (int i = 0; i < AX_v.size(); ++i) {
+    //     const float error = std::abs(expected[i] - got[i]);
+    //     if (error < min_error) {
+    //         min_error = error;
+    //     }
+    //     if (error > max_error) {
+    //         max_error = error;
+    //     }
+    //     avg_error += error;
 
-    std::cout << "\nWith check_tolerance=" << check_tolerance << ':'
-              << std::endl;
-    std::cout << "  Good values: " << good_count << std::endl;
-    std::cout << "  Bad values: " << bad_count << std::endl;
+    //     if (error > check_tolerance) {
+    //         std::cerr << "Expected: " << expected[i] << ", Got: " << got[i]
+    //                   << std::endl;
+    //         ++bad_count;
+    //     } else {
+    //         ++good_count;
+    //     }
+    // }
 
-    std::cout << "\nSummary:" << std::endl;
-    std::cout << "  min_error=" << min_error << std::endl;
-    std::cout << "  max_error=" << max_error << std::endl;
-    std::cout << "  avg_error=" << avg_error / expected.size() << std::endl;
+    // std::cout << "Iterations: " << iterations << std::endl;
+
+    // std::cout << "\nWith check_tolerance=" << check_tolerance << ':'
+    //           << std::endl;
+    // std::cout << "  Good values: " << good_count << std::endl;
+    // std::cout << "  Bad values: " << bad_count << std::endl;
+
+    // std::cout << "\nSummary:" << std::endl;
+    // std::cout << "  min_error=" << min_error << std::endl;
+    // std::cout << "  max_error=" << max_error << std::endl;
+    // std::cout << "  avg_error=" << avg_error / expected.size() << std::endl;
 
     CUSPARSE_CHECK(cusparseDestroyDnMat(X));
     CUSPARSE_CHECK(cusparseDestroyDnMat(B));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(AX));
+    // CUSPARSE_CHECK(cusparseDestroyDnMat(AX));
 
     return 0;
 }

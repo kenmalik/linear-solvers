@@ -115,6 +115,9 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                          d.sigma, n, s, d_R);
     }
 
+    CUDA_CHECK(cudaFree(d_R));
+    CUSPARSE_CHECK(cusparseDestroyDnMat(R));
+
     {
         // s = w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(float) * n * s,
