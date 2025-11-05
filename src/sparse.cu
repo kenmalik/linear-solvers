@@ -74,7 +74,7 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     cublasSnrm2_v2(handles.cublas, n, d_B, incx, &B1_norm);
 
     float *d_R = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_R, sizeof(float) * n * s));
+    CUDA_CHECK(cudaMallocAsync(&d_R, sizeof(float) * n * s, stream));
     cusparseDnMatDescr_t R;
     CUSPARSE_CHECK(
         cusparseCreateDnMat(&R, n, s, n, d_R, CUDA_R_32F, CUSPARSE_ORDER_COL));
@@ -115,7 +115,7 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                          d.sigma, n, s, d_R);
     }
 
-    CUDA_CHECK(cudaFree(d_R));
+    CUDA_CHECK(cudaFreeAsync(d_R, stream));
     CUSPARSE_CHECK(cusparseDestroyDnMat(R));
 
     {
