@@ -392,7 +392,6 @@ void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
                                  "-th parameter is wrong \n");
     }
 
-    const int max_R_col = std::min(m, n);
     copy_upper_triangular(d_R, d_Q, m, n);
 
     // Explicitly compute Q
