@@ -232,9 +232,6 @@ void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
 
     for (int i = 0; i < expected.size(); ++i) {
         float error = std::abs(got[i] - expected[i]);
-        if (error != 1) {
-            std::cerr << got[i] << ", " << expected[i] << std::endl;
-        }
         if (error > max_error) {
             max_error = error;
         }
