@@ -99,10 +99,6 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
 
-        CUSPARSE_CHECK(cusparseSpMM_preprocess(handles.cusparse, op, op, &alpha,
-                                               A, X, &beta, B, compute_type,
-                                               alg, scratch_d));
-
         CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A, X,
                                     &beta, R, compute_type, alg, scratch_d));
 
@@ -146,10 +142,6 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                 compute_type, alg, &buffer_size));
 
             CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
-
-            CUSPARSE_CHECK(cusparseSpMM_preprocess(
-                handles.cusparse, op, op, &alpha, A, s_mat, &beta, temp,
-                compute_type, alg, scratch_d));
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
                                         s_mat, &beta, temp, compute_type, alg,
@@ -252,10 +244,6 @@ int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                 &spmm_beta, w, compute_type, alg, &buffer_size));
 
             CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
-
-            CUSPARSE_CHECK(cusparseSpMM_preprocess(
-                handles.cusparse, spmm_op, spmm_op, &spmm_alpha, A, temp,
-                &spmm_beta, w, compute_type, alg, scratch_d));
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, spmm_op, spmm_op,
                                         &spmm_alpha, A, temp, &spmm_beta, w,
