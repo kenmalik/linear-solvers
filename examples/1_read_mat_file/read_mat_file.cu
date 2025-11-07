@@ -285,7 +285,7 @@ int main(int argc, char *argv[]) {
                                        CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     constexpr float tolerance = 1e-6;
-    constexpr int max_iterations = 1;
+    const int max_iterations = n;
 
     std::cout << "n: " << n << std::endl;
     std::cout << "s: " << s << std::endl;
