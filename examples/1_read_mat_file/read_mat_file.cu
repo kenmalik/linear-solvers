@@ -13,13 +13,6 @@
 #include "dr_bcg/helper.h"
 #include "dr_bcg/sparse.h"
 
-__global__ void set_val(float *A_d, float val, std::size_t num_elements) {
-    const int idx = blockIdx.x * blockDim.y + threadIdx.x;
-    if (idx < num_elements) {
-        A_d[idx] = val;
-    }
-}
-
 class DeviceSuiteSparseMatrix {
   public:
     explicit DeviceSuiteSparseMatrix(mat_utils::SpMatReader &ssm_A) {
