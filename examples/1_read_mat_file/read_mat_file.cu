@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -213,6 +214,7 @@ void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
 struct Args {
     std::string matrix_file;
     int s = 1;
+    std::optional<int> max_iters = std::nullopt;
     bool print_summary = false;
     bool print_help = false;
 };
@@ -221,14 +223,29 @@ Args parse_args(int argc, char *argv[]) {
     Args args;
 
     int positional_number = 0;
+    bool reading_max_iters = false;
 
     for (int i = 1; i < argc; ++i) {
         const char *arg = argv[i];
+
+        if (reading_max_iters) {
+            char *endptr;
+            long max_iters = std::strtol(arg, &endptr, 10);
+            if (*endptr != '\0' ||
+                max_iters > std::numeric_limits<int>::max()) {
+                throw std::invalid_argument("Invalid max iterations");
+            }
+            args.max_iters = max_iters;
+            reading_max_iters = false;
+            continue;
+        }
 
         if (std::strcmp(arg, "-h") == 0) {
             args.print_help = true;
         } else if (std::strcmp(arg, "-s") == 0) {
             args.print_summary = true;
+        } else if (std::strcmp(arg, "-i") == 0) {
+            reading_max_iters = true;
         } else {
             if (positional_number == 0) {
                 args.matrix_file = std::string(arg);
@@ -251,11 +268,14 @@ Args parse_args(int argc, char *argv[]) {
 }
 
 void print_help() {
-    std::cerr << "Usage: ./example_2 [.mat file] [block size]" << std::endl
+    std::cerr << "Usage: ./example_2 [.mat file] [block_size]" << std::endl
               << std::endl;
     std::cerr << "Options:" << std::endl;
     std::cerr << "  -h print this help menu" << std::endl;
     std::cerr << "  -s (default 1) print summary of errors between AX and 1_nxn"
+              << std::endl;
+    std::cerr << "  -i [max_iterations] (default block_size) set the maximum "
+                 "iterations solver will run"
               << std::endl;
 }
 
@@ -292,7 +312,7 @@ int main(int argc, char *argv[]) {
                                        CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     constexpr float tolerance = 1e-6;
-    const int max_iterations = n;
+    const int max_iterations = args.max_iters.has_value() ? *args.max_iters : n;
 
     std::cerr << args.matrix_file << ' ' << n << ' ' << args.s << std::endl;
 
