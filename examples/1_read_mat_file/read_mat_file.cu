@@ -212,7 +212,7 @@ void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
 
 struct Args {
     std::string matrix_file;
-    long s = 1;
+    int s = 1;
     bool print_summary = false;
     bool print_help = false;
 };
@@ -221,7 +221,6 @@ Args parse_args(int argc, char *argv[]) {
     Args args;
 
     int positional_number = 0;
-    char *endptr = nullptr;
 
     for (int i = 1; i < argc; ++i) {
         const char *arg = argv[i];
@@ -231,17 +230,17 @@ Args parse_args(int argc, char *argv[]) {
         } else if (std::strcmp(arg, "-s") == 0) {
             args.print_summary = true;
         } else {
-            switch (positional_number) {
-            case 0:
+            if (positional_number == 0) {
                 args.matrix_file = std::string(arg);
-                break;
-            case 1:
-                args.s = std::strtol(arg, &endptr, 10);
-                if (*endptr != '\0') {
+            } else if (positional_number == 1) {
+                char *endptr;
+                long s = std::strtol(arg, &endptr, 10);
+                if (*endptr != '\0' || s > std::numeric_limits<int>::max()) {
                     throw std::invalid_argument("Invalid block size");
                 }
-                break;
-            default:
+
+                args.s = s;
+            } else {
                 throw std::invalid_argument("Invalid argument count");
             }
             ++positional_number;
@@ -255,8 +254,7 @@ void print_help() {
     std::cerr << "Usage: ./example_2 [.mat file] [block size]" << std::endl
               << std::endl;
     std::cerr << "Options:" << std::endl;
-    std::cerr << "  -h print this help menu"
-              << std::endl;
+    std::cerr << "  -h print this help menu" << std::endl;
     std::cerr << "  -s (default 1) print summary of errors between AX and 1_nxn"
               << std::endl;
 }
