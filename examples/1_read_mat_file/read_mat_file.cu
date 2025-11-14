@@ -23,30 +23,12 @@ __global__ void set_val(float *A_d, float val, size_t num_elements) {
 class DeviceSuiteSparseMatrix {
   public:
     explicit DeviceSuiteSparseMatrix(mat_utils::SpMatReader &ssm_A) {
-        // Add debug prints for input matrix
-        std::cout << "Input matrix (CSC format):\n";
-        std::cout << "  rows: " << ssm_A.rows() << "\n";
-        std::cout << "  cols: " << ssm_A.cols() << "\n";
-        std::cout << "  nnz: " << ssm_A.nnz() << "\n";
-
-        // Print first few entries of input CSC format
-        std::cout << "First 5 column pointers (jc): ";
-        for (size_t i = 0; i < std::min(size_t(5), ssm_A.cols() + 1); ++i) {
-            std::cout << ssm_A.jc()[i] << " ";
-        }
-        std::cout << "\n";
-
-        std::cout << "First 5 row indices (ir): ";
-        for (size_t i = 0; i < std::min(size_t(5), ssm_A.nnz()); ++i) {
-            std::cout << ssm_A.ir()[i] << " ";
-        }
-        std::cout << "\n";
-
         size_t min_row =
             *std::min_element(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
         size_t min_col = ssm_A.jc()[0];
         bool is_one_based = (min_row == 1 || min_col == 1);
         assert(!is_one_based && "Matrix is expected to be 0 based");
+
         {
             // For SPD, verify diagonal entries exist and are positive
             std::vector<bool> has_diag(ssm_A.rows(), false);
@@ -69,15 +51,6 @@ class DeviceSuiteSparseMatrix {
 
             assert(missing_diags == 0 && "SPD check: no missing diagonals");
             assert(negative_diags == 0 && "SPD check: all diagonals positive");
-
-            if (!diag_vals.empty()) {
-                std::cout << "  First few diagonal values:";
-                for (size_t i = 0; i < std::min(size_t(5), diag_vals.size());
-                     ++i) {
-                    std::cout << " " << diag_vals[i];
-                }
-                std::cout << "\n";
-            }
         }
 
         // Adjust indices if 1-based
@@ -116,16 +89,6 @@ class DeviceSuiteSparseMatrix {
                 csrColInd[insertPos] = j;
                 csrVal[insertPos] = static_cast<float>(ssm_A.data()[p]);
             }
-        }
-
-        // Debug print actual matrix structure
-        std::cout << "\nVerifying CSR conversion for first few rows:\n";
-        for (size_t i = 0; i < std::min(size_t(5), ssm_A.rows()); ++i) {
-            std::cout << "Row " << i << " entries: ";
-            for (size_t j = csrRowPtr[i]; j < csrRowPtr[i + 1]; ++j) {
-                std::cout << "(" << csrColInd[j] << "," << csrVal[j] << ") ";
-            }
-            std::cout << "\n";
         }
 
         // Convert host indices to int64_t
@@ -183,7 +146,8 @@ class DeviceSuiteSparseMatrix {
 };
 
 void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
-            const thrust::device_vector<float> &B_v) {
+            const thrust::device_vector<float> &B_v,
+            bool print_summary = false) {
     thrust::device_vector<float> AX_v(n * s);
     float *d_AX = thrust::raw_pointer_cast(AX_v.data());
     cusparseDnMatDescr_t AX;
@@ -242,56 +206,82 @@ void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
     }
     avg_error /= expected.size();
 
-    std::cerr << "Summary:" << std::endl;
-    std::cerr << "Max Error: " << max_error << std::endl;
-    std::cerr << "Min Error: " << min_error << std::endl;
-    std::cerr << "Avg Error: " << avg_error << std::endl;
+    if (print_summary) {
+        std::cerr << "Summary:" << std::endl;
+        std::cerr << "Max Error: " << max_error << std::endl;
+        std::cerr << "Min Error: " << min_error << std::endl;
+        std::cerr << "Avg Error: " << avg_error << std::endl;
+    }
+}
+
+struct Args {
+    std::string matrix_file;
+    int s = 1;
+    bool print_summary = false;
+};
+
+Args parse_args(int argc, char *argv[]) {
+    Args args;
+
+    int positional_number = 0;
+
+    for (int i = 1; i < argc; ++i) {
+        const char *arg = argv[i];
+
+        if (std::strcmp(arg, "-s") == 0) {
+            args.print_summary = true;
+        } else {
+            switch (positional_number) {
+            case 0:
+                args.matrix_file = std::string(arg);
+                break;
+            case 1:
+                args.s = std::atoi(arg);
+                break;
+            default:
+                throw std::invalid_argument("Invalid argument count");
+            }
+            ++positional_number;
+        }
+    }
+
+    return args;
 }
 
 int main(int argc, char *argv[]) {
-    int s;
+    Args args;
     try {
-        if (argc == 2) {
-            s = 1;
-        } else if (argc == 3) {
-            s = std::atoi(argv[2]);
-        } else {
-            throw std::invalid_argument("Invalid arg count");
-        }
+        args = parse_args(argc, argv);
     } catch (const std::exception &e) {
         std::cerr << "Usage: ./example_2 [.mat file] [block size]" << std::endl;
         return 1;
     }
 
-    const std::string matrix_file = argv[1];
-    mat_utils::SpMatReader ssm(matrix_file, {"Problem"}, "A");
+    mat_utils::SpMatReader ssm(args.matrix_file, {"Problem"}, "A");
     DeviceSuiteSparseMatrix A(ssm);
 
     const int n = ssm.rows();
 
     cusparseDnMatDescr_t X;
-    thrust::device_vector<float> X_v(n * s, 0.0f);
-    CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, s, n,
+    thrust::device_vector<float> X_v(n * args.s, 0.0f);
+    CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n,
                                        thrust::raw_pointer_cast(X_v.data()),
                                        CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     cusparseDnMatDescr_t B;
-    thrust::device_vector<float> B_v(n * s, 1.0f);
-    CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, s, n,
+    thrust::device_vector<float> B_v(n * args.s, 1.0f);
+    CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n,
                                        thrust::raw_pointer_cast(B_v.data()),
                                        CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     constexpr float tolerance = 1e-6;
     const int max_iterations = n;
 
-    std::cout << "n: " << n << std::endl;
-    std::cout << "s: " << s << std::endl;
+    std::cerr << args.matrix_file << ' ' << n << ' ' << args.s << std::endl;
 
-    std::cerr << "Running..." << std::endl;
     int iterations = dr_bcg(A.get(), X, B, tolerance, max_iterations);
-    std::cerr << "Finished!" << std::endl;
 
-    verify(A.get(), X, n, s, B_v);
+    verify(A.get(), X, n, args.s, B_v, args.print_summary);
 
     return 0;
 }
