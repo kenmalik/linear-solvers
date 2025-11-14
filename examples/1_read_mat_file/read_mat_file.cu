@@ -27,7 +27,8 @@ class DeviceSuiteSparseMatrix {
             std::vector<bool> has_diag(ssm_A.rows(), false);
             std::vector<double> diag_vals;
             for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
-                for (std::size_t p = ssm_A.jc()[j]; p < ssm_A.jc()[j + 1]; ++p) {
+                for (std::size_t p = ssm_A.jc()[j]; p < ssm_A.jc()[j + 1];
+                     ++p) {
                     std::size_t i = ssm_A.ir()[p];
                     if (i == j) {
                         has_diag[i] = true;
@@ -48,9 +49,11 @@ class DeviceSuiteSparseMatrix {
 
         // Adjust indices if 1-based
         std::vector<std::size_t> ir_adj(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
-        std::vector<std::size_t> jc_adj(ssm_A.jc(), ssm_A.jc() + ssm_A.cols() + 1);
+        std::vector<std::size_t> jc_adj(ssm_A.jc(),
+                                        ssm_A.jc() + ssm_A.cols() + 1);
 
-        CUDA_CHECK(cudaMalloc(&d_rowPtr, sizeof(std::int64_t) * (ssm_A.rows() + 1)));
+        CUDA_CHECK(
+            cudaMalloc(&d_rowPtr, sizeof(std::int64_t) * (ssm_A.rows() + 1)));
         CUDA_CHECK(cudaMalloc(&d_colInd, sizeof(std::int64_t) * ssm_A.nnz()));
         CUDA_CHECK(cudaMalloc(&d_vals, sizeof(float) * ssm_A.nnz()));
 
@@ -209,19 +212,23 @@ void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
 
 struct Args {
     std::string matrix_file;
-    int s = 1;
+    long s = 1;
     bool print_summary = false;
+    bool print_help = false;
 };
 
 Args parse_args(int argc, char *argv[]) {
     Args args;
 
     int positional_number = 0;
+    char *endptr = nullptr;
 
     for (int i = 1; i < argc; ++i) {
         const char *arg = argv[i];
 
-        if (std::strcmp(arg, "-s") == 0) {
+        if (std::strcmp(arg, "-h") == 0) {
+            args.print_help = true;
+        } else if (std::strcmp(arg, "-s") == 0) {
             args.print_summary = true;
         } else {
             switch (positional_number) {
@@ -229,7 +236,10 @@ Args parse_args(int argc, char *argv[]) {
                 args.matrix_file = std::string(arg);
                 break;
             case 1:
-                args.s = std::atoi(arg);
+                args.s = std::strtol(arg, &endptr, 10);
+                if (*endptr != '\0') {
+                    throw std::invalid_argument("Invalid block size");
+                }
                 break;
             default:
                 throw std::invalid_argument("Invalid argument count");
@@ -241,13 +251,29 @@ Args parse_args(int argc, char *argv[]) {
     return args;
 }
 
+void print_help() {
+    std::cerr << "Usage: ./example_2 [.mat file] [block size]" << std::endl
+              << std::endl;
+    std::cerr << "Options:" << std::endl;
+    std::cerr << "  -h print this help menu"
+              << std::endl;
+    std::cerr << "  -s (default 1) print summary of errors between AX and 1_nxn"
+              << std::endl;
+}
+
 int main(int argc, char *argv[]) {
     Args args;
     try {
         args = parse_args(argc, argv);
     } catch (const std::exception &e) {
-        std::cerr << "Usage: ./example_2 [.mat file] [block size]" << std::endl;
+        std::cerr << "Error: " << e.what() << std::endl << std::endl;
+        print_help();
         return 1;
+    }
+
+    if (args.print_help) {
+        print_help();
+        return 0;
     }
 
     mat_utils::SpMatReader ssm(args.matrix_file, {"Problem"}, "A");
