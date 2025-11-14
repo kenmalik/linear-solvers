@@ -13,7 +13,7 @@
 #include "dr_bcg/helper.h"
 #include "dr_bcg/sparse.h"
 
-__global__ void set_val(float *A_d, float val, size_t num_elements) {
+__global__ void set_val(float *A_d, float val, std::size_t num_elements) {
     const int idx = blockIdx.x * blockDim.y + threadIdx.x;
     if (idx < num_elements) {
         A_d[idx] = val;
@@ -23,9 +23,9 @@ __global__ void set_val(float *A_d, float val, size_t num_elements) {
 class DeviceSuiteSparseMatrix {
   public:
     explicit DeviceSuiteSparseMatrix(mat_utils::SpMatReader &ssm_A) {
-        size_t min_row =
+        std::size_t min_row =
             *std::min_element(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
-        size_t min_col = ssm_A.jc()[0];
+        std::size_t min_col = ssm_A.jc()[0];
         bool is_one_based = (min_row == 1 || min_col == 1);
         assert(!is_one_based && "Matrix is expected to be 0 based");
 
@@ -33,9 +33,9 @@ class DeviceSuiteSparseMatrix {
             // For SPD, verify diagonal entries exist and are positive
             std::vector<bool> has_diag(ssm_A.rows(), false);
             std::vector<double> diag_vals;
-            for (size_t j = 0; j < ssm_A.cols(); ++j) {
-                for (size_t p = ssm_A.jc()[j]; p < ssm_A.jc()[j + 1]; ++p) {
-                    size_t i = ssm_A.ir()[p];
+            for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
+                for (std::size_t p = ssm_A.jc()[j]; p < ssm_A.jc()[j + 1]; ++p) {
+                    std::size_t i = ssm_A.ir()[p];
                     if (i == j) {
                         has_diag[i] = true;
                         diag_vals.push_back(ssm_A.data()[p]);
@@ -54,38 +54,38 @@ class DeviceSuiteSparseMatrix {
         }
 
         // Adjust indices if 1-based
-        std::vector<size_t> ir_adj(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
-        std::vector<size_t> jc_adj(ssm_A.jc(), ssm_A.jc() + ssm_A.cols() + 1);
+        std::vector<std::size_t> ir_adj(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
+        std::vector<std::size_t> jc_adj(ssm_A.jc(), ssm_A.jc() + ssm_A.cols() + 1);
 
-        CUDA_CHECK(cudaMalloc(&d_rowPtr, sizeof(int64_t) * (ssm_A.rows() + 1)));
-        CUDA_CHECK(cudaMalloc(&d_colInd, sizeof(int64_t) * ssm_A.nnz()));
+        CUDA_CHECK(cudaMalloc(&d_rowPtr, sizeof(std::int64_t) * (ssm_A.rows() + 1)));
+        CUDA_CHECK(cudaMalloc(&d_colInd, sizeof(std::int64_t) * ssm_A.nnz()));
         CUDA_CHECK(cudaMalloc(&d_vals, sizeof(float) * ssm_A.nnz()));
 
         // Step 1: Count entries per row to build CSR row pointers
-        std::vector<size_t> rowCounts(ssm_A.rows(), 0);
-        for (size_t j = 0; j < ssm_A.cols(); ++j) {
-            for (size_t p = jc_adj[j]; p < jc_adj[j + 1]; ++p) {
-                size_t row = ir_adj[p];
+        std::vector<std::size_t> rowCounts(ssm_A.rows(), 0);
+        for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
+            for (std::size_t p = jc_adj[j]; p < jc_adj[j + 1]; ++p) {
+                std::size_t row = ir_adj[p];
                 ++rowCounts[row];
             }
         }
 
         // Step 2: Compute row pointer array
-        std::vector<size_t> csrRowPtr(ssm_A.rows() + 1, 0);
-        for (size_t i = 0; i < ssm_A.rows(); ++i) {
+        std::vector<std::size_t> csrRowPtr(ssm_A.rows() + 1, 0);
+        for (std::size_t i = 0; i < ssm_A.rows(); ++i) {
             csrRowPtr[i + 1] = csrRowPtr[i] + rowCounts[i];
         }
 
         // Step 3: Fill CSR arrays using another pass
-        std::vector<size_t> rowInsertPos =
+        std::vector<std::size_t> rowInsertPos =
             csrRowPtr; // Current insert position for each row
-        std::vector<size_t> csrColInd(ssm_A.nnz());
+        std::vector<std::size_t> csrColInd(ssm_A.nnz());
         std::vector<float> csrVal(ssm_A.nnz());
 
-        for (size_t j = 0; j < ssm_A.cols(); ++j) {
-            for (size_t p = jc_adj[j]; p < jc_adj[j + 1]; ++p) {
-                size_t row = ir_adj[p];
-                size_t insertPos = rowInsertPos[row]++;
+        for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
+            for (std::size_t p = jc_adj[j]; p < jc_adj[j + 1]; ++p) {
+                std::size_t row = ir_adj[p];
+                std::size_t insertPos = rowInsertPos[row]++;
                 csrColInd[insertPos] = j;
                 csrVal[insertPos] = static_cast<float>(ssm_A.data()[p]);
             }
@@ -103,10 +103,10 @@ class DeviceSuiteSparseMatrix {
                        csrColInd64.begin(), to_int64);
 
         CUDA_CHECK(cudaMemcpy(d_rowPtr, csrRowPtr64.data(),
-                              sizeof(int64_t) * csrRowPtr64.size(),
+                              sizeof(std::int64_t) * csrRowPtr64.size(),
                               cudaMemcpyHostToDevice));
         CUDA_CHECK(cudaMemcpy(d_colInd, csrColInd64.data(),
-                              sizeof(int64_t) * csrColInd64.size(),
+                              sizeof(std::int64_t) * csrColInd64.size(),
                               cudaMemcpyHostToDevice));
         CUDA_CHECK(cudaMemcpy(d_vals, csrVal.data(),
                               sizeof(float) * csrVal.size(),
@@ -139,8 +139,8 @@ class DeviceSuiteSparseMatrix {
     cusparseSpMatDescr_t &get() { return A_; }
 
   private:
-    int64_t *d_rowPtr = nullptr;
-    int64_t *d_colInd = nullptr;
+    std::int64_t *d_rowPtr = nullptr;
+    std::int64_t *d_colInd = nullptr;
     float *d_vals = nullptr;
     cusparseSpMatDescr_t A_{};
 };
