@@ -420,54 +420,47 @@ TEST(QR_Factorization, ProductOfFactorsIsA) {
 
 #endif // DR_BCG_USE_THIN_QR
 
-// Copy upper triangular-like, even if source matrix may be taller than
-// destination matrix
-TEST(CopyUpperTriangular, OutputCorrect) {
-    constexpr int m = 16;
-    constexpr int n = 8;
+TEST(CopyUpperTriangular, CopyFromSquareMatrix) {
+    constexpr int n = 3;
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> distrib(0, 1);
+    thrust::device_vector<float> dv_A(n * n);
+    thrust::fill(dv_A.begin(), dv_A.end(), 3.0f);
+    float *d_A = thrust::raw_pointer_cast(dv_A.data());
 
-    std::vector<float> A(m * n);
-    std::generate(A.begin(), A.end(), [&]() { return distrib(gen); });
+    thrust::device_vector<float> dv_B(n * n, 1.0f);
+    float *d_B = thrust::raw_pointer_cast(dv_B.data());
 
-    std::vector<float> copy_expected(n * n);
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j <= i; j++) // Matrix is stored in column-major order
-        {
-            copy_expected.at(i * n + j) = A.at(i * m + j);
-        }
-    }
+    copy_upper_triangular(d_B, d_A, n, n);
 
-    std::vector<float> copy_got(copy_expected.size());
+    std::vector<float> expected = {3.0f, 1.0f, 1.0f, 3.0f, 3.0f,
+                                   1.0f, 3.0f, 3.0f, 3.0f};
 
-    float *d_A = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_A, sizeof(float) * A.size()));
-    CUDA_CHECK(cudaMemcpy(d_A, A.data(), sizeof(float) * A.size(),
-                          cudaMemcpyHostToDevice));
+    thrust::host_vector<float> hv_expected(expected.begin(), expected.end());
+    thrust::host_vector<float> hv_got = dv_B;
 
-    float *d_copy = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_copy, sizeof(float) * copy_got.size()));
+    ASSERT_TRUE(match(hv_expected, hv_got));
+}
 
-    copy_upper_triangular(d_copy, d_A, m, n);
+TEST(CopyUpperTriangular, CopyFromTallMatrix) {
+    constexpr int m = 6;
+    constexpr int n = 3;
 
-    CUDA_CHECK(cudaMemcpy(copy_got.data(), d_copy,
-                          sizeof(float) * copy_got.size(),
-                          cudaMemcpyDeviceToHost));
+    thrust::device_vector<float> dv_A(m * n);
+    thrust::fill(dv_A.begin(), dv_A.end(), 3.0f);
+    float *d_A = thrust::raw_pointer_cast(dv_A.data());
 
-    CUDA_CHECK(cudaFree(d_A));
-    CUDA_CHECK(cudaFree(d_copy));
+    thrust::device_vector<float> dv_B(n * n, 1.0f);
+    float *d_B = thrust::raw_pointer_cast(dv_B.data());
 
-    std::cerr << "Original Matrix" << std::endl;
-    print_matrix(A.data(), m, n);
-    std::cerr << "Expected" << std::endl;
-    print_matrix(copy_expected.data(), n, n);
-    std::cerr << "Got" << std::endl;
-    print_matrix(copy_got.data(), n, n);
+    copy_upper_triangular(d_B, d_A, m, n);
 
-    ASSERT_EQ(copy_expected, copy_got);
+    std::vector<float> expected = {3.0f, 1.0f, 1.0f, 3.0f, 3.0f,
+                                   1.0f, 3.0f, 3.0f, 3.0f};
+
+    thrust::host_vector<float> hv_expected(expected.begin(), expected.end());
+    thrust::host_vector<float> hv_got = dv_B;
+
+    ASSERT_TRUE(match(hv_expected, hv_got));
 }
 
 TEST(SPTRI_LeftMultiply, IdentityStaysSame) {
