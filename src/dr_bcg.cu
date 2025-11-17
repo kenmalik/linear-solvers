@@ -299,6 +299,7 @@ dr_bcg::dr_bcg(cusolverDnHandle_t cusolverH, cusolverDnParams_t cusolverParams,
                                     &relative_residual_norm));
         relative_residual_norm /= B1_norm;
 
+        DEBUG_LOG(relative_residual_norm);
         if (relative_residual_norm < tolerance) {
             break;
         } else {
