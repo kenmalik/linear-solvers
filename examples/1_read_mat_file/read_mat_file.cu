@@ -316,7 +316,7 @@ int main(int argc, char *argv[]) {
 
     std::cerr << args.matrix_file << ' ' << n << ' ' << args.s << std::endl;
 
-    int iterations = dr_bcg(A.get(), X, B, tolerance, max_iterations);
+    int iterations = dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations);
 
     verify(A.get(), X, n, args.s, B_v, args.print_summary);
 

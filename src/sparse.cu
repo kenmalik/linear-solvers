@@ -46,8 +46,9 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
     return {n, s};
 }
 
-int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-           cusparseDnMatDescr_t B, float tolerance, int max_iterations) {
+int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+                   cusparseDnMatDescr_t B, float tolerance,
+                   int max_iterations) {
     auto [n, s] = get_size(B);
     DeviceBuffer d(n, s);
 
