@@ -13,6 +13,7 @@ add_library(dr_bcg
     "helper.cu"
     "device_buffer.cu"
     "sparse.cu"
+    "dense.cu"
 )
 target_include_directories(dr_bcg PUBLIC "${CMAKE_SOURCE_DIR}/include")
 
