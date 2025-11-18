@@ -8,18 +8,19 @@
 
 #include <iostream>
 
-struct HandlesD {
+namespace {
+struct Handles {
     cublasHandle_t cublas;
     cusolverDnHandle_t cusolver;
     cusolverDnParams_t cusolver_params;
 
-    HandlesD() {
+    Handles() {
         CUBLAS_CHECK(cublasCreate_v2(&cublas));
         CUSOLVER_CHECK(cusolverDnCreate(&cusolver));
         CUSOLVER_CHECK(cusolverDnCreateParams(&cusolver_params));
     }
 
-    ~HandlesD() {
+    ~Handles() {
         CUBLAS_CHECK(cublasDestroy_v2(cublas));
         CUSOLVER_CHECK(cusolverDnDestroy(cusolver));
         CUSOLVER_CHECK(cusolverDnDestroyParams(cusolver_params));
@@ -30,6 +31,7 @@ struct HandlesD {
         CUSOLVER_CHECK(cusolverDnSetStream(cusolver, stream));
     }
 };
+} // namespace
 
 int dr_bcg::dr_bcg(float *d_A, float *d_X, float *d_B, std::int64_t n,
                    std::int64_t s, float tolerance,
@@ -39,7 +41,7 @@ int dr_bcg::dr_bcg(float *d_A, float *d_X, float *d_B, std::int64_t n,
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream));
 
-    HandlesD h;
+    Handles h;
     h.set_stream(stream);
 
     DeviceBuffer d(n, s);

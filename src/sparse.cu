@@ -5,6 +5,7 @@
 #include <iostream>
 #include <tuple>
 
+namespace {
 struct Handles {
     cusparseHandle_t cusparse;
     cusolverDnHandle_t cusolver;
@@ -45,6 +46,7 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
 
     return {n, s};
 }
+} // namespace
 
 int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                    cusparseDnMatDescr_t B, float tolerance,
