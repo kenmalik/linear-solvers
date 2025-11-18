@@ -11,6 +11,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 
+#include "dr_bcg/dense.h"
 #include "dr_bcg/helper.h"
 #include "dr_bcg/sparse.h"
 
@@ -217,6 +218,7 @@ struct Args {
     std::optional<int> max_iters = std::nullopt;
     bool print_summary = false;
     bool print_help = false;
+    bool dense = false;
 };
 
 Args parse_args(int argc, char *argv[]) {
@@ -244,6 +246,8 @@ Args parse_args(int argc, char *argv[]) {
             args.print_help = true;
         } else if (std::strcmp(arg, "-s") == 0) {
             args.print_summary = true;
+        } else if (std::strcmp(arg, "--dense") == 0) {
+            args.dense = true;
         } else if (std::strcmp(arg, "-i") == 0) {
             reading_max_iters = true;
         } else {
@@ -301,24 +305,56 @@ int main(int argc, char *argv[]) {
 
     cusparseDnMatDescr_t X;
     thrust::device_vector<float> X_v(n * args.s, 0.0f);
-    CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n,
-                                       thrust::raw_pointer_cast(X_v.data()),
-                                       CUDA_R_32F, CUSPARSE_ORDER_COL));
+    float *d_X = thrust::raw_pointer_cast(X_v.data());
+    CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n, d_X, CUDA_R_32F,
+                                       CUSPARSE_ORDER_COL));
 
     cusparseDnMatDescr_t B;
     thrust::device_vector<float> B_v(n * args.s, 1.0f);
-    CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n,
-                                       thrust::raw_pointer_cast(B_v.data()),
-                                       CUDA_R_32F, CUSPARSE_ORDER_COL));
+    float *d_B = thrust::raw_pointer_cast(B_v.data());
+    CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_32F,
+                                       CUSPARSE_ORDER_COL));
 
     constexpr float tolerance = 1e-6;
     const int max_iterations = args.max_iters.has_value() ? *args.max_iters : n;
 
     std::cerr << args.matrix_file << ' ' << n << ' ' << args.s << std::endl;
 
-    int iterations = dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations);
+    int iterations = 0;
+    if (args.dense) {
+        cusparseHandle_t cusparseH;
+        CUSPARSE_CHECK(cusparseCreate(&cusparseH));
 
-    verify(A.get(), X, n, args.s, B_v, args.print_summary);
+        cusparseDnMatDescr_t A_dense;
+        float *d_A_dense = nullptr;
+        CUDA_CHECK(cudaMalloc(&d_A_dense, sizeof(float) * n * n));
+        CUSPARSE_CHECK(cusparseCreateDnMat(&A_dense, n, n, n, d_A_dense,
+                                           CUDA_R_32F, CUSPARSE_ORDER_COL));
+
+        void *buffer = nullptr;
+        std::size_t buffer_size = 0;
+        CUSPARSE_CHECK(cusparseSparseToDense_bufferSize(
+            cusparseH, A.get(), A_dense, CUSPARSE_SPARSETODENSE_ALG_DEFAULT,
+            &buffer_size));
+        CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
+
+        CUSPARSE_CHECK(cusparseSparseToDense(cusparseH, A.get(), A_dense,
+                                             CUSPARSE_SPARSETODENSE_ALG_DEFAULT,
+                                             buffer));
+
+        iterations = dr_bcg::dr_bcg(d_A_dense, d_X, d_B, n, args.s, tolerance,
+                                    max_iterations);
+
+        CUDA_CHECK(cudaFree(buffer));
+        CUSPARSE_CHECK(cusparseDestroyDnMat(A_dense));
+        CUDA_CHECK(cudaFree(d_A_dense));
+        CUSPARSE_CHECK(cusparseDestroy(cusparseH));
+    } else {
+        iterations = dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations);
+        verify(A.get(), X, n, args.s, B_v, args.print_summary);
+    }
+
+    std::cout << "Iterations: " << iterations << std::endl;
 
     return 0;
 }
