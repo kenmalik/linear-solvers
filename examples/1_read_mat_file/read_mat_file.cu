@@ -1,5 +1,6 @@
 #include <cassert>
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -8,6 +9,7 @@
 #include <vector>
 
 #include <mat_utils/mat_reader.h>
+#include <mat_utils/mat_writer.h>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 
@@ -216,6 +218,7 @@ struct Args {
     std::string matrix_file;
     int s = 1;
     std::optional<int> max_iters = std::nullopt;
+    std::optional<std::filesystem::path> out_file = std::nullopt;
     bool print_summary = false;
     bool print_help = false;
     bool dense = false;
@@ -226,6 +229,7 @@ Args parse_args(int argc, char *argv[]) {
 
     int positional_number = 0;
     bool reading_max_iters = false;
+    bool reading_out_file = false;
 
     for (int i = 1; i < argc; ++i) {
         const char *arg = argv[i];
@@ -239,10 +243,15 @@ Args parse_args(int argc, char *argv[]) {
             }
             args.max_iters = max_iters;
             reading_max_iters = false;
-            continue;
-        }
-
-        if (std::strcmp(arg, "-h") == 0) {
+        } else if (reading_out_file) {
+            std::filesystem::path out_file{arg};
+            if (std::filesystem::exists(out_file)) {
+                throw std::invalid_argument(
+                    "Output file already exists. Cannot overwrite.");
+            }
+            args.out_file = out_file;
+            reading_out_file = false;
+        } else if (std::strcmp(arg, "-h") == 0) {
             args.print_help = true;
         } else if (std::strcmp(arg, "-s") == 0) {
             args.print_summary = true;
@@ -250,6 +259,8 @@ Args parse_args(int argc, char *argv[]) {
             args.dense = true;
         } else if (std::strcmp(arg, "-i") == 0) {
             reading_max_iters = true;
+        } else if (std::strcmp(arg, "-o") == 0) {
+            reading_out_file = true;
         } else {
             if (positional_number == 0) {
                 args.matrix_file = std::string(arg);
@@ -280,6 +291,8 @@ void print_help() {
               << std::endl;
     std::cerr << "  -i [max_iterations] (default block_size) set the maximum "
                  "iterations solver will run"
+              << std::endl;
+    std::cerr << "  -o [output_file] set file to output final X to"
               << std::endl;
 }
 
@@ -355,6 +368,12 @@ int main(int argc, char *argv[]) {
     }
 
     std::cout << "Iterations: " << iterations << std::endl;
+
+    if (args.out_file) {
+        std::vector<float> X_final(X_v.begin(), X_v.end());
+        mat_utils::MatWriter w(*args.out_file);
+        w.write_dense("X", X_final, n, args.s);
+    }
 
     return 0;
 }
