@@ -236,7 +236,32 @@ int main(int argc, char *argv[]) {
 
         int iterations = 0;
         if (args.dense) {
-            std::cerr << "Double dense currently not supported" << std::endl;
+            cusparseHandle_t cusparseH;
+            CUSPARSE_CHECK(cusparseCreate(&cusparseH));
+
+            cusparseDnMatDescr_t A_dense;
+            thrust::device_vector<double> A_dense_v(n * n);
+            double *d_A_dense = thrust::raw_pointer_cast(A_dense_v.data());
+            CUSPARSE_CHECK(cusparseCreateDnMat(&A_dense, n, n, n, d_A_dense,
+                                               CUDA_R_64F, CUSPARSE_ORDER_COL));
+
+            void *buffer = nullptr;
+            std::size_t buffer_size = 0;
+            CUSPARSE_CHECK(cusparseSparseToDense_bufferSize(
+                cusparseH, A.get(), A_dense, CUSPARSE_SPARSETODENSE_ALG_DEFAULT,
+                &buffer_size));
+            CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
+
+            CUSPARSE_CHECK(cusparseSparseToDense(
+                cusparseH, A.get(), A_dense, CUSPARSE_SPARSETODENSE_ALG_DEFAULT,
+                buffer));
+
+            iterations = dr_bcg::dr_bcg(d_A_dense, d_X, d_B, n, args.s,
+                                        tolerance, max_iterations);
+
+            CUDA_CHECK(cudaFree(buffer));
+            CUSPARSE_CHECK(cusparseDestroyDnMat(A_dense));
+            CUSPARSE_CHECK(cusparseDestroy(cusparseH));
         } else {
             iterations =
                 dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations);
