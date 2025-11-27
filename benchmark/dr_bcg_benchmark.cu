@@ -145,12 +145,12 @@ protected:
         return {d_X, d_B};
     }
 
-    DeviceBuffer filled_device_buffer(
+    DeviceBuffer<float> filled_device_buffer(
         cusolverDnHandle_t &cusolverH, cusolverDnParams_t &cusolverParams, cublasHandle_t &cublasH,
         const int m, const int n,
         const float *d_A, float *d_X, float *d_B)
     {
-        DeviceBuffer d(m, n);
+        DeviceBuffer<float> d(m, n);
 
         float *d_R;
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_R), sizeof(float) * m * n));
@@ -213,7 +213,7 @@ BENCHMARK_DEFINE_F(DR_BCG_Benchmark, get_xi)(benchmark::State &state)
     auto [d_X, d_B] = initialize_inputs(m, n);
     nvtx3::mark("get_xi (" + std::to_string(m) + ", " + std::to_string(n) + ")");
 
-    DeviceBuffer d = filled_device_buffer(cusolverH, cusolverParams, cublasH, m, n, d_A, d_X, d_B);
+    DeviceBuffer<float> d = filled_device_buffer(cusolverH, cusolverParams, cublasH, m, n, d_A, d_X, d_B);
     CUDA_CHECK(cudaDeviceSynchronize());
 
     for (auto _ : state)
@@ -238,7 +238,7 @@ BENCHMARK_DEFINE_F(DR_BCG_Benchmark, get_next_X)(benchmark::State &state)
     auto [d_X, d_B] = initialize_inputs(m, n);
     nvtx3::mark("get_next_X (" + std::to_string(m) + ", " + std::to_string(n) + ")");
 
-    DeviceBuffer d = filled_device_buffer(cusolverH, cusolverParams, cublasH, m, n, d_A, d_X, d_B);
+    DeviceBuffer<float> d = filled_device_buffer(cusolverH, cusolverParams, cublasH, m, n, d_A, d_X, d_B);
     CUDA_CHECK(cudaDeviceSynchronize());
 
     dr_bcg::get_xi(cusolverH, cusolverParams, cublasH, m, n, d, d_A);
@@ -270,7 +270,7 @@ BENCHMARK_DEFINE_F(DR_BCG_Benchmark, get_w_zeta)(benchmark::State &state)
     auto [d_X, d_B] = initialize_inputs(m, n);
     nvtx3::mark("get_w_zeta (" + std::to_string(m) + ", " + std::to_string(n) + ")");
 
-    DeviceBuffer d = filled_device_buffer(cusolverH, cusolverParams, cublasH, m, n, d_A, d_X, d_B);
+    DeviceBuffer<float> d = filled_device_buffer(cusolverH, cusolverParams, cublasH, m, n, d_A, d_X, d_B);
     CUDA_CHECK(cudaDeviceSynchronize());
 
     dr_bcg::get_xi(cusolverH, cusolverParams, cublasH, m, n, d, d_A);
@@ -306,7 +306,7 @@ BENCHMARK_DEFINE_F(DR_BCG_Benchmark, get_s)(benchmark::State &state)
     auto [d_X, d_B] = initialize_inputs(m, n);
     nvtx3::mark("get_s (" + std::to_string(m) + ", " + std::to_string(n) + ")");
 
-    DeviceBuffer d = filled_device_buffer(cusolverH, cusolverParams, cublasH, m, n, d_A, d_X, d_B);
+    DeviceBuffer<float> d = filled_device_buffer(cusolverH, cusolverParams, cublasH, m, n, d_A, d_X, d_B);
     CUDA_CHECK(cudaDeviceSynchronize());
 
     dr_bcg::get_xi(cusolverH, cusolverParams, cublasH, m, n, d, d_A);
@@ -340,7 +340,7 @@ BENCHMARK_DEFINE_F(DR_BCG_Benchmark, get_sigma)(benchmark::State &state)
     auto [d_X, d_B] = initialize_inputs(m, n);
     nvtx3::mark("get_sigma (" + std::to_string(m) + ", " + std::to_string(n) + ")");
 
-    DeviceBuffer d = filled_device_buffer(cusolverH, cusolverParams, cublasH, m, n, d_A, d_X, d_B);
+    DeviceBuffer<float> d = filled_device_buffer(cusolverH, cusolverParams, cublasH, m, n, d_A, d_X, d_B);
     CUDA_CHECK(cudaDeviceSynchronize());
 
     dr_bcg::get_xi(cusolverH, cusolverParams, cublasH, m, n, d, d_A);

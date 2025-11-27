@@ -44,7 +44,7 @@ int dr_bcg::dr_bcg(float *d_A, float *d_X, float *d_B, std::int64_t n,
     Handles h;
     h.set_stream(stream);
 
-    DeviceBuffer d(n, s);
+    DeviceBuffer<float> d(n, s);
 
     float *d_R = nullptr;
     CUDA_CHECK(cudaMallocAsync(&d_R, sizeof(float) * n * s, stream));

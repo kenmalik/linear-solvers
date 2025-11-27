@@ -52,7 +52,7 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                    cusparseDnMatDescr_t B, float tolerance,
                    int max_iterations) {
     auto [n, s] = get_size(B);
-    DeviceBuffer d(n, s);
+    DeviceBuffer<float> d(n, s);
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream));

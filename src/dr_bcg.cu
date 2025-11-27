@@ -32,7 +32,7 @@ dr_bcg::dr_bcg(cusolverDnHandle_t cusolverH, cusolverDnParams_t cusolverParams,
     float *d_B = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(B, reinterpret_cast<void **>(&d_B)));
 
-    DeviceBuffer d(n, s);
+    DeviceBuffer<float> d(n, s);
 
     // We don't include d_R in device buffers because it is only used once at
     // the beginning of the algorithm.
@@ -147,7 +147,7 @@ dr_bcg::dr_bcg(cusolverDnHandle_t cusolverH, cusolverDnParams_t cusolverParams,
 
 void dr_bcg::get_xi(cusolverDnHandle_t &cusolverH,
                     cusolverDnParams_t &cusolverParams, cublasHandle_t &cublasH,
-                    const int n, const int s, DeviceBuffer &d,
+                    const int n, const int s, DeviceBuffer<float> &d,
                     const float *d_A) {
     NVTX3_FUNC_RANGE();
 
@@ -155,7 +155,7 @@ void dr_bcg::get_xi(cusolverDnHandle_t &cusolverH,
     invert_square_matrix(cusolverH, cusolverParams, d.xi, s);
 }
 
-void dr_bcg::get_sigma(cublasHandle_t cublasH, int s, DeviceBuffer &d) {
+void dr_bcg::get_sigma(cublasHandle_t cublasH, int s, DeviceBuffer<float> &d) {
     NVTX3_FUNC_RANGE();
 
     // sigma = zeta * sigma
@@ -166,7 +166,7 @@ void dr_bcg::get_sigma(cublasHandle_t cublasH, int s, DeviceBuffer &d) {
 }
 
 void dr_bcg::get_s(cublasHandle_t cublasH, const int n, const int s,
-                   DeviceBuffer &d) {
+                   DeviceBuffer<float> &d) {
     NVTX3_FUNC_RANGE();
 
     // temp = s * zeta'
@@ -185,7 +185,7 @@ void dr_bcg::get_s(cublasHandle_t cublasH, const int n, const int s,
 }
 
 void dr_bcg::get_s(cusparseHandle_t cusparseH, cublasHandle_t cublasH,
-                   const int n, const int s, DeviceBuffer &d,
+                   const int n, const int s, DeviceBuffer<float> &d,
                    cusparseSpMatDescr_t &L) {
     NVTX3_FUNC_RANGE();
 
@@ -233,7 +233,7 @@ void dr_bcg::get_s(cusparseHandle_t cusparseH, cublasHandle_t cublasH,
 void dr_bcg::get_w_zeta(cusolverDnHandle_t &cusolverH,
                         cusolverDnParams_t &cusolverParams,
                         cublasHandle_t &cublasH, const int n, const int s,
-                        DeviceBuffer &d, const float *d_A) {
+                        DeviceBuffer<float> &d, const float *d_A) {
     NVTX3_FUNC_RANGE();
 
     // temp = A * s
@@ -409,7 +409,7 @@ void dr_bcg::get_R(cusparseHandle_t &cusparseH, cusparseDnMatDescr_t &R,
 void dr_bcg::get_xi(cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH,
                     cusolverDnParams_t &cusolverParams,
                     cusparseHandle_t &cusparseH, cusparseSpMatDescr_t &A,
-                    const int n, const int s, DeviceBuffer &d) {
+                    const int n, const int s, DeviceBuffer<float> &d) {
     NVTX3_FUNC_RANGE();
 
     cusparseDnMatDescr_t s_descr;
@@ -525,7 +525,7 @@ void dr_bcg::residual(cusparseHandle_t &cusparseH,
 void dr_bcg::get_w_zeta(cusolverDnHandle_t &cusolverH,
                         cusolverDnParams_t &cusolverParams,
                         cublasHandle_t &cublasH, cusparseHandle_t &cusparseH,
-                        const int n, const int s, DeviceBuffer &d,
+                        const int n, const int s, DeviceBuffer<float> &d,
                         cusparseSpMatDescr_t &A) {
     NVTX3_FUNC_RANGE();
 
@@ -589,7 +589,7 @@ void dr_bcg::get_w_zeta(cusolverDnHandle_t &cusolverH,
 void dr_bcg::get_w_zeta(cusolverDnHandle_t &cusolverH,
                         cusolverDnParams_t &cusolverParams,
                         cublasHandle_t &cublasH, cusparseHandle_t &cusparseH,
-                        const int n, const int s, DeviceBuffer &d,
+                        const int n, const int s, DeviceBuffer<float> &d,
                         cusparseSpMatDescr_t &A, cusparseSpMatDescr_t &L) {
     NVTX3_FUNC_RANGE();
 

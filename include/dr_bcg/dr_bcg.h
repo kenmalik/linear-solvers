@@ -16,34 +16,38 @@ cusolverStatus_t dr_bcg(cusolverDnHandle_t cusolverH,
                         float tolerance, int max_iterations,
                         int *iterations = nullptr);
 
+
 void get_xi(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &cusolverParams,
-            cublasHandle_t &cublasH, const int m, const int n, DeviceBuffer &d,
-            const float *d_A);
+            cublasHandle_t &cublasH, const int m, const int n,
+            DeviceBuffer<float> &d, const float *d_A);
 
 void get_xi(cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH,
             cusolverDnParams_t &cusolverParams, cusparseHandle_t &cusparseH,
-            cusparseSpMatDescr_t &A, const int n, const int s, DeviceBuffer &d);
+            cusparseSpMatDescr_t &A, const int n, const int s,
+            DeviceBuffer<float> &d);
 
-void get_sigma(cublasHandle_t cublasH, int n, DeviceBuffer &d);
+void get_sigma(cublasHandle_t cublasH, int n, DeviceBuffer<float> &d);
 
-void get_s(cublasHandle_t cublasH, const int m, const int n, DeviceBuffer &d);
+void get_s(cublasHandle_t cublasH, const int m, const int n,
+           DeviceBuffer<float> &d);
 
 void get_s(cusparseHandle_t cusparseH, cublasHandle_t cublasH, const int n,
-           const int s, DeviceBuffer &d, cusparseSpMatDescr_t &L);
+           const int s, DeviceBuffer<float> &d, cusparseSpMatDescr_t &L);
 
 void get_w_zeta(cusolverDnHandle_t &cusolverH,
                 cusolverDnParams_t &cusolverParams, cublasHandle_t &cublasH,
-                const int m, const int n, DeviceBuffer &d, const float *d_A);
+                const int m, const int n, DeviceBuffer<float> &d,
+                const float *d_A);
 
 void get_w_zeta(cusolverDnHandle_t &cusolverH,
                 cusolverDnParams_t &cusolverParams, cublasHandle_t &cublasH,
                 cusparseHandle_t &cusparseH, const int m, const int n,
-                DeviceBuffer &d, cusparseSpMatDescr_t &A);
+                DeviceBuffer<float> &d, cusparseSpMatDescr_t &A);
 
 void get_w_zeta(cusolverDnHandle_t &cusolverH,
                 cusolverDnParams_t &cusolverParams, cublasHandle_t &cublasH,
                 cusparseHandle_t &cusparseH, const int n, const int s,
-                DeviceBuffer &d, cusparseSpMatDescr_t &A,
+                DeviceBuffer<float> &d, cusparseSpMatDescr_t &A,
                 cusparseSpMatDescr_t &L);
 
 void residual(cublasHandle_t &cublasH, float *d_residual, const float *B,

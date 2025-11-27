@@ -11,7 +11,6 @@ FetchContent_MakeAvailable(nvtx)
 add_library(dr_bcg
     "dr_bcg.cu"
     "helper.cu"
-    "device_buffer.cu"
     "sparse.cu"
     "dense.cu"
 )
