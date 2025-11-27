@@ -14,9 +14,9 @@
 #include <thrust/host_vector.h>
 
 #include "dr_bcg/dense.h"
+#include "dr_bcg/device_sparse_matrix.h"
 #include "dr_bcg/helper.h"
 #include "dr_bcg/sparse.h"
-#include "dr_bcg/device_sparse_matrix.h"
 
 void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
             const thrust::device_vector<float> &B_v,
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
     }
 
     mat_utils::SpMatReader ssm(args.matrix_file, {"Problem"}, "A");
-    DeviceSuiteSparseMatrix A(ssm);
+    DeviceSparseMatrix A(ssm);
 
     const int n = ssm.rows();
 

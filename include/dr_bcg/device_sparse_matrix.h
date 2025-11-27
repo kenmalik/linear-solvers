@@ -1,9 +1,10 @@
 #include <cstddef>
+#include <dr_bcg/helper.h>
 #include <mat_utils/mat_reader.h>
 
-class DeviceSuiteSparseMatrix {
+class DeviceSparseMatrix {
   public:
-    explicit DeviceSuiteSparseMatrix(mat_utils::SpMatReader &ssm_A) {
+    explicit DeviceSparseMatrix(mat_utils::SpMatReader &ssm_A) {
         std::size_t min_row =
             *std::min_element(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
         std::size_t min_col = ssm_A.jc()[0];
@@ -102,7 +103,7 @@ class DeviceSuiteSparseMatrix {
             CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F));
     }
 
-    ~DeviceSuiteSparseMatrix() {
+    ~DeviceSparseMatrix() {
         if (A_) {
             CUSPARSE_CHECK(cusparseDestroySpMat(A_));
         }
