@@ -222,6 +222,22 @@ void print_help() {
     std::cerr << "  --double use double-precision variant" << std::endl;
 }
 
+template <typename T>
+void load_mat(T *destination_d, mat_utils::DnMatReader &reader) {
+    static_assert(std::is_same<T, float>::value ||
+                      std::is_same<T, double>::value,
+                  "load_mat only supports float or double");
+
+    std::vector<T> mat(reader.size());
+    for (int i = 0; i < reader.size(); ++i) {
+        mat[i] = static_cast<T>(reader.data()[i]);
+    }
+    assert(reader.size() == mat.size() &&
+           "Value read from file must be n by s");
+    CUDA_CHECK(cudaMemcpy(destination_d, mat.data(), sizeof(T) * mat.size(),
+                          cudaMemcpyHostToDevice));
+}
+
 int main(int argc, char *argv[]) {
     Args args;
     try {
@@ -251,16 +267,7 @@ int main(int argc, char *argv[]) {
 
         if (args.X_file.has_value()) {
             mat_utils::DnMatReader Xr{*args.X_file, {}, "X"};
-            std::vector<double> X_double(Xr.size());
-            for (int i = 0; i < Xr.size(); ++i) {
-                X_double[i] = static_cast<double>(Xr.data()[i]);
-            }
-            assert(Xr.size() == X_v.size() &&
-                   "X read from file must be n by s");
-            CUDA_CHECK(cudaMemcpy(d_X, X_double.data(),
-                                  sizeof(double) * X_double.size(),
-                                  cudaMemcpyHostToDevice));
-            std::cerr << "Read " << Xr.size() << " values from X" << std::endl;
+            load_mat(d_X, Xr);
         }
 
         cusparseDnMatDescr_t B;
@@ -271,16 +278,7 @@ int main(int argc, char *argv[]) {
 
         if (args.B_file.has_value()) {
             mat_utils::DnMatReader Br{*args.B_file, {}, "B"};
-            std::vector<double> B_double(Br.size());
-            for (int i = 0; i < Br.size(); ++i) {
-                B_double[i] = static_cast<double>(Br.data()[i]);
-            }
-            assert(Br.size() == B_v.size() &&
-                   "B read from file must be n by s");
-            CUDA_CHECK(cudaMemcpy(d_B, B_double.data(),
-                                  sizeof(double) * B_double.size(),
-                                  cudaMemcpyHostToDevice));
-            std::cerr << "Read " << Br.size() << " values from B" << std::endl;
+            load_mat(d_B, Br);
         }
 
         double tolerance = args.tolerance;
@@ -343,16 +341,7 @@ int main(int argc, char *argv[]) {
 
         if (args.X_file.has_value()) {
             mat_utils::DnMatReader Xr{*args.X_file, {}, "X"};
-            std::vector<float> X_float(Xr.size());
-            for (int i = 0; i < Xr.size(); ++i) {
-                X_float[i] = static_cast<float>(Xr.data()[i]);
-            }
-            assert(Xr.size() == X_v.size() &&
-                   "X read from file must be n by s");
-            CUDA_CHECK(cudaMemcpy(d_X, X_float.data(),
-                                  sizeof(float) * X_float.size(),
-                                  cudaMemcpyHostToDevice));
-            std::cerr << "Read " << Xr.size() << " values from X" << std::endl;
+            load_mat(d_X, Xr);
         }
 
         cusparseDnMatDescr_t B;
@@ -363,16 +352,7 @@ int main(int argc, char *argv[]) {
 
         if (args.B_file.has_value()) {
             mat_utils::DnMatReader Br{*args.B_file, {}, "B"};
-            std::vector<float> B_float(Br.size());
-            for (int i = 0; i < Br.size(); ++i) {
-                B_float[i] = static_cast<float>(Br.data()[i]);
-            }
-            assert(Br.size() == B_v.size() &&
-                   "B read from file must be n by s");
-            CUDA_CHECK(cudaMemcpy(d_B, B_float.data(),
-                                  sizeof(float) * B_float.size(),
-                                  cudaMemcpyHostToDevice));
-            std::cerr << "Read " << Br.size() << " values from B" << std::endl;
+            load_mat(d_B, Br);
         }
 
         float tolerance = static_cast<float>(args.tolerance);
