@@ -7,13 +7,12 @@
  * @brief Templated device pointers for reused device buffers.
  *
  * This template manages device memory for all buffers used in the DR-BCG
- * algorithm. It accepts any arithmetic type (float, double, integer types,
- * etc.) but note that many CUDA/cuBLAS/cuSPARSE routines expect floating
- * point types; callers are responsible for choosing a sensible `T`.
+ * algorithm. It only accepts `float` or `double` as the template parameter.
  */
 template <typename T> struct DeviceBuffer {
-    static_assert(std::is_arithmetic<T>::value,
-                  "DeviceBuffer<T> requires an arithmetic type");
+    static_assert(std::is_same<T, float>::value ||
+                      std::is_same<T, double>::value,
+                  "DeviceBuffer<T> only supports float or double");
 
     T *w = nullptr;        ///< Device pointer for matrix w (n x s)
     T *sigma = nullptr;    ///< Device pointer for matrix sigma (s x s)
