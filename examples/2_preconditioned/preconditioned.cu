@@ -14,9 +14,9 @@
 
 #include <thrust/device_vector.h>
 
+#include "dr_bcg/device_sparse_matrix.h"
 #include "dr_bcg/dr_bcg.h"
 #include "dr_bcg/helper.h"
-#include "dr_bcg/device_sparse_matrix.h"
 
 struct Args {
     int s = 1;
@@ -141,14 +141,14 @@ int main(int argc, char *argv[]) {
     // Read A
     const std::string A_file = args.A_file;
     mat_utils::SpMatReader ssm_A(A_file, {"Problem"}, "A");
-    DeviceSparseMatrix A{ssm_A};
+    DeviceSparseMatrixFloat A{ssm_A};
     const int n = ssm_A.rows();
     std::cerr << "Read " << ssm_A.nnz() << " values from A" << std::endl;
 
     // Read L
     const std::string L_file = args.L_file;
     mat_utils::SpMatReader ssm_L(L_file, {}, "L");
-    DeviceSparseMatrix L{ssm_L};
+    DeviceSparseMatrixFloat L{ssm_L};
     std::cerr << "Read " << ssm_L.nnz() << " values from L" << std::endl;
 
     cusparseFillMode_t fill = CUSPARSE_FILL_MODE_LOWER;

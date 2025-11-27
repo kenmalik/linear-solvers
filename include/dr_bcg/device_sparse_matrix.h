@@ -1,9 +1,20 @@
-#include <cstddef>
 #include <dr_bcg/helper.h>
+
 #include <mat_utils/mat_reader.h>
 
-class DeviceSparseMatrix {
+#include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <type_traits>
+#include <vector>
+
+template <typename T> class DeviceSparseMatrix {
   public:
+    static_assert(std::is_same<T, float>::value ||
+                      std::is_same<T, double>::value,
+                  "DeviceSparseMatrix<T> only supports float or double");
+
     explicit DeviceSparseMatrix(mat_utils::SpMatReader &ssm_A) {
         std::size_t min_row =
             *std::min_element(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
@@ -44,7 +55,7 @@ class DeviceSparseMatrix {
         CUDA_CHECK(
             cudaMalloc(&d_rowPtr, sizeof(std::int64_t) * (ssm_A.rows() + 1)));
         CUDA_CHECK(cudaMalloc(&d_colInd, sizeof(std::int64_t) * ssm_A.nnz()));
-        CUDA_CHECK(cudaMalloc(&d_vals, sizeof(float) * ssm_A.nnz()));
+        CUDA_CHECK(cudaMalloc(&d_vals, sizeof(T) * ssm_A.nnz()));
 
         // Step 1: Count entries per row to build CSR row pointers
         std::vector<std::size_t> rowCounts(ssm_A.rows(), 0);
@@ -65,14 +76,14 @@ class DeviceSparseMatrix {
         std::vector<std::size_t> rowInsertPos =
             csrRowPtr; // Current insert position for each row
         std::vector<std::size_t> csrColInd(ssm_A.nnz());
-        std::vector<float> csrVal(ssm_A.nnz());
+        std::vector<T> csrVal(ssm_A.nnz());
 
         for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
             for (std::size_t p = jc_adj[j]; p < jc_adj[j + 1]; ++p) {
                 std::size_t row = ir_adj[p];
                 std::size_t insertPos = rowInsertPos[row]++;
                 csrColInd[insertPos] = j;
-                csrVal[insertPos] = static_cast<float>(ssm_A.data()[p]);
+                csrVal[insertPos] = static_cast<T>(ssm_A.data()[p]);
             }
         }
 
@@ -93,14 +104,16 @@ class DeviceSparseMatrix {
         CUDA_CHECK(cudaMemcpy(d_colInd, csrColInd64.data(),
                               sizeof(std::int64_t) * csrColInd64.size(),
                               cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_vals, csrVal.data(),
-                              sizeof(float) * csrVal.size(),
+        CUDA_CHECK(cudaMemcpy(d_vals, csrVal.data(), sizeof(T) * csrVal.size(),
                               cudaMemcpyHostToDevice));
+
+        cusparseIndexType_t idxType = CUSPARSE_INDEX_64I;
+        cudaDataType valueType =
+            std::is_same<T, float>::value ? CUDA_R_32F : CUDA_R_64F;
 
         CUSPARSE_CHECK(cusparseCreateCsr(
             &A_, ssm_A.rows(), ssm_A.cols(), ssm_A.nnz(), d_rowPtr, d_colInd,
-            d_vals, CUSPARSE_INDEX_64I, CUSPARSE_INDEX_64I,
-            CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F));
+            d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, valueType));
     }
 
     ~DeviceSparseMatrix() {
@@ -126,6 +139,9 @@ class DeviceSparseMatrix {
   private:
     std::int64_t *d_rowPtr = nullptr;
     std::int64_t *d_colInd = nullptr;
-    float *d_vals = nullptr;
+    T *d_vals = nullptr;
     cusparseSpMatDescr_t A_{};
 };
+
+using DeviceSparseMatrixFloat = DeviceSparseMatrix<float>;
+using DeviceSparseMatrixDouble = DeviceSparseMatrix<double>;

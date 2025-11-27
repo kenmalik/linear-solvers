@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
     }
 
     mat_utils::SpMatReader ssm(args.matrix_file, {"Problem"}, "A");
-    DeviceSparseMatrix A(ssm);
+    DeviceSparseMatrixFloat A(ssm);
 
     const int n = ssm.rows();
 
