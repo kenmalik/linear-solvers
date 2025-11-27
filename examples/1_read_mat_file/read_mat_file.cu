@@ -99,6 +99,7 @@ struct Args {
     int s = 1;
     std::optional<int> max_iters = std::nullopt;
     std::optional<std::filesystem::path> out_file = std::nullopt;
+    double tolerance = 1e-6;
     bool print_summary = false;
     bool print_help = false;
     bool dense = false;
@@ -111,6 +112,7 @@ Args parse_args(int argc, char *argv[]) {
     int positional_number = 0;
     bool reading_max_iters = false;
     bool reading_out_file = false;
+    bool reading_tolerance = false;
 
     for (int i = 1; i < argc; ++i) {
         const char *arg = argv[i];
@@ -132,6 +134,14 @@ Args parse_args(int argc, char *argv[]) {
             }
             args.out_file = out_file;
             reading_out_file = false;
+        } else if (reading_tolerance) {
+            char *endptr;
+            double tol = std::strtod(arg, &endptr);
+            if (*endptr != '\0' || tol <= 0.0) {
+                throw std::invalid_argument("Invalid tolerance");
+            }
+            args.tolerance = tol;
+            reading_tolerance = false;
         } else if (std::strcmp(arg, "-h") == 0) {
             args.print_help = true;
         } else if (std::strcmp(arg, "-s") == 0) {
@@ -142,6 +152,8 @@ Args parse_args(int argc, char *argv[]) {
             args.use_double = true;
         } else if (std::strcmp(arg, "-i") == 0) {
             reading_max_iters = true;
+        } else if (std::strcmp(arg, "-t") == 0) {
+            reading_tolerance = true;
         } else if (std::strcmp(arg, "-o") == 0) {
             reading_out_file = true;
         } else {
@@ -175,8 +187,12 @@ void print_help() {
     std::cerr << "  -i [max_iterations] (default block_size) set the maximum "
                  "iterations solver will run"
               << std::endl;
+    std::cerr << "  -t [tolerance] (float) set solver convergence tolerance"
+              << std::endl;
     std::cerr << "  -o [output_file] set file to output final X to"
               << std::endl;
+    std::cerr << "  --dense use dense solver variant" << std::endl;
+    std::cerr << "  --double use double-precision variant" << std::endl;
 }
 
 int main(int argc, char *argv[]) {
@@ -212,7 +228,7 @@ int main(int argc, char *argv[]) {
         CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_64F,
                                            CUSPARSE_ORDER_COL));
 
-        double tolerance = 1e-12;
+        double tolerance = args.tolerance;
         const int max_iterations =
             args.max_iters.has_value() ? *args.max_iters : n;
 
@@ -251,7 +267,7 @@ int main(int argc, char *argv[]) {
         CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_32F,
                                            CUSPARSE_ORDER_COL));
 
-        constexpr float tolerance = 1e-6f;
+        float tolerance = static_cast<float>(args.tolerance);
         const int max_iterations =
             args.max_iters.has_value() ? *args.max_iters : n;
 
