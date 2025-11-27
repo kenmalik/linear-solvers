@@ -47,10 +47,9 @@ template <typename T> class DeviceSparseMatrix {
             assert(negative_diags == 0 && "SPD check: all diagonals positive");
         }
 
-        // Adjust indices if 1-based
-        std::vector<std::size_t> ir_adj(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
-        std::vector<std::size_t> jc_adj(ssm_A.jc(),
-                                        ssm_A.jc() + ssm_A.cols() + 1);
+        // Use index arrays from the reader directly (no copies)
+        const std::size_t *ir_ptr = ssm_A.ir();
+        const std::size_t *jc_ptr = ssm_A.jc();
 
         CUDA_CHECK(
             cudaMalloc(&d_rowPtr, sizeof(std::int64_t) * (ssm_A.rows() + 1)));
@@ -60,8 +59,8 @@ template <typename T> class DeviceSparseMatrix {
         // Step 1: Count entries per row to build CSR row pointers
         std::vector<std::size_t> rowCounts(ssm_A.rows(), 0);
         for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
-            for (std::size_t p = jc_adj[j]; p < jc_adj[j + 1]; ++p) {
-                std::size_t row = ir_adj[p];
+            for (std::size_t p = jc_ptr[j]; p < jc_ptr[j + 1]; ++p) {
+                std::size_t row = ir_ptr[p];
                 ++rowCounts[row];
             }
         }
@@ -79,8 +78,8 @@ template <typename T> class DeviceSparseMatrix {
         std::vector<T> csrVal(ssm_A.nnz());
 
         for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
-            for (std::size_t p = jc_adj[j]; p < jc_adj[j + 1]; ++p) {
-                std::size_t row = ir_adj[p];
+            for (std::size_t p = jc_ptr[j]; p < jc_ptr[j + 1]; ++p) {
+                std::size_t row = ir_ptr[p];
                 std::size_t insertPos = rowInsertPos[row]++;
                 csrColInd[insertPos] = j;
                 csrVal[insertPos] = static_cast<T>(ssm_A.data()[p]);
