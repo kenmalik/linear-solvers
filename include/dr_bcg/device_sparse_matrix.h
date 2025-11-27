@@ -111,13 +111,13 @@ template <typename T> class DeviceSparseMatrix {
             std::is_same<T, float>::value ? CUDA_R_32F : CUDA_R_64F;
 
         CUSPARSE_CHECK(cusparseCreateCsr(
-            &A_, ssm_A.rows(), ssm_A.cols(), ssm_A.nnz(), d_rowPtr, d_colInd,
+            &A, ssm_A.rows(), ssm_A.cols(), ssm_A.nnz(), d_rowPtr, d_colInd,
             d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, valueType));
     }
 
     ~DeviceSparseMatrix() {
-        if (A_) {
-            CUSPARSE_CHECK(cusparseDestroySpMat(A_));
+        if (A) {
+            CUSPARSE_CHECK(cusparseDestroySpMat(A));
         }
         if (d_rowPtr) {
             CUDA_CHECK(cudaFree(d_rowPtr));
@@ -133,13 +133,13 @@ template <typename T> class DeviceSparseMatrix {
         }
     }
 
-    cusparseSpMatDescr_t &get() { return A_; }
+    cusparseSpMatDescr_t &get() { return A; }
 
   private:
     std::int64_t *d_rowPtr = nullptr;
     std::int64_t *d_colInd = nullptr;
     T *d_vals = nullptr;
-    cusparseSpMatDescr_t A_{};
+    cusparseSpMatDescr_t A{};
 };
 
 using DeviceSparseMatrixFloat = DeviceSparseMatrix<float>;
