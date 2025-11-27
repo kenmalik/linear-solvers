@@ -112,39 +112,11 @@ Args parse_args(int argc, char *argv[]) {
     Args args;
 
     int positional_number = 0;
-    bool reading_max_iters = false;
-    bool reading_out_file = false;
-    bool reading_tolerance = false;
 
     for (int i = 1; i < argc; ++i) {
         const char *arg = argv[i];
 
-        if (reading_max_iters) {
-            char *endptr;
-            long max_iters = std::strtol(arg, &endptr, 10);
-            if (*endptr != '\0' ||
-                max_iters > std::numeric_limits<int>::max()) {
-                throw std::invalid_argument("Invalid max iterations");
-            }
-            args.max_iters = max_iters;
-            reading_max_iters = false;
-        } else if (reading_out_file) {
-            std::filesystem::path out_file{arg};
-            if (std::filesystem::exists(out_file)) {
-                throw std::invalid_argument(
-                    "Output file already exists. Cannot overwrite.");
-            }
-            args.out_file = out_file;
-            reading_out_file = false;
-        } else if (reading_tolerance) {
-            char *endptr;
-            double tol = std::strtod(arg, &endptr);
-            if (*endptr != '\0' || tol <= 0.0) {
-                throw std::invalid_argument("Invalid tolerance");
-            }
-            args.tolerance = tol;
-            reading_tolerance = false;
-        } else if (std::strcmp(arg, "-h") == 0) {
+        if (std::strcmp(arg, "-h") == 0) {
             args.print_help = true;
         } else if (std::strcmp(arg, "-s") == 0) {
             args.print_summary = true;
@@ -153,11 +125,27 @@ Args parse_args(int argc, char *argv[]) {
         } else if (std::strcmp(arg, "--double") == 0) {
             args.use_double = true;
         } else if (std::strcmp(arg, "-i") == 0) {
-            reading_max_iters = true;
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing max iterations value");
+            }
+            char *endptr;
+            long max_iters = std::strtol(argv[++i], &endptr, 10);
+            if (*endptr != '\0' ||
+                max_iters > std::numeric_limits<int>::max()) {
+                throw std::invalid_argument("Invalid max iterations");
+            }
+            args.max_iters = static_cast<int>(max_iters);
         } else if (std::strcmp(arg, "-t") == 0) {
-            reading_tolerance = true;
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing tolerance value");
+            }
+            char *endptr;
+            double tol = std::strtod(argv[++i], &endptr);
+            if (*endptr != '\0' || tol <= 0.0) {
+                throw std::invalid_argument("Invalid tolerance");
+            }
+            args.tolerance = tol;
         } else if (std::strcmp(arg, "-X") == 0) {
-            // next argument is X file path
             if (i + 1 >= argc) {
                 throw std::invalid_argument("Missing X file path");
             }
@@ -167,7 +155,6 @@ Args parse_args(int argc, char *argv[]) {
             }
             args.X_file = Xp;
         } else if (std::strcmp(arg, "-B") == 0) {
-            // next argument is B file path
             if (i + 1 >= argc) {
                 throw std::invalid_argument("Missing B file path");
             }
@@ -177,7 +164,15 @@ Args parse_args(int argc, char *argv[]) {
             }
             args.B_file = Bp;
         } else if (std::strcmp(arg, "-o") == 0) {
-            reading_out_file = true;
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing output file path");
+            }
+            std::filesystem::path out_file{argv[++i]};
+            if (std::filesystem::exists(out_file)) {
+                throw std::invalid_argument(
+                    "Output file already exists. Cannot overwrite.");
+            }
+            args.out_file = out_file;
         } else {
             if (positional_number == 0) {
                 args.matrix_file = std::string(arg);
