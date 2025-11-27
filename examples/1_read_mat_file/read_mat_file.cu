@@ -99,6 +99,8 @@ struct Args {
     int s = 1;
     std::optional<int> max_iters = std::nullopt;
     std::optional<std::filesystem::path> out_file = std::nullopt;
+    std::optional<std::filesystem::path> X_file = std::nullopt;
+    std::optional<std::filesystem::path> B_file = std::nullopt;
     double tolerance = 1e-6;
     bool print_summary = false;
     bool print_help = false;
@@ -154,6 +156,26 @@ Args parse_args(int argc, char *argv[]) {
             reading_max_iters = true;
         } else if (std::strcmp(arg, "-t") == 0) {
             reading_tolerance = true;
+        } else if (std::strcmp(arg, "-X") == 0) {
+            // next argument is X file path
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing X file path");
+            }
+            std::filesystem::path Xp{argv[++i]};
+            if (!std::filesystem::exists(Xp)) {
+                throw std::invalid_argument("X file does not exist");
+            }
+            args.X_file = Xp;
+        } else if (std::strcmp(arg, "-B") == 0) {
+            // next argument is B file path
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing B file path");
+            }
+            std::filesystem::path Bp{argv[++i]};
+            if (!std::filesystem::exists(Bp)) {
+                throw std::invalid_argument("B file does not exist");
+            }
+            args.B_file = Bp;
         } else if (std::strcmp(arg, "-o") == 0) {
             reading_out_file = true;
         } else {
@@ -191,6 +213,11 @@ void print_help() {
               << std::endl;
     std::cerr << "  -o [output_file] set file to output final X to"
               << std::endl;
+    std::cerr << "  -X [path to .mat] read initial X from given .mat file"
+              << std::endl;
+    std::cerr
+        << "  -B [path to .mat] read right-hand side B from given .mat file"
+        << std::endl;
     std::cerr << "  --dense use dense solver variant" << std::endl;
     std::cerr << "  --double use double-precision variant" << std::endl;
 }
@@ -222,11 +249,39 @@ int main(int argc, char *argv[]) {
         CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n, d_X, CUDA_R_64F,
                                            CUSPARSE_ORDER_COL));
 
+        if (args.X_file.has_value()) {
+            mat_utils::DnMatReader Xr{*args.X_file, {}, "X"};
+            std::vector<double> X_double(Xr.size());
+            for (int i = 0; i < Xr.size(); ++i) {
+                X_double[i] = static_cast<double>(Xr.data()[i]);
+            }
+            assert(Xr.size() == X_v.size() &&
+                   "X read from file must be n by s");
+            CUDA_CHECK(cudaMemcpy(d_X, X_double.data(),
+                                  sizeof(double) * X_double.size(),
+                                  cudaMemcpyHostToDevice));
+            std::cerr << "Read " << Xr.size() << " values from X" << std::endl;
+        }
+
         cusparseDnMatDescr_t B;
         thrust::device_vector<double> B_v(n * args.s, 1.0);
         double *d_B = thrust::raw_pointer_cast(B_v.data());
         CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_64F,
                                            CUSPARSE_ORDER_COL));
+
+        if (args.B_file.has_value()) {
+            mat_utils::DnMatReader Br{*args.B_file, {}, "B"};
+            std::vector<double> B_double(Br.size());
+            for (int i = 0; i < Br.size(); ++i) {
+                B_double[i] = static_cast<double>(Br.data()[i]);
+            }
+            assert(Br.size() == B_v.size() &&
+                   "B read from file must be n by s");
+            CUDA_CHECK(cudaMemcpy(d_B, B_double.data(),
+                                  sizeof(double) * B_double.size(),
+                                  cudaMemcpyHostToDevice));
+            std::cerr << "Read " << Br.size() << " values from B" << std::endl;
+        }
 
         double tolerance = args.tolerance;
         const int max_iterations =
@@ -286,11 +341,39 @@ int main(int argc, char *argv[]) {
         CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n, d_X, CUDA_R_32F,
                                            CUSPARSE_ORDER_COL));
 
+        if (args.X_file.has_value()) {
+            mat_utils::DnMatReader Xr{*args.X_file, {}, "X"};
+            std::vector<float> X_float(Xr.size());
+            for (int i = 0; i < Xr.size(); ++i) {
+                X_float[i] = static_cast<float>(Xr.data()[i]);
+            }
+            assert(Xr.size() == X_v.size() &&
+                   "X read from file must be n by s");
+            CUDA_CHECK(cudaMemcpy(d_X, X_float.data(),
+                                  sizeof(float) * X_float.size(),
+                                  cudaMemcpyHostToDevice));
+            std::cerr << "Read " << Xr.size() << " values from X" << std::endl;
+        }
+
         cusparseDnMatDescr_t B;
         thrust::device_vector<float> B_v(n * args.s, 1.0f);
         float *d_B = thrust::raw_pointer_cast(B_v.data());
         CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_32F,
                                            CUSPARSE_ORDER_COL));
+
+        if (args.B_file.has_value()) {
+            mat_utils::DnMatReader Br{*args.B_file, {}, "B"};
+            std::vector<float> B_float(Br.size());
+            for (int i = 0; i < Br.size(); ++i) {
+                B_float[i] = static_cast<float>(Br.data()[i]);
+            }
+            assert(Br.size() == B_v.size() &&
+                   "B read from file must be n by s");
+            CUDA_CHECK(cudaMemcpy(d_B, B_float.data(),
+                                  sizeof(float) * B_float.size(),
+                                  cudaMemcpyHostToDevice));
+            std::cerr << "Read " << Br.size() << " values from B" << std::endl;
+        }
 
         float tolerance = static_cast<float>(args.tolerance);
         const int max_iterations =
