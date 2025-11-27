@@ -125,6 +125,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // detect --double flag
+    bool use_double = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::string_view(argv[i]) == "--double") {
+            use_double = true;
+            break;
+        }
+    }
+
     std::cerr << "Running with " << args << std::endl;
 
     cusolverDnHandle_t cusolverH;
@@ -141,88 +150,171 @@ int main(int argc, char *argv[]) {
     // Read A
     const std::string A_file = args.A_file;
     mat_utils::SpMatReader ssm_A(A_file, {"Problem"}, "A");
-    DeviceSparseMatrixFloat A{ssm_A};
     const int n = ssm_A.rows();
     std::cerr << "Read " << ssm_A.nnz() << " values from A" << std::endl;
 
     // Read L
     const std::string L_file = args.L_file;
     mat_utils::SpMatReader ssm_L(L_file, {}, "L");
-    DeviceSparseMatrixFloat L{ssm_L};
     std::cerr << "Read " << ssm_L.nnz() << " values from L" << std::endl;
 
-    cusparseFillMode_t fill = CUSPARSE_FILL_MODE_LOWER;
-    cusparseDiagType_t diag = CUSPARSE_DIAG_TYPE_NON_UNIT;
-    cusparseSpMatSetAttribute(L.get(), CUSPARSE_SPMAT_FILL_MODE, &fill,
-                              sizeof(fill));
-    cusparseSpMatSetAttribute(L.get(), CUSPARSE_SPMAT_DIAG_TYPE, &diag,
-                              sizeof(diag));
+    if (use_double) {
+        DeviceSparseMatrixDouble A{ssm_A};
+        DeviceSparseMatrixDouble L{ssm_L};
 
-    // X = 0
-    cusparseDnMatDescr_t X;
-    thrust::device_vector<float> X_vec(n * args.s, 0);
-    float *d_X = thrust::raw_pointer_cast(X_vec.data());
-    CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n, d_X, CUDA_R_32F,
-                                       CUSPARSE_ORDER_COL));
+        cusparseFillMode_t fill = CUSPARSE_FILL_MODE_LOWER;
+        cusparseDiagType_t diag = CUSPARSE_DIAG_TYPE_NON_UNIT;
+        cusparseSpMatSetAttribute(L.get(), CUSPARSE_SPMAT_FILL_MODE, &fill,
+                                  sizeof(fill));
+        cusparseSpMatSetAttribute(L.get(), CUSPARSE_SPMAT_DIAG_TYPE, &diag,
+                                  sizeof(diag));
 
-    if (!args.X_file.empty()) {
-        mat_utils::DnMatReader X{args.X_file, {}, "X"};
-        std::vector<float> X_float(X.size());
-        for (int i = 0; i < X.size(); ++i) {
-            X_float[i] = static_cast<float>(X.data()[i]);
+        // X = 0 (double)
+        cusparseDnMatDescr_t X;
+        thrust::device_vector<double> X_vec(n * args.s, 0);
+        double *d_X = thrust::raw_pointer_cast(X_vec.data());
+        CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n, d_X, CUDA_R_64F,
+                                           CUSPARSE_ORDER_COL));
+
+        if (!args.X_file.empty()) {
+            mat_utils::DnMatReader X{args.X_file, {}, "X"};
+            std::vector<double> X_double(X.size());
+            for (int i = 0; i < X.size(); ++i) {
+                X_double[i] = static_cast<double>(X.data()[i]);
+            }
+            assert(X.size() == X_vec.size() &&
+                   "X read from file must be n by s");
+            CUDA_CHECK(cudaMemcpy(d_X, X_double.data(),
+                                  sizeof(double) * X_double.size(),
+                                  cudaMemcpyHostToDevice));
+            std::cerr << "Read " << X.size() << " values from X" << std::endl;
         }
-        assert(X.size() == X_vec.size() && "X read from file must be n by s");
-        CUDA_CHECK(cudaMemcpy(d_X, X_float.data(),
-                              sizeof(float) * X_float.size(),
-                              cudaMemcpyHostToDevice));
-        std::cerr << "Read " << X.size() << " values from X" << std::endl;
-    }
 
-    // B = 1
-    cusparseDnMatDescr_t B;
-    thrust::device_vector<float> B_vec(n * args.s, 1);
-    float *d_B = thrust::raw_pointer_cast(B_vec.data());
-    CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_32F,
-                                       CUSPARSE_ORDER_COL));
+        // B = 1 (double)
+        cusparseDnMatDescr_t B;
+        thrust::device_vector<double> B_vec(n * args.s, 1);
+        double *d_B = thrust::raw_pointer_cast(B_vec.data());
+        CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_64F,
+                                           CUSPARSE_ORDER_COL));
 
-    if (!args.B_file.empty()) {
-        mat_utils::DnMatReader B{args.B_file, {}, "B"};
-        std::vector<float> B_float(B.size());
-        for (int i = 0; i < B.size(); ++i) {
-            B_float[i] = static_cast<float>(B.data()[i]);
+        if (!args.B_file.empty()) {
+            mat_utils::DnMatReader B{args.B_file, {}, "B"};
+            std::vector<double> B_double(B.size());
+            for (int i = 0; i < B.size(); ++i) {
+                B_double[i] = static_cast<double>(B.data()[i]);
+            }
+            assert(B.size() == B_vec.size() &&
+                   "B read from file must be n by s");
+            CUDA_CHECK(cudaMemcpy(d_B, B_double.data(),
+                                  sizeof(double) * B_double.size(),
+                                  cudaMemcpyHostToDevice));
+            std::cerr << "Read " << B.size() << " values from B" << std::endl;
         }
-        assert(B.size() == B_vec.size() && "B read from file must be n by s");
-        CUDA_CHECK(cudaMemcpy(d_B, B_float.data(),
-                              sizeof(float) * B_float.size(),
-                              cudaMemcpyHostToDevice));
-        std::cerr << "Read " << B.size() << " values from B" << std::endl;
+
+        double tolerance = std::numeric_limits<double>::epsilon();
+        if (args.tolerance > 0) {
+            tolerance = static_cast<double>(args.tolerance);
+        }
+        const int max_iterations = n;
+
+        int iterations = 0;
+        dr_bcg::dr_bcg(cusolverH, cusolverP, cublasH, cusparseH, A.get(), X, B,
+                       L.get(), tolerance, max_iterations, &iterations);
+
+        std::cout << iterations << std::endl;
+
+        std::vector<double> h_X(n * args.s);
+        CUDA_CHECK(cudaMemcpy(h_X.data(), d_X, sizeof(double) * h_X.size(),
+                              cudaMemcpyDeviceToHost));
+        mat_utils::MatWriter writer("X.mat");
+
+        CUSPARSE_CHECK(cusparseDestroyDnMat(X));
+        CUSPARSE_CHECK(cusparseDestroyDnMat(B));
+        CUSPARSE_CHECK(cusparseDestroy(cusparseH));
+        CUBLAS_CHECK(cublasDestroy_v2(cublasH));
+        CUSOLVER_CHECK(cusolverDnDestroy(cusolverH));
+        CUSOLVER_CHECK(cusolverDnDestroyParams(cusolverP));
+
+        return 0;
+    } else {
+        DeviceSparseMatrixFloat A{ssm_A};
+        DeviceSparseMatrixFloat L{ssm_L};
+
+        cusparseFillMode_t fill = CUSPARSE_FILL_MODE_LOWER;
+        cusparseDiagType_t diag = CUSPARSE_DIAG_TYPE_NON_UNIT;
+        cusparseSpMatSetAttribute(L.get(), CUSPARSE_SPMAT_FILL_MODE, &fill,
+                                  sizeof(fill));
+        cusparseSpMatSetAttribute(L.get(), CUSPARSE_SPMAT_DIAG_TYPE, &diag,
+                                  sizeof(diag));
+
+        // X = 0
+        cusparseDnMatDescr_t X;
+        thrust::device_vector<float> X_vec(n * args.s, 0);
+        float *d_X = thrust::raw_pointer_cast(X_vec.data());
+        CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n, d_X, CUDA_R_32F,
+                                           CUSPARSE_ORDER_COL));
+
+        if (!args.X_file.empty()) {
+            mat_utils::DnMatReader X{args.X_file, {}, "X"};
+            std::vector<float> X_float(X.size());
+            for (int i = 0; i < X.size(); ++i) {
+                X_float[i] = static_cast<float>(X.data()[i]);
+            }
+            assert(X.size() == X_vec.size() &&
+                   "X read from file must be n by s");
+            CUDA_CHECK(cudaMemcpy(d_X, X_float.data(),
+                                  sizeof(float) * X_float.size(),
+                                  cudaMemcpyHostToDevice));
+            std::cerr << "Read " << X.size() << " values from X" << std::endl;
+        }
+
+        // B = 1
+        cusparseDnMatDescr_t B;
+        thrust::device_vector<float> B_vec(n * args.s, 1);
+        float *d_B = thrust::raw_pointer_cast(B_vec.data());
+        CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_32F,
+                                           CUSPARSE_ORDER_COL));
+
+        if (!args.B_file.empty()) {
+            mat_utils::DnMatReader B{args.B_file, {}, "B"};
+            std::vector<float> B_float(B.size());
+            for (int i = 0; i < B.size(); ++i) {
+                B_float[i] = static_cast<float>(B.data()[i]);
+            }
+            assert(B.size() == B_vec.size() &&
+                   "B read from file must be n by s");
+            CUDA_CHECK(cudaMemcpy(d_B, B_float.data(),
+                                  sizeof(float) * B_float.size(),
+                                  cudaMemcpyHostToDevice));
+            std::cerr << "Read " << B.size() << " values from B" << std::endl;
+        }
+
+        float tolerance = std::numeric_limits<float>::epsilon();
+        if (args.tolerance > 0) {
+            tolerance = args.tolerance;
+        }
+        const int max_iterations = n;
+
+        int iterations = 0;
+        dr_bcg::dr_bcg(cusolverH, cusolverP, cublasH, cusparseH, A.get(), X, B,
+                       L.get(), tolerance, max_iterations, &iterations);
+
+        std::cout << iterations << std::endl;
+
+        std::vector<float> h_X(n * args.s);
+        CUDA_CHECK(cudaMemcpy(h_X.data(), d_X, sizeof(float) * h_X.size(),
+                              cudaMemcpyDeviceToHost));
+        mat_utils::MatWriter writer("X.mat");
+        writer.write_dense("X", h_X, n, args.s);
+
+        CUSPARSE_CHECK(cusparseDestroyDnMat(X));
+        CUSPARSE_CHECK(cusparseDestroyDnMat(B));
+
+        CUSPARSE_CHECK(cusparseDestroy(cusparseH));
+        CUBLAS_CHECK(cublasDestroy_v2(cublasH));
+        CUSOLVER_CHECK(cusolverDnDestroy(cusolverH));
+        CUSOLVER_CHECK(cusolverDnDestroyParams(cusolverP));
+
+        return 0;
     }
-
-    float tolerance = std::numeric_limits<float>::epsilon();
-    if (args.tolerance > 0) {
-        tolerance = args.tolerance;
-    }
-    const int max_iterations = n;
-
-    int iterations = 0;
-    dr_bcg::dr_bcg(cusolverH, cusolverP, cublasH, cusparseH, A.get(), X, B,
-                   L.get(), tolerance, max_iterations, &iterations);
-
-    std::cout << iterations << std::endl;
-
-    std::vector<float> h_X(n * args.s);
-    CUDA_CHECK(cudaMemcpy(h_X.data(), d_X, sizeof(float) * h_X.size(),
-                          cudaMemcpyDeviceToHost));
-    mat_utils::MatWriter writer("X.mat");
-    writer.write_dense("X", h_X, n, args.s);
-
-    CUSPARSE_CHECK(cusparseDestroyDnMat(X));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(B));
-
-    CUSPARSE_CHECK(cusparseDestroy(cusparseH));
-    CUBLAS_CHECK(cublasDestroy_v2(cublasH));
-    CUSOLVER_CHECK(cusolverDnDestroy(cusolverH));
-    CUSOLVER_CHECK(cusolverDnDestroyParams(cusolverP));
-
-    return 0;
 }
