@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 #include <mat_utils/mat_reader.h>
@@ -18,14 +19,20 @@
 #include "dr_bcg/helper.h"
 #include "dr_bcg/sparse.h"
 
+template <typename T>
 void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
-            const thrust::device_vector<float> &B_v,
-            bool print_summary = false) {
-    thrust::device_vector<float> AX_v(n * s);
-    float *d_AX = thrust::raw_pointer_cast(AX_v.data());
+            const thrust::device_vector<T> &B_v, bool print_summary = false) {
+    static_assert(std::is_same<T, float>::value ||
+                      std::is_same<T, double>::value,
+                  "verify<T> only supports float or double");
+
+    thrust::device_vector<T> AX_v(n * s);
+    T *d_AX = thrust::raw_pointer_cast(AX_v.data());
     cusparseDnMatDescr_t AX;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&AX, n, s, n, d_AX, CUDA_R_32F,
-                                       CUSPARSE_ORDER_COL));
+    cudaDataType_t valueType =
+        std::is_same<T, float>::value ? CUDA_R_32F : CUDA_R_64F;
+    CUSPARSE_CHECK(
+        cusparseCreateDnMat(&AX, n, s, n, d_AX, valueType, CUSPARSE_ORDER_COL));
 
     cusparseHandle_t cusparseH;
     CUSPARSE_CHECK(cusparseCreate(&cusparseH));
@@ -34,9 +41,9 @@ void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
     void *buffer = nullptr;
 
     constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-    constexpr float alpha = 1.0f;
-    constexpr float beta = 0.0f;
-    constexpr cudaDataType_t compute_type = CUDA_R_32F;
+    T alpha = static_cast<T>(1);
+    T beta = static_cast<T>(0);
+    cudaDataType_t compute_type = valueType;
     constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
     CUSPARSE_CHECK(cusparseSpMM_bufferSize(cusparseH, op, op, &alpha, A, X,
@@ -55,20 +62,20 @@ void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
         CUDA_CHECK(cudaFree(buffer));
     }
 
-    thrust::host_vector<float> got = AX_v;
-    thrust::host_vector<float> expected = B_v;
+    thrust::host_vector<T> got = AX_v;
+    thrust::host_vector<T> expected = B_v;
 
     if (got.size() != expected.size()) {
         std::cerr << "Size mismatch" << std::endl;
         return;
     }
 
-    float avg_error = 0;
-    float max_error = 0;
-    float min_error = std::numeric_limits<float>::max();
+    T avg_error = static_cast<T>(0);
+    T max_error = static_cast<T>(0);
+    T min_error = std::numeric_limits<T>::max();
 
     for (int i = 0; i < expected.size(); ++i) {
-        float error = std::abs(got[i] - expected[i]);
+        T error = std::abs(got[i] - expected[i]);
         if (error > max_error) {
             max_error = error;
         }
@@ -77,7 +84,7 @@ void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
         }
         avg_error += error;
     }
-    avg_error /= expected.size();
+    avg_error /= static_cast<T>(expected.size());
 
     if (print_summary) {
         std::cerr << "Summary:" << std::endl;
@@ -217,7 +224,7 @@ int main(int argc, char *argv[]) {
         } else {
             iterations =
                 dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations);
-            // verify(A.get(), X, n, args.s, B_v, args.print_summary);
+            verify(A.get(), X, n, args.s, B_v, args.print_summary);
         }
 
         std::cout << "Iterations: " << iterations << std::endl;
