@@ -227,6 +227,24 @@ void copy_upper_triangular(float *dst, float *src, const int m, const int n) {
     copy_upper_triangular_kernel<<<grid_dim, block_dim>>>(dst, src, m, n);
 }
 
+__global__ void copy_upper_triangular_kernel_double(double *dst, double *src,
+                                                    const int m, const int n) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (col <= row && row < n && col < n) {
+        dst[row * n + col] = src[row * m + col];
+    }
+}
+
+void copy_upper_triangular(double *dst, double *src, const int m, const int n) {
+    constexpr int block_n = 16;
+    constexpr dim3 block_dim(block_n, block_n);
+    dim3 grid_dim((n + block_n - 1) / block_n, (n + block_n - 1) / block_n);
+    copy_upper_triangular_kernel_double<<<grid_dim, block_dim>>>(dst, src, m,
+                                                                 n);
+}
+
 /**
  * @brief Computes the inverse of a matrix using LU factorization.
  *
@@ -303,6 +321,81 @@ void invert_square_matrix(cusolverDnHandle_t &cusolverH,
     }
 
     CUDA_CHECK(cudaMemcpy(d_A, d_I, sizeof(float) * h_I.size(),
+                          cudaMemcpyDeviceToDevice));
+
+    CUDA_CHECK(cudaFree(d_I));
+    CUDA_CHECK(cudaFree(d_Ipiv));
+    CUDA_CHECK(cudaFree(d_info));
+}
+
+void invert_square_matrix(cusolverDnHandle_t &cusolverH,
+                          cusolverDnParams_t &params, double *d_A,
+                          const int n) {
+    constexpr cudaDataType_t data_type = CUDA_R_64F;
+
+    // LU Decomposition
+    size_t d_work_size = 0;
+    void *d_work = nullptr;
+    size_t h_work_size = 0;
+    void *h_work = nullptr;
+
+    int info = 0;
+    int *d_info = nullptr;
+
+    int64_t *d_Ipiv = nullptr;
+
+    CUDA_CHECK(
+        cudaMalloc(reinterpret_cast<void **>(&d_Ipiv), sizeof(int64_t) * n));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int)));
+
+    CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(cusolverH, params, n, n,
+                                               data_type, d_A, n, data_type,
+                                               &d_work_size, &h_work_size));
+
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_work), d_work_size));
+    if (h_work_size > 0) {
+        h_work = reinterpret_cast<void *>(malloc(h_work_size));
+        if (h_work == nullptr) {
+            throw std::runtime_error("Error: h_work not allocated.");
+        }
+    }
+
+    CUSOLVER_CHECK(cusolverDnXgetrf(cusolverH, params, n, n, data_type, d_A, n,
+                                    d_Ipiv, data_type, d_work, d_work_size,
+                                    h_work, h_work_size, d_info));
+
+    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
+    if (0 > info) {
+        throw std::runtime_error(std::to_string(-info) +
+                                 "-th parameter is wrong \n");
+    }
+
+    CUDA_CHECK(cudaFree(d_work));
+    free(h_work);
+
+    // Solve A * X = I for inverse
+    std::vector<double> h_I(n * n, 0);
+    double *d_I = nullptr;
+
+    for (int i = 0; i < n; i++) {
+        h_I.at(i * n + i) = 1;
+    }
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_I),
+                          sizeof(double) * h_I.size()));
+    CUDA_CHECK(cudaMemcpy(d_I, h_I.data(), sizeof(double) * h_I.size(),
+                          cudaMemcpyHostToDevice));
+
+    CUSOLVER_CHECK(cusolverDnXgetrs(cusolverH, params, CUBLAS_OP_N, n, n,
+                                    data_type, d_A, n, d_Ipiv, data_type, d_I,
+                                    n, d_info));
+
+    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
+    if (0 > info) {
+        throw std::runtime_error(std::to_string(-info) +
+                                 "-th parameter is wrong \n");
+    }
+
+    CUDA_CHECK(cudaMemcpy(d_A, d_I, sizeof(double) * h_I.size(),
                           cudaMemcpyDeviceToDevice));
 
     CUDA_CHECK(cudaFree(d_I));
@@ -401,6 +494,81 @@ void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
     CUSOLVER_CHECK(cusolverDnSorgqr(cusolverH, m, n, n, d_Q, m, d_tau,
                                     reinterpret_cast<float *>(d_work),
                                     numfloats_orgqr_d, d_info));
+    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
+    if (0 > info) {
+        throw std::runtime_error(std::to_string(-info) +
+                                 "-th parameter is wrong \n");
+    }
+
+    CUDA_CHECK(cudaFree(d_info));
+    CUDA_CHECK(cudaFree(d_tau));
+    CUDA_CHECK(cudaFree(d_work));
+}
+
+void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                      double *d_Q, double *d_R, const int m, const int n,
+                      const double *d_A) {
+    NVTX3_FUNC_RANGE();
+
+    assert(n < m && "Expect cols to be less than rows for DR-BCG");
+
+    int info = 0;
+
+    double *d_tau = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_tau, sizeof(double) * n));
+
+    int *d_info = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_info, sizeof(int)));
+
+    void *d_work = nullptr;
+    std::size_t lwork_geqrf_d = 0;
+
+    void *h_work = nullptr;
+    std::size_t lwork_geqrf_h = 0;
+
+    CUDA_CHECK(
+        cudaMemcpy(d_Q, d_A, sizeof(double) * m * n, cudaMemcpyDeviceToDevice));
+
+    // Create device buffer
+    CUSOLVER_CHECK(cusolverDnXgeqrf_bufferSize(
+        cusolverH, params, m, n, CUDA_R_64F, d_Q, m, CUDA_R_64F, d_tau,
+        CUDA_R_64F, &lwork_geqrf_d, &lwork_geqrf_h));
+
+    int numdoubles_orgqr_d = 0;
+    CUSOLVER_CHECK(cusolverDnDorgqr_bufferSize(cusolverH, m, n, n, d_Q, m,
+                                               d_tau, &numdoubles_orgqr_d));
+    const std::size_t lwork_orgqr_d = numdoubles_orgqr_d * sizeof(double);
+
+    const std::size_t lwork_bytes_d = std::max(lwork_geqrf_d, lwork_orgqr_d);
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_work), lwork_bytes_d));
+
+    if (lwork_geqrf_h > 0) {
+        h_work = reinterpret_cast<void *>(malloc(lwork_geqrf_h));
+        if (h_work == nullptr) {
+            throw std::runtime_error("Error: h_work not allocated.");
+        }
+    }
+
+    CUSOLVER_CHECK(cusolverDnXgeqrf(
+        cusolverH, params, m, n, CUDA_R_64F, d_Q, m, CUDA_R_64F, d_tau,
+        CUDA_R_64F, d_work, lwork_geqrf_d, h_work, lwork_geqrf_h, d_info));
+
+    if (h_work) {
+        free(h_work); // No longer needed
+    }
+
+    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
+    if (0 > info) {
+        throw std::runtime_error(std::to_string(-info) +
+                                 "-th parameter is wrong \n");
+    }
+
+    copy_upper_triangular(d_R, d_Q, m, n);
+
+    // Explicitly compute Q
+    CUSOLVER_CHECK(cusolverDnDorgqr(cusolverH, m, n, n, d_Q, m, d_tau,
+                                    reinterpret_cast<double *>(d_work),
+                                    numdoubles_orgqr_d, d_info));
     CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
     if (0 > info) {
         throw std::runtime_error(std::to_string(-info) +
@@ -561,10 +729,10 @@ void print_sparse_matrix(const cusparseHandle_t &cusparseH,
 void sptri_left_multiply(const cusparseHandle_t &cusparseH,
                          cusparseDnMatDescr_t &C, cusparseOperation_t opA,
                          const cusparseSpMatDescr_t &A,
-                         const cusparseDnMatDescr_t &B) {
+                         const cusparseDnMatDescr_t &B,
+                         const cudaDataType compute_type) {
     constexpr cusparseOperation_t OP_B = CUSPARSE_OPERATION_NON_TRANSPOSE;
     constexpr float alpha = 1;
-    constexpr cudaDataType COMPUTE_TYPE = CUDA_R_32F;
     constexpr cusparseSpSMAlg_t ALG_TYPE = CUSPARSE_SPSM_ALG_DEFAULT;
 
     cusparseSpSMDescr_t spsm{};
@@ -575,7 +743,7 @@ void sptri_left_multiply(const cusparseHandle_t &cusparseH,
 
     CUSPARSE_CHECK(cusparseSpSM_bufferSize(
         cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B, C,
-        COMPUTE_TYPE, ALG_TYPE, spsm, &buffer_size));
+        compute_type, ALG_TYPE, spsm, &buffer_size));
 
     if (buffer_size > 0) {
         CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
@@ -585,11 +753,11 @@ void sptri_left_multiply(const cusparseHandle_t &cusparseH,
 
     CUSPARSE_CHECK(cusparseSpSM_analysis(
         cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B, C,
-        COMPUTE_TYPE, ALG_TYPE, spsm, buffer));
+        compute_type, ALG_TYPE, spsm, buffer));
 
     CUSPARSE_CHECK(cusparseSpSM_solve(cusparseH, opA, OP_B,
                                       reinterpret_cast<const void *>(&alpha), A,
-                                      B, C, COMPUTE_TYPE, ALG_TYPE, spsm));
+                                      B, C, compute_type, ALG_TYPE, spsm));
 
     CUDA_CHECK(cudaFree(buffer));
     CUSPARSE_CHECK(cusparseSpSM_destroyDescr(spsm));

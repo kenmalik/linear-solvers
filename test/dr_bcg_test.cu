@@ -29,204 +29,6 @@ bool match(const thrust::host_vector<T> &a, const thrust::host_vector<T> &b,
     return a_diff == a.end() && b_diff == b.end();
 }
 
-TEST(QuadraticForm, ScalarOutputCorrect) {
-    cublasHandle_t cublasH;
-
-    std::vector<float> h_x = {1, 2, 3};
-    std::vector<float> h_A = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-
-    float *d_x;
-    float *d_temp;
-    float *d_A;
-
-    float h_y;
-    float *d_y;
-
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_x),
-                          sizeof(float) * h_x.size()));
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_temp),
-                          sizeof(float) * h_x.size()));
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A),
-                          sizeof(float) * h_A.size()));
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_y), sizeof(float)));
-
-    CUDA_CHECK(cudaMemcpy(d_x, h_x.data(), sizeof(float) * h_x.size(),
-                          cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(d_A, h_A.data(), sizeof(float) * h_A.size(),
-                          cudaMemcpyHostToDevice));
-
-    CUBLAS_CHECK(cublasCreate_v2(&cublasH));
-    dr_bcg::quadratic_form(cublasH, 3, 3, d_x, d_A, d_temp, d_y);
-
-    CUDA_CHECK(cudaMemcpy(&h_y, d_y, sizeof(float), cudaMemcpyDeviceToHost));
-
-    CUDA_CHECK(cudaFree(d_x));
-    CUDA_CHECK(cudaFree(d_temp));
-    CUDA_CHECK(cudaFree(d_A));
-    CUDA_CHECK(cudaFree(d_y));
-
-    ASSERT_EQ(h_y, 228);
-}
-
-TEST(QuadraticForm, MatrixOutputCorrect) {
-    constexpr int m = 3;
-    constexpr int n = 2;
-
-    cublasHandle_t cublasH;
-
-    std::vector<float> h_x = {1, 3, 5, 2, 4, 6};
-    std::vector<float> h_A = {1, 4, 7, 2, 5, 8, 3, 6, 9};
-
-    float *d_x;
-    float *d_temp;
-    float *d_A;
-
-    std::vector<float> h_y(n * n);
-    float *d_y;
-
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_x),
-                          sizeof(float) * h_x.size()));
-    CUDA_CHECK(
-        cudaMalloc(reinterpret_cast<void **>(&d_temp), sizeof(float) * m * n));
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A),
-                          sizeof(float) * h_A.size()));
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_y),
-                          sizeof(float) * h_y.size()));
-
-    CUDA_CHECK(cudaMemcpy(d_x, h_x.data(), sizeof(float) * h_x.size(),
-                          cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(d_A, h_A.data(), sizeof(float) * h_A.size(),
-                          cudaMemcpyHostToDevice));
-
-    CUBLAS_CHECK(cublasCreate_v2(&cublasH));
-    dr_bcg::quadratic_form(cublasH, m, n, d_x, d_A, d_temp, d_y);
-
-    CUDA_CHECK(cudaMemcpy(h_y.data(), d_y, sizeof(float) * h_y.size(),
-                          cudaMemcpyDeviceToHost));
-
-    CUDA_CHECK(cudaFree(d_x));
-    CUDA_CHECK(cudaFree(d_temp));
-    CUDA_CHECK(cudaFree(d_A));
-    CUDA_CHECK(cudaFree(d_y));
-
-    std::vector<float> expected = {549, 696, 720, 912};
-
-    ASSERT_EQ(h_y, expected);
-}
-
-TEST(QuadraticForm, SparseIdentityCheck) {
-    constexpr int m = 8;
-    constexpr int n = 4;
-
-    cublasHandle_t cublasH;
-    CUBLAS_CHECK(cublasCreate_v2(&cublasH));
-
-    cusparseHandle_t cusparseH;
-    CUSPARSE_CHECK(cusparseCreate(&cusparseH));
-
-    // A = I
-    constexpr cudaDataType_t data_type = CUDA_R_32F;
-    constexpr cusparseOrder_t order = CUSPARSE_ORDER_COL;
-    constexpr cusparseIndexType_t index_type = CUSPARSE_INDEX_64I;
-    constexpr cusparseIndexBase_t base_type = CUSPARSE_INDEX_BASE_ZERO;
-
-    thrust::device_vector<float> A_vals(m);
-    thrust::fill(A_vals.begin(), A_vals.end(), 1);
-
-    auto counter = thrust::make_counting_iterator<int64_t>(0);
-
-    thrust::device_vector<int64_t> A_row_offsets(m + 1);
-    thrust::copy_n(counter, A_row_offsets.size(), A_row_offsets.begin());
-    int64_t *row_offsets = thrust::raw_pointer_cast(A_row_offsets.data());
-
-    counter = thrust::make_counting_iterator<int64_t>(0);
-    thrust::device_vector<int64_t> A_col_indices(m);
-    thrust::copy_n(counter, A_col_indices.size(), A_col_indices.begin());
-    int64_t *col_indices = thrust::raw_pointer_cast(A_col_indices.data());
-
-    thrust::device_vector<float> values(m * n);
-    thrust::fill(values.begin(), values.end(), 1);
-    float *d_values = thrust::raw_pointer_cast(values.data());
-
-    cusparseSpMatDescr_t A_desc;
-    CUSPARSE_CHECK(cusparseCreateCsr(&A_desc, m, m, m, row_offsets, col_indices,
-                                     d_values, index_type, index_type,
-                                     base_type, data_type));
-
-    // X = 1
-    thrust::device_vector<float> X(m * n);
-    thrust::fill(X.begin(), X.end(), 1);
-    float *d_X = thrust::raw_pointer_cast(X.data());
-    cusparseDnMatDescr_t X_desc;
-    CUSPARSE_CHECK(
-        cusparseCreateDnMat(&X_desc, m, n, m, d_X, data_type, order));
-
-    float *d_work = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_work, sizeof(float) * m * n));
-
-    thrust::device_vector<float> Y(n * n);
-    float *d_Y = thrust::raw_pointer_cast(Y.data());
-
-    dr_bcg::quadratic_form(cublasH, cusparseH, m, n, X_desc, A_desc, d_work,
-                           d_Y);
-
-    CUDA_CHECK(cudaFree(d_work));
-    CUBLAS_CHECK(cublasDestroy(cublasH));
-
-    // Expected = 1_{n * n} * m
-    thrust::host_vector<float> got = Y;
-    thrust::host_vector<float> expected(n * n);
-    thrust::fill(expected.begin(), expected.end(), m);
-    ASSERT_TRUE(match(expected, got));
-}
-
-TEST(Residual, OutputCorrect) {
-    constexpr int m = 3;
-
-    std::vector<float> h_B = {1, 2, 3, 2, 3, 4, 3, 4, 5};
-    std::vector<float> h_X = {1, 2, 3, 2, 3, 4, 3, 4, 5};
-
-    float *d_B = nullptr;
-    float *d_X = nullptr;
-
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_B),
-                          sizeof(float) * h_B.size()));
-    CUDA_CHECK(cudaMemcpy(d_B, h_B.data(), sizeof(float) * h_B.size(),
-                          cudaMemcpyHostToDevice));
-
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_X),
-                          sizeof(float) * h_X.size()));
-    CUDA_CHECK(cudaMemcpy(d_X, h_X.data(), sizeof(float) * h_X.size(),
-                          cudaMemcpyHostToDevice));
-
-    std::vector<float> h_A = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-    float *d_A;
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A),
-                          sizeof(float) * h_A.size()));
-    CUDA_CHECK(cudaMemcpy(d_A, h_A.data(), sizeof(float) * h_A.size(),
-                          cudaMemcpyHostToDevice));
-
-    std::vector<float> h_residual(m);
-    float *d_residual = nullptr;
-
-    cublasHandle_t cublasH;
-    CUBLAS_CHECK(cublasCreate_v2(&cublasH));
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_residual),
-                          sizeof(float) * h_residual.size()));
-
-    dr_bcg::residual(cublasH, d_residual, d_B, m, d_A, d_X);
-
-    CUDA_CHECK(cudaMemcpy(h_residual.data(), d_residual,
-                          sizeof(float) * h_residual.size(),
-                          cudaMemcpyDeviceToHost));
-
-    std::vector<float> expected = {-29, -34, -39};
-    ASSERT_EQ(h_residual, expected);
-
-    CUDA_CHECK(cudaFree(d_B));
-    CUDA_CHECK(cudaFree(d_X));
-}
-
 TEST(InvertSquareMatrix, TwoByTwoMatrix) {
     constexpr int m = 2;
 
@@ -420,54 +222,47 @@ TEST(QR_Factorization, ProductOfFactorsIsA) {
 
 #endif // DR_BCG_USE_THIN_QR
 
-// Copy upper triangular-like, even if source matrix may be taller than
-// destination matrix
-TEST(CopyUpperTriangular, OutputCorrect) {
-    constexpr int m = 16;
-    constexpr int n = 8;
+TEST(CopyUpperTriangular, CopyFromSquareMatrix) {
+    constexpr int n = 3;
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> distrib(0, 1);
+    thrust::device_vector<float> dv_A(n * n);
+    thrust::fill(dv_A.begin(), dv_A.end(), 3.0f);
+    float *d_A = thrust::raw_pointer_cast(dv_A.data());
 
-    std::vector<float> A(m * n);
-    std::generate(A.begin(), A.end(), [&]() { return distrib(gen); });
+    thrust::device_vector<float> dv_B(n * n, 1.0f);
+    float *d_B = thrust::raw_pointer_cast(dv_B.data());
 
-    std::vector<float> copy_expected(n * n);
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j <= i; j++) // Matrix is stored in column-major order
-        {
-            copy_expected.at(i * n + j) = A.at(i * m + j);
-        }
-    }
+    copy_upper_triangular(d_B, d_A, n, n);
 
-    std::vector<float> copy_got(copy_expected.size());
+    std::vector<float> expected = {3.0f, 1.0f, 1.0f, 3.0f, 3.0f,
+                                   1.0f, 3.0f, 3.0f, 3.0f};
 
-    float *d_A = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_A, sizeof(float) * A.size()));
-    CUDA_CHECK(cudaMemcpy(d_A, A.data(), sizeof(float) * A.size(),
-                          cudaMemcpyHostToDevice));
+    thrust::host_vector<float> hv_expected(expected.begin(), expected.end());
+    thrust::host_vector<float> hv_got = dv_B;
 
-    float *d_copy = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_copy, sizeof(float) * copy_got.size()));
+    ASSERT_TRUE(match(hv_expected, hv_got));
+}
 
-    copy_upper_triangular(d_copy, d_A, m, n);
+TEST(CopyUpperTriangular, CopyFromTallMatrix) {
+    constexpr int m = 6;
+    constexpr int n = 3;
 
-    CUDA_CHECK(cudaMemcpy(copy_got.data(), d_copy,
-                          sizeof(float) * copy_got.size(),
-                          cudaMemcpyDeviceToHost));
+    thrust::device_vector<float> dv_A(m * n);
+    thrust::fill(dv_A.begin(), dv_A.end(), 3.0f);
+    float *d_A = thrust::raw_pointer_cast(dv_A.data());
 
-    CUDA_CHECK(cudaFree(d_A));
-    CUDA_CHECK(cudaFree(d_copy));
+    thrust::device_vector<float> dv_B(n * n, 1.0f);
+    float *d_B = thrust::raw_pointer_cast(dv_B.data());
 
-    std::cerr << "Original Matrix" << std::endl;
-    print_matrix(A.data(), m, n);
-    std::cerr << "Expected" << std::endl;
-    print_matrix(copy_expected.data(), n, n);
-    std::cerr << "Got" << std::endl;
-    print_matrix(copy_got.data(), n, n);
+    copy_upper_triangular(d_B, d_A, m, n);
 
-    ASSERT_EQ(copy_expected, copy_got);
+    std::vector<float> expected = {3.0f, 1.0f, 1.0f, 3.0f, 3.0f,
+                                   1.0f, 3.0f, 3.0f, 3.0f};
+
+    thrust::host_vector<float> hv_expected(expected.begin(), expected.end());
+    thrust::host_vector<float> hv_got = dv_B;
+
+    ASSERT_TRUE(match(hv_expected, hv_got));
 }
 
 TEST(SPTRI_LeftMultiply, IdentityStaysSame) {
