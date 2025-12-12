@@ -61,4 +61,5 @@ void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
 void sptri_left_multiply(const cusparseHandle_t &cusparseH,
                          cusparseDnMatDescr_t &C, cusparseOperation_t opA,
                          const cusparseSpMatDescr_t &A,
-                         const cusparseDnMatDescr_t &B);
+                         const cusparseDnMatDescr_t &B,
+                         const cudaDataType compute_type = CUDA_R_32F);
