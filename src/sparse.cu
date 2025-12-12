@@ -3,7 +3,7 @@
 #include "dr_bcg/sparse.h"
 
 #include <iostream>
-#include <tuple>
+#include <cstdint>
 
 namespace {
 struct Handles {
