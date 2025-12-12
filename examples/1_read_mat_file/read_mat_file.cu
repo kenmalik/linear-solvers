@@ -101,6 +101,7 @@ struct Args {
     std::optional<std::filesystem::path> out_file = std::nullopt;
     std::optional<std::filesystem::path> X_file = std::nullopt;
     std::optional<std::filesystem::path> B_file = std::nullopt;
+    std::optional<std::filesystem::path> L_file = std::nullopt;
     double tolerance = 1e-6;
     bool print_summary = false;
     bool print_help = false;
@@ -163,6 +164,15 @@ Args parse_args(int argc, char *argv[]) {
                 throw std::invalid_argument("B file does not exist");
             }
             args.B_file = Bp;
+        } else if (std::strcmp(arg, "-L") == 0) {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing L file path");
+            }
+            std::filesystem::path Lp{argv[++i]};
+            if (!std::filesystem::exists(Lp)) {
+                throw std::invalid_argument("L file does not exist");
+            }
+            args.L_file = Lp;
         } else if (std::strcmp(arg, "-o") == 0) {
             if (i + 1 >= argc) {
                 throw std::invalid_argument("Missing output file path");
@@ -311,8 +321,16 @@ int main(int argc, char *argv[]) {
             CUSPARSE_CHECK(cusparseDestroyDnMat(A_dense));
             CUSPARSE_CHECK(cusparseDestroy(cusparseH));
         } else {
-            iterations =
-                dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations);
+            if (args.L_file.has_value()) {
+                mat_utils::SpMatReader L_reader(*args.L_file, {}, "L");
+                DeviceSparseMatrixDouble L(ssm);
+
+                iterations = dr_bcg::dr_bcg(A.get(), X, B, L.get(), tolerance,
+                                            max_iterations);
+            } else {
+                iterations =
+                    dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations);
+            }
             verify(A.get(), X, n, args.s, B_v, args.print_summary);
         }
 

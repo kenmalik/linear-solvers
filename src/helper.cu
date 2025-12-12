@@ -241,7 +241,8 @@ void copy_upper_triangular(double *dst, double *src, const int m, const int n) {
     constexpr int block_n = 16;
     constexpr dim3 block_dim(block_n, block_n);
     dim3 grid_dim((n + block_n - 1) / block_n, (n + block_n - 1) / block_n);
-    copy_upper_triangular_kernel_double<<<grid_dim, block_dim>>>(dst, src, m, n);
+    copy_upper_triangular_kernel_double<<<grid_dim, block_dim>>>(dst, src, m,
+                                                                 n);
 }
 
 /**
@@ -328,7 +329,8 @@ void invert_square_matrix(cusolverDnHandle_t &cusolverH,
 }
 
 void invert_square_matrix(cusolverDnHandle_t &cusolverH,
-                          cusolverDnParams_t &params, double *d_A, const int n) {
+                          cusolverDnParams_t &params, double *d_A,
+                          const int n) {
     constexpr cudaDataType_t data_type = CUDA_R_64F;
 
     // LU Decomposition
@@ -727,10 +729,10 @@ void print_sparse_matrix(const cusparseHandle_t &cusparseH,
 void sptri_left_multiply(const cusparseHandle_t &cusparseH,
                          cusparseDnMatDescr_t &C, cusparseOperation_t opA,
                          const cusparseSpMatDescr_t &A,
-                         const cusparseDnMatDescr_t &B) {
+                         const cusparseDnMatDescr_t &B,
+                         const cudaDataType compute_type) {
     constexpr cusparseOperation_t OP_B = CUSPARSE_OPERATION_NON_TRANSPOSE;
     constexpr float alpha = 1;
-    constexpr cudaDataType COMPUTE_TYPE = CUDA_R_32F;
     constexpr cusparseSpSMAlg_t ALG_TYPE = CUSPARSE_SPSM_ALG_DEFAULT;
 
     cusparseSpSMDescr_t spsm{};
@@ -741,7 +743,7 @@ void sptri_left_multiply(const cusparseHandle_t &cusparseH,
 
     CUSPARSE_CHECK(cusparseSpSM_bufferSize(
         cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B, C,
-        COMPUTE_TYPE, ALG_TYPE, spsm, &buffer_size));
+        compute_type, ALG_TYPE, spsm, &buffer_size));
 
     if (buffer_size > 0) {
         CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
@@ -751,11 +753,11 @@ void sptri_left_multiply(const cusparseHandle_t &cusparseH,
 
     CUSPARSE_CHECK(cusparseSpSM_analysis(
         cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B, C,
-        COMPUTE_TYPE, ALG_TYPE, spsm, buffer));
+        compute_type, ALG_TYPE, spsm, buffer));
 
     CUSPARSE_CHECK(cusparseSpSM_solve(cusparseH, opA, OP_B,
                                       reinterpret_cast<const void *>(&alpha), A,
-                                      B, C, COMPUTE_TYPE, ALG_TYPE, spsm));
+                                      B, C, compute_type, ALG_TYPE, spsm));
 
     CUDA_CHECK(cudaFree(buffer));
     CUSPARSE_CHECK(cusparseSpSM_destroyDescr(spsm));
