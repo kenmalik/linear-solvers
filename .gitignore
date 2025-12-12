@@ -48,5 +48,5 @@ __pycache__/
 *.bench.csv
 *.bench.json
 
-build/
+*build*/
 *.csv
