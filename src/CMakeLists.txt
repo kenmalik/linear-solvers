@@ -9,7 +9,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(nvtx)
 
 add_library(dr_bcg
-    "dr_bcg.cu"
     "helper.cu"
     "sparse.cu"
     "dense.cu"
