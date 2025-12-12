@@ -2,8 +2,8 @@
 #include "dr_bcg/helper.h"
 #include "dr_bcg/sparse.h"
 
-#include <iostream>
 #include <cstdint>
+#include <iostream>
 
 namespace {
 struct Handles {
@@ -791,7 +791,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         d.zeta, s, d.s, n, d.s, n));
 
             sptri_left_multiply(handles.cusparse, temp,
-                                CUSPARSE_OPERATION_TRANSPOSE, L, w_desc);
+                                CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
+                                CUDA_R_64F);
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
             constexpr double sgeam_alpha = 1.0;
