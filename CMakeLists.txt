@@ -4,7 +4,7 @@ project(DR_BCG VERSION 0.0.1)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(CUDAToolkit REQUIRED)
+find_package(CUDAToolkit 12.0 REQUIRED)
 enable_language(CUDA)
 
 option(DR_BCG_BUILD_TESTS "Enable tests" OFF)
