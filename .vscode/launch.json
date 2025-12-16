@@ -5,14 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "CUDA GDB Server: Launch",
+            "name": "Launch Non-Preconditioned",
             "type": "cuda-gdbserver",
             "request": "launch",
             "server": "cuda-gdbserver",
             "program": "${workspaceFolder}/build/examples/1_read_mat_file/read_mat_file",
             "target": {
                 "type": "extended-remote",
-                "host": "gpub001",
+                "host": "${input:node}",
                 "port": "1234"
             },
             "setupCommands": [
@@ -24,5 +24,32 @@
             ],
             "stopAtEntry": true,
         },
+        {
+            "name": "Launch Preconditioned",
+            "type": "cuda-gdbserver",
+            "request": "launch",
+            "server": "cuda-gdbserver",
+            "program": "${workspaceFolder}/build/examples/1_read_mat_file/read_mat_file",
+            "target": {
+                "type": "extended-remote",
+                "host": "${input:node}",
+                "port": "1234"
+            },
+            "setupCommands": [
+                {
+                    "description": "Set program arguments",
+                    "text": "set args --double -L 494_bus_ichol.mat 494_bus.mat 8",
+                    "ignoreFailures": false
+                }
+            ],
+            "stopAtEntry": true,
+        }
+    ],
+    "inputs": [
+        {
+            "id": "node",
+            "type": "promptString",
+            "description": "Compute node running cuda-gdbserver",
+        }
     ]
 }
