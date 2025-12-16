@@ -5,10 +5,11 @@
 #include <cuda/std/cmath>
 #include <thrust/device_vector.h>
 
+#include <cassert>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <cassert>
+#include <type_traits>
 
 #define DEBUG_LOG(val) std::cerr << val << std::endl;
 #define DEBUG_SLOG(val, stream) stream << val << std::endl;
@@ -18,11 +19,15 @@
     print_device_matrix(A, m, n, lda, stream);
 
 // Print m by n column-major device matrix
-void print_device_matrix(const float *d_A, int m, int n, int lda,
+template <typename T>
+void print_device_matrix(const T *d_A, int m, int n, int lda,
                          std::ostream &os = std::cerr) {
+    static_assert(std::is_same<T, float>::value ||
+                      std::is_same<T, double>::value,
+                  "print_device_matrix only supports float or double");
     assert(m <= lda && "m must be less than or equal to lda");
 
-    thrust::device_ptr<const float> begin{d_A};
+    thrust::device_ptr<const T> begin{d_A};
 
     auto original_precision = std::cerr.precision();
     os << std::scientific << std::setprecision(5);
