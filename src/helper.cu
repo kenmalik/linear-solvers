@@ -121,68 +121,6 @@ void print_device_matrix(const float *d_mat, const int rows, const int cols) {
     print_matrix(h_mat.data(), rows, cols);
 }
 
-/**
- * @brief Fills a matrix with random values in the range [0, 1).
- *
- * @param mat Pointer to the matrix data (host)
- * @param rows Number of rows in the matrix
- * @param cols Number of columns in the matrix
- */
-void fill_random(float *mat, const int rows, const int cols,
-                 const std::optional<int> seed) {
-    int s;
-    if (seed) {
-        s = *seed;
-    } else {
-        std::random_device rd;
-        s = rd();
-    }
-    std::mt19937 gen(s);
-    std::uniform_real_distribution<> dist(0, 1);
-
-    for (int j = 0; j < cols; j++) {
-        for (int i = 0; i < rows; i++) {
-            mat[j * rows + i] = dist(gen);
-        }
-    }
-}
-
-/**
- * @brief Fills a matrix with random values and makes it symmetric positive
- * definite (SPD).
- *
- * The matrix is filled with random values, then multiplied by its transpose to
- * ensure SPD.
- *
- * @param mat Pointer to the matrix data (host)
- * @param n Matrix dimensions
- */
-void fill_spd(float *mat, const int n, const std::optional<int> seed) {
-    fill_random(mat, n, n, seed);
-
-    cublasHandle_t cublasH;
-    CUBLAS_CHECK(cublasCreate_v2(&cublasH));
-
-    float alpha = 1.0 / n;
-    float beta = 0.0;
-
-    float *d_mat = nullptr;
-    CUDA_CHECK(
-        cudaMalloc(reinterpret_cast<void **>(&d_mat), sizeof(float) * n * n));
-    CUDA_CHECK(
-        cudaMemcpy(d_mat, mat, sizeof(float) * n * n, cudaMemcpyHostToDevice));
-
-    CUBLAS_CHECK(cublasSgemm_v2(cublasH, CUBLAS_OP_T, CUBLAS_OP_N, n, n, n,
-                                &alpha, d_mat, n, d_mat, n, &beta, d_mat, n));
-
-    CUDA_CHECK(
-        cudaMemcpy(mat, d_mat, sizeof(float) * n * n, cudaMemcpyDeviceToHost));
-
-    CUDA_CHECK(cudaFree(d_mat));
-
-    CUBLAS_CHECK(cublasDestroy_v2(cublasH));
-}
-
 std::vector<double> read_matrix_bin(std::string filename) {
     std::ifstream input_file(filename, std::ios::binary);
     if (!input_file.is_open()) {

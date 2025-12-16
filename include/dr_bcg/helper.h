@@ -22,12 +22,6 @@ void check(cublasStatus_t err, const char *const func, const char *const file,
 void check(cusparseStatus_t err, const char *const func, const char *const file,
            const int line);
 
-void fill_random(float *mat, const int rows, const int cols,
-                 const std::optional<int> seed = std::nullopt);
-
-void fill_spd(float *mat, const int n,
-              const std::optional<int> seed = std::nullopt);
-
 void print_matrix(const float *mat, const int rows, const int cols);
 
 void print_device_matrix(const float *d_mat, const int rows, const int cols);
