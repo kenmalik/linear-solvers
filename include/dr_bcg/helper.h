@@ -46,10 +46,6 @@ void invert_square_matrix(cusolverDnHandle_t &cusolverH,
 void invert_square_matrix(cusolverDnHandle_t &cusolverH,
                           cusolverDnParams_t &params, double *A, const int n);
 
-void thin_qr(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-             cublasHandle_t &cublasH, float *Q, float *R, const int m,
-             const int n, const float *A);
-
 void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
                       float *Q, float *R, const int m, const int n,
                       const float *A);

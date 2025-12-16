@@ -403,16 +403,6 @@ void invert_square_matrix(cusolverDnHandle_t &cusolverH,
     CUDA_CHECK(cudaFree(d_info));
 }
 
-#ifdef USE_THIN_QR
-
-void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-                      float *Q, float *R, const int m, const int n,
-                      const float *A) {
-    throw std::runtime_error("qr_factorization not built");
-}
-
-#else
-
 /**
  * @brief Computes the QR factorization of matrix A.
  *
@@ -579,119 +569,6 @@ void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
     CUDA_CHECK(cudaFree(d_tau));
     CUDA_CHECK(cudaFree(d_work));
 }
-
-#endif
-
-#ifndef USE_THIN_QR
-
-void thin_qr(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-             cublasHandle_t &cublasH, float *Q, float *R, const int m,
-             const int n, const float *A) {
-    throw std::runtime_error("thin_qr not built");
-}
-
-#else
-
-void thin_qr(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-             cublasHandle_t &cublasH, float *Q, float *R, const int m,
-             const int n, const float *A) {
-    NVTX3_FUNC_RANGE();
-
-    // H = M^T * M
-    float *d_H = nullptr;
-    CUDA_CHECK(
-        cudaMalloc(reinterpret_cast<void **>(&d_H), sizeof(float) * n * n));
-
-    constexpr float alpha = 1;
-    constexpr float beta = 0;
-    CUBLAS_CHECK(cublasSgemm_v2(cublasH, CUBLAS_OP_T, CUBLAS_OP_N, n, n, m,
-                                &alpha, A, m, A, m, &beta, d_H, n));
-
-    // R^T * R = H
-    void *h_work = nullptr;
-    size_t h_lwork_Xpotrf = 0;
-    void *d_work = nullptr;
-    size_t d_lwork_Xpotrf = 0;
-
-    int info = 0;
-    int *d_info = nullptr;
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int)));
-
-    CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(
-        cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, CUDA_R_32F, d_H, n,
-        CUDA_R_32F, &d_lwork_Xpotrf, &h_lwork_Xpotrf));
-
-    if (h_lwork_Xpotrf > 0) {
-        h_work = reinterpret_cast<void *>(malloc(h_lwork_Xpotrf));
-        if (h_work == nullptr) {
-            throw std::runtime_error("Error: h_work not allocated.");
-        }
-    }
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_work), d_lwork_Xpotrf));
-
-    CUSOLVER_CHECK(cusolverDnXpotrf(
-        cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, CUDA_R_32F, d_H, n,
-        CUDA_R_32F, d_work, d_lwork_Xpotrf, h_work, h_lwork_Xpotrf, d_info));
-
-    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
-    if (info < 0) {
-        throw std::runtime_error(std::to_string(-info) +
-                                 "-th parameter is wrong \n");
-    }
-    if (info > 0) {
-        throw std::runtime_error(
-            "cusolverDnXpotrf (Cholesky factorization) failed. The smallest "
-            "leading minor of d_H which is not positive definite is " +
-            std::to_string(info));
-    }
-
-    copy_upper_triangular(R, d_H, n, n);
-
-    // Q = M * R^-1
-    size_t d_lwork_Xtrtri = 0;
-    size_t h_lwork_Xtrtri = 0;
-    info = 0;
-
-    CUSOLVER_CHECK(cusolverDnXtrtri_bufferSize(
-        cusolverH, CUBLAS_FILL_MODE_UPPER, CUBLAS_DIAG_NON_UNIT, n, CUDA_R_32F,
-        d_H, n, &d_lwork_Xtrtri, &h_lwork_Xtrtri));
-
-    if (h_lwork_Xtrtri > h_lwork_Xpotrf) {
-        if (h_work != nullptr) {
-            free(h_work);
-        }
-        h_work = reinterpret_cast<void *>(malloc(h_lwork_Xtrtri));
-    }
-    if (d_lwork_Xtrtri > d_lwork_Xpotrf) {
-        CUDA_CHECK(cudaFree(d_work));
-        CUDA_CHECK(
-            cudaMalloc(reinterpret_cast<void **>(&d_work), d_lwork_Xtrtri));
-    }
-
-    CUSOLVER_CHECK(cusolverDnXtrtri(
-        cusolverH, CUBLAS_FILL_MODE_UPPER, CUBLAS_DIAG_NON_UNIT, n, CUDA_R_32F,
-        d_H, n, d_work, d_lwork_Xtrtri, h_work, h_lwork_Xtrtri, d_info));
-
-    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
-    if (info < 0) {
-        throw std::runtime_error(std::to_string(-info) +
-                                 "-th parameter is wrong \n");
-    }
-
-    CUBLAS_CHECK(cublasStrmm_v2(
-        cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
-        CUBLAS_DIAG_NON_UNIT, m, n, &alpha, d_H, n, A, m, Q, m));
-
-    if (h_work != nullptr) {
-        free(h_work);
-    }
-    CUDA_CHECK(cudaFree(d_work));
-    CUDA_CHECK(cudaFree(d_info));
-
-    CUDA_CHECK(cudaFree(d_H));
-}
-
-#endif
 
 void print_sparse_matrix(const cusparseHandle_t &cusparseH,
                          const cusparseSpMatDescr_t &sp_mat) {
