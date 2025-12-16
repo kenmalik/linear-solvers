@@ -265,10 +265,15 @@ TEST(CopyUpperTriangular, CopyFromTallMatrix) {
     ASSERT_TRUE(match(hv_expected, hv_got));
 }
 
-class Sptri_left_multiply_test : public testing::Test {
+template <typename T> class Sptri_left_multiply_test : public testing::Test {
   protected:
-    using compute_type = float;
-    static constexpr cudaDataType_t data_type = CUDA_R_32F;
+    static constexpr cudaDataType_t data_type = [] {
+        if constexpr (std::is_same_v<T, float>) {
+            return CUDA_R_32F;
+        } else {
+            return CUDA_R_64F;
+        }
+    }();
 
     static constexpr int m = 8;
     static constexpr int n = 4;
@@ -288,14 +293,14 @@ class Sptri_left_multiply_test : public testing::Test {
     int64_t *row_offsets = nullptr;
     thrust::device_vector<int64_t> A_col_indices;
     int64_t *col_indices = nullptr;
-    thrust::device_vector<compute_type> values;
-    compute_type *d_values = nullptr;
+    thrust::device_vector<T> values;
+    T *d_values = nullptr;
 
-    thrust::device_vector<compute_type> B;
-    compute_type *d_B = nullptr;
+    thrust::device_vector<T> B;
+    T *d_B = nullptr;
 
-    thrust::device_vector<compute_type> C;
-    compute_type *d_C = nullptr;
+    thrust::device_vector<T> C;
+    T *d_C = nullptr;
 
     Sptri_left_multiply_test()
         : A_row_offsets(m + 1), A_col_indices(m), values(m * n), B(m * n),
@@ -339,14 +344,29 @@ class Sptri_left_multiply_test : public testing::Test {
     }
 };
 
-TEST_F(Sptri_left_multiply_test, IdentityStaysSame) {
+using ValidTypes = ::testing::Types<float, double>;
+TYPED_TEST_SUITE(Sptri_left_multiply_test, ValidTypes);
+
+TYPED_TEST(Sptri_left_multiply_test, IdentityStaysSame) {
     constexpr cusparseOperation_t op_type = CUSPARSE_OPERATION_NON_TRANSPOSE;
 
-    sptri_left_multiply(cusparseH, C_desc, op_type, A_desc, B_desc, data_type);
+    sptri_left_multiply(this->cusparseH, this->C_desc, op_type, this->A_desc,
+                        this->B_desc, this->data_type);
 
-    thrust::host_vector<float> expected = B;
-    thrust::host_vector<float> got = C;
+    thrust::host_vector<TypeParam> expected = this->B;
+    thrust::host_vector<TypeParam> got = this->C;
+
+    std::cerr << "Expected: ";
+    for (int i = 0; i < 8; ++i) {
+        std::cerr << expected[i] << std::endl;
+    }
+    std::cerr << std::endl;
+
+    std::cerr << "Got: ";
+    for (int i = 0; i < 8; ++i) {
+        std::cerr << got[i] << " ";
+    }
+    std::cerr << std::endl;
+
     ASSERT_TRUE(match(expected, got));
 }
-
-TEST(SPTRI_LeftMultiply, InPlaceIdentity) {}
