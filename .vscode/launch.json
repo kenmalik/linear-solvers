@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CUDA GDB Server: Launch",
+            "type": "cuda-gdbserver",
+            "request": "launch",
+            "server": "cuda-gdbserver",
+            "program": "${workspaceFolder}/build/examples/1_read_mat_file/read_mat_file",
+            "target": {
+                "type": "extended-remote",
+                "host": "gpub001",
+                "port": "1234"
+            },
+            "setupCommands": [
+                {
+                    "description": "Set program arguments",
+                    "text": "set args --double 494_bus.mat 8",
+                    "ignoreFailures": false
+                }
+            ],
+            "stopAtEntry": true,
+        },
+    ]
+}
