@@ -726,13 +726,21 @@ void print_sparse_matrix(const cusparseHandle_t &cusparseH,
     CUSPARSE_CHECK(cusparseDestroyDnMat(dense));
 }
 
+namespace {
+template <typename T>
 void sptri_left_multiply(const cusparseHandle_t &cusparseH,
                          cusparseDnMatDescr_t &C, cusparseOperation_t opA,
                          const cusparseSpMatDescr_t &A,
-                         const cusparseDnMatDescr_t &B,
-                         const cudaDataType compute_type) {
+                         const cusparseDnMatDescr_t &B) {
     constexpr cusparseOperation_t OP_B = CUSPARSE_OPERATION_NON_TRANSPOSE;
-    constexpr float alpha = 1;
+    constexpr cudaDataType_t compute_type = [] {
+        if constexpr (std::is_same_v<T, float>) {
+            return CUDA_R_32F;
+        } else {
+            return CUDA_R_64F;
+        }
+    }();
+    constexpr T alpha = 1;
     constexpr cusparseSpSMAlg_t ALG_TYPE = CUSPARSE_SPSM_ALG_DEFAULT;
 
     cusparseSpSMDescr_t spsm{};
@@ -761,4 +769,17 @@ void sptri_left_multiply(const cusparseHandle_t &cusparseH,
 
     CUDA_CHECK(cudaFree(buffer));
     CUSPARSE_CHECK(cusparseSpSM_destroyDescr(spsm));
+}
+} // namespace
+
+void sptri_left_multiply(const cusparseHandle_t &cusparseH,
+                         cusparseDnMatDescr_t &C, cusparseOperation_t opA,
+                         const cusparseSpMatDescr_t &A,
+                         const cusparseDnMatDescr_t &B,
+                         const cudaDataType compute_type) {
+    if (compute_type == CUDA_R_32F) {
+        sptri_left_multiply<float>(cusparseH, C, opA, A, B);
+    } else {
+        sptri_left_multiply<double>(cusparseH, C, opA, A, B);
+    }
 }
