@@ -279,11 +279,7 @@ TEST(SPTRI_LeftMultiply, IdentityStaysSame) {
     constexpr cusparseIndexBase_t base_type = CUSPARSE_INDEX_BASE_ZERO;
 
     // A = I
-    thrust::device_vector<float> A_vals(m);
-    thrust::fill(A_vals.begin(), A_vals.end(), 1);
-
     auto counter = thrust::make_counting_iterator<int64_t>(0);
-
     thrust::device_vector<int64_t> A_row_offsets(m + 1);
     thrust::copy_n(counter, A_row_offsets.size(), A_row_offsets.begin());
     int64_t *row_offsets = thrust::raw_pointer_cast(A_row_offsets.data());
