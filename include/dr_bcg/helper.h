@@ -29,8 +29,6 @@ void print_device_matrix(const float *d_mat, const int rows, const int cols);
 void print_sparse_matrix(const cusparseHandle_t &cusparseH,
                          const cusparseSpMatDescr_t &sp_mat);
 
-std::vector<double> read_matrix_bin(std::string filename);
-
 void copy_upper_triangular(float *dst, float *src, const int m, const int n);
 
 void copy_upper_triangular(double *dst, double *src, const int m, const int n);

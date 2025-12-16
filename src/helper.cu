@@ -121,24 +121,6 @@ void print_device_matrix(const float *d_mat, const int rows, const int cols) {
     print_matrix(h_mat.data(), rows, cols);
 }
 
-std::vector<double> read_matrix_bin(std::string filename) {
-    std::ifstream input_file(filename, std::ios::binary);
-    if (!input_file.is_open()) {
-        std::cerr << "Error opening file " << filename << std::endl;
-        exit(1);
-    }
-
-    input_file.seekg(0, std::ios::end);
-    long long file_size = input_file.tellg();
-    input_file.seekg(0, std::ios::beg);
-
-    size_t num_doubles = file_size / sizeof(double);
-    std::vector<double> matrix(num_doubles);
-    input_file.read(reinterpret_cast<char *>(matrix.data()), file_size);
-
-    return matrix;
-}
-
 /**
  * @brief CUDA kernel to copy upper triangular of a matrix stored in
  * column-major order.
