@@ -101,79 +101,6 @@ TEST(InvertSquareMatrix, DiagonalMatrix) {
     ASSERT_TRUE(match(expected, got));
 }
 
-#ifdef DR_BCG_USE_THIN_QR
-
-TEST(ThinQR, OutputCorrect) {
-    constexpr float test_tolerance = 1e-6;
-
-    constexpr int m = 32;
-    constexpr int n = 4;
-
-    cublasHandle_t cublasH;
-    CUBLAS_CHECK(cublasCreate_v2(&cublasH));
-
-    cusolverDnHandle_t cusolverH;
-    cusolverDnParams_t params;
-    CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
-    CUSOLVER_CHECK(cusolverDnCreateParams(&params));
-
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> dist(0, 1);
-
-    std::vector<float> h_A_in(m * n);
-    std::vector<float> h_A_out(m * n);
-
-    for (auto &val : h_A_in) {
-        val = dist(gen);
-    }
-
-    float *d_A = nullptr;
-    float *d_Q = nullptr;
-    float *d_R = nullptr;
-
-    CUDA_CHECK(cudaMalloc(&d_A, sizeof(float) * m * n));
-    CUDA_CHECK(cudaMalloc(&d_Q, sizeof(float) * m * n));
-    CUDA_CHECK(cudaMalloc(&d_R, sizeof(float) * m * m));
-
-    CUDA_CHECK(cudaMemcpy(d_A, h_A_in.data(), sizeof(float) * m * n,
-                          cudaMemcpyHostToDevice));
-
-    dr_bcg::thin_qr(cusolverH, params, cublasH, d_Q, d_R, m, n, d_A);
-
-    std::cerr << "Q:" << std::endl;
-    print_device_matrix(d_Q, m, n);
-    std::cerr << "R:" << std::endl;
-    print_device_matrix(d_R, n, n);
-
-    constexpr float alpha = 1;
-    constexpr float beta = 0;
-    CUBLAS_CHECK(cublasSgemm_v2(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, m, n, n,
-                                &alpha, d_Q, m, d_R, n, &beta, d_A, m));
-
-    CUDA_CHECK(cudaMemcpy(h_A_out.data(), d_A, sizeof(float) * h_A_out.size(),
-                          cudaMemcpyDeviceToHost));
-
-    CUDA_CHECK(cudaFree(d_A));
-    CUDA_CHECK(cudaFree(d_Q));
-    CUDA_CHECK(cudaFree(d_R));
-
-    CUBLAS_CHECK(cublasDestroy_v2(cublasH));
-    CUSOLVER_CHECK(cusolverDnDestroy(cusolverH));
-    CUSOLVER_CHECK(cusolverDnDestroyParams(params));
-
-    std::cerr << "A in:" << std::endl;
-    print_matrix(h_A_in.data(), m, n);
-    std::cerr << "A out:" << std::endl;
-    print_matrix(h_A_out.data(), m, n);
-
-    for (int i = 0; i < h_A_in.size(); i++) {
-        ASSERT_NEAR(h_A_in.at(i), h_A_out.at(i), test_tolerance);
-    }
-}
-
-#else
-
 TEST(QR_Factorization, ProductOfFactorsIsA) {
     constexpr int m = 8;
     constexpr int n = 4;
@@ -219,8 +146,6 @@ TEST(QR_Factorization, ProductOfFactorsIsA) {
     thrust::host_vector<float> got = res;
     ASSERT_TRUE(match(expected, got, 1e-5f));
 }
-
-#endif // DR_BCG_USE_THIN_QR
 
 TEST(CopyUpperTriangular, CopyFromSquareMatrix) {
     constexpr int n = 3;

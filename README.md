@@ -44,8 +44,6 @@ You can pass options when building the project for additional/altered functional
 
 The following options adjust the behavior of the DR-BCG algorithm:
 
-- `DR_BCG_USE_THIN_QR`: Default `OFF`. Use Thin QR procedure rather than cuSOLVER's standard QR procedure for the factorization portions of DR-BCG.
-
 The following options build additional portions of the project. These are off by default:
 
 - `DR_BCG_BUILD_BENCHMARKS`
