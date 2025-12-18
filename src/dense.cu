@@ -1,6 +1,7 @@
-#include <dr_bcg/dense.h>
-#include <dr_bcg/device_buffer.h>
-#include <dr_bcg/helper.h>
+#include "dr_bcg/dense.h"
+#include "dr_bcg/device_buffer.h"
+#include "dr_bcg/helper.h"
+#include "dr_bcg/internal/math.h"
 
 #include <cublas_v2.h>
 #include <cusolverDn.h>

@@ -1,5 +1,6 @@
 #include "dr_bcg/device_buffer.h"
 #include "dr_bcg/helper.h"
+#include "dr_bcg/internal/math.h"
 #include "dr_bcg/sparse.h"
 
 #include <cstdint>

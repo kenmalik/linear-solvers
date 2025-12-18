@@ -6,6 +6,7 @@
 
 #include "dr_bcg/dr_bcg.h"
 #include "dr_bcg/helper.h"
+#include "dr_bcg/internal/math.h"
 
 #include <cuda/std/cmath>
 
