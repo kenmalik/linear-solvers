@@ -7,6 +7,7 @@
 #include <nvtx3/nvtx3.hpp>
 
 #include "dr_bcg/helper.h"
+#include "dr_bcg/internal/math.h"
 
 /**
  * @brief Checks CUDA runtime API results and throws an exception on error.
@@ -355,52 +356,6 @@ void print_sparse_matrix(const cusparseHandle_t &cusparseH,
     CUDA_CHECK(cudaFree(dense_d));
     CUSPARSE_CHECK(cusparseDestroyDnMat(dense));
 }
-
-namespace {
-template <typename T>
-void sptri_left_multiply(const cusparseHandle_t &cusparseH,
-                         cusparseDnMatDescr_t &C, cusparseOperation_t opA,
-                         const cusparseSpMatDescr_t &A,
-                         const cusparseDnMatDescr_t &B) {
-    constexpr cusparseOperation_t OP_B = CUSPARSE_OPERATION_NON_TRANSPOSE;
-    constexpr cudaDataType_t compute_type = [] {
-        if constexpr (std::is_same_v<T, float>) {
-            return CUDA_R_32F;
-        } else {
-            return CUDA_R_64F;
-        }
-    }();
-    constexpr T alpha = 1;
-    constexpr cusparseSpSMAlg_t ALG_TYPE = CUSPARSE_SPSM_ALG_DEFAULT;
-
-    cusparseSpSMDescr_t spsm{};
-    CUSPARSE_CHECK(cusparseSpSM_createDescr(&spsm));
-
-    void *buffer = nullptr;
-    size_t buffer_size = 0;
-
-    CUSPARSE_CHECK(cusparseSpSM_bufferSize(
-        cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B, C,
-        compute_type, ALG_TYPE, spsm, &buffer_size));
-
-    if (buffer_size > 0) {
-        CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
-    } else {
-        throw std::runtime_error("s solve: buffer not allocated");
-    }
-
-    CUSPARSE_CHECK(cusparseSpSM_analysis(
-        cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B, C,
-        compute_type, ALG_TYPE, spsm, buffer));
-
-    CUSPARSE_CHECK(cusparseSpSM_solve(cusparseH, opA, OP_B,
-                                      reinterpret_cast<const void *>(&alpha), A,
-                                      B, C, compute_type, ALG_TYPE, spsm));
-
-    CUDA_CHECK(cudaFree(buffer));
-    CUSPARSE_CHECK(cusparseSpSM_destroyDescr(spsm));
-}
-} // namespace
 
 void sptri_left_multiply(const cusparseHandle_t &cusparseH,
                          cusparseDnMatDescr_t &C, cusparseOperation_t opA,
