@@ -4,8 +4,9 @@
 
 #include <gtest/gtest.h>
 
-#include "dr_bcg/dr_bcg.h"
 #include "dr_bcg/helper.h"
+#include "dr_bcg/internal/math.h"
+#include "dr_bcg/internal/type_info.h"
 
 #include <cuda/std/cmath>
 
@@ -101,79 +102,6 @@ TEST(InvertSquareMatrix, DiagonalMatrix) {
     ASSERT_TRUE(match(expected, got));
 }
 
-#ifdef DR_BCG_USE_THIN_QR
-
-TEST(ThinQR, OutputCorrect) {
-    constexpr float test_tolerance = 1e-6;
-
-    constexpr int m = 32;
-    constexpr int n = 4;
-
-    cublasHandle_t cublasH;
-    CUBLAS_CHECK(cublasCreate_v2(&cublasH));
-
-    cusolverDnHandle_t cusolverH;
-    cusolverDnParams_t params;
-    CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
-    CUSOLVER_CHECK(cusolverDnCreateParams(&params));
-
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> dist(0, 1);
-
-    std::vector<float> h_A_in(m * n);
-    std::vector<float> h_A_out(m * n);
-
-    for (auto &val : h_A_in) {
-        val = dist(gen);
-    }
-
-    float *d_A = nullptr;
-    float *d_Q = nullptr;
-    float *d_R = nullptr;
-
-    CUDA_CHECK(cudaMalloc(&d_A, sizeof(float) * m * n));
-    CUDA_CHECK(cudaMalloc(&d_Q, sizeof(float) * m * n));
-    CUDA_CHECK(cudaMalloc(&d_R, sizeof(float) * m * m));
-
-    CUDA_CHECK(cudaMemcpy(d_A, h_A_in.data(), sizeof(float) * m * n,
-                          cudaMemcpyHostToDevice));
-
-    dr_bcg::thin_qr(cusolverH, params, cublasH, d_Q, d_R, m, n, d_A);
-
-    std::cerr << "Q:" << std::endl;
-    print_device_matrix(d_Q, m, n);
-    std::cerr << "R:" << std::endl;
-    print_device_matrix(d_R, n, n);
-
-    constexpr float alpha = 1;
-    constexpr float beta = 0;
-    CUBLAS_CHECK(cublasSgemm_v2(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, m, n, n,
-                                &alpha, d_Q, m, d_R, n, &beta, d_A, m));
-
-    CUDA_CHECK(cudaMemcpy(h_A_out.data(), d_A, sizeof(float) * h_A_out.size(),
-                          cudaMemcpyDeviceToHost));
-
-    CUDA_CHECK(cudaFree(d_A));
-    CUDA_CHECK(cudaFree(d_Q));
-    CUDA_CHECK(cudaFree(d_R));
-
-    CUBLAS_CHECK(cublasDestroy_v2(cublasH));
-    CUSOLVER_CHECK(cusolverDnDestroy(cusolverH));
-    CUSOLVER_CHECK(cusolverDnDestroyParams(params));
-
-    std::cerr << "A in:" << std::endl;
-    print_matrix(h_A_in.data(), m, n);
-    std::cerr << "A out:" << std::endl;
-    print_matrix(h_A_out.data(), m, n);
-
-    for (int i = 0; i < h_A_in.size(); i++) {
-        ASSERT_NEAR(h_A_in.at(i), h_A_out.at(i), test_tolerance);
-    }
-}
-
-#else
-
 TEST(QR_Factorization, ProductOfFactorsIsA) {
     constexpr int m = 8;
     constexpr int n = 4;
@@ -220,8 +148,6 @@ TEST(QR_Factorization, ProductOfFactorsIsA) {
     ASSERT_TRUE(match(expected, got, 1e-5f));
 }
 
-#endif // DR_BCG_USE_THIN_QR
-
 TEST(CopyUpperTriangular, CopyFromSquareMatrix) {
     constexpr int n = 3;
 
@@ -265,68 +191,102 @@ TEST(CopyUpperTriangular, CopyFromTallMatrix) {
     ASSERT_TRUE(match(hv_expected, hv_got));
 }
 
-TEST(SPTRI_LeftMultiply, IdentityStaysSame) {
-    cusparseHandle_t cusparseH;
-    CUSPARSE_CHECK(cusparseCreate(&cusparseH));
+template <typename T> class Sptri_left_multiply_test : public testing::Test {
+  protected:
+    static constexpr cudaDataType_t data_type = Type_info<T>::cuda;
 
-    constexpr int m = 8;
-    constexpr int n = 4;
+    static constexpr int m = 8;
+    static constexpr int n = 4;
 
-    constexpr cudaDataType_t data_type = CUDA_R_32F;
-    constexpr cusparseOrder_t order = CUSPARSE_ORDER_COL;
+    static constexpr cusparseOrder_t order = CUSPARSE_ORDER_COL;
 
-    constexpr cusparseIndexType_t index_type = CUSPARSE_INDEX_64I;
-    constexpr cusparseIndexBase_t base_type = CUSPARSE_INDEX_BASE_ZERO;
-
-    // A = I
-    thrust::device_vector<float> A_vals(m);
-    thrust::fill(A_vals.begin(), A_vals.end(), 1);
-
-    auto counter = thrust::make_counting_iterator<int64_t>(0);
-
-    thrust::device_vector<int64_t> A_row_offsets(m + 1);
-    thrust::copy_n(counter, A_row_offsets.size(), A_row_offsets.begin());
-    int64_t *row_offsets = thrust::raw_pointer_cast(A_row_offsets.data());
-
-    counter = thrust::make_counting_iterator<int64_t>(0);
-    thrust::device_vector<int64_t> A_col_indices(m);
-    thrust::copy_n(counter, A_col_indices.size(), A_col_indices.begin());
-    int64_t *col_indices = thrust::raw_pointer_cast(A_col_indices.data());
-
-    thrust::device_vector<float> values(m * n);
-    thrust::fill(values.begin(), values.end(), 1);
-    float *d_values = thrust::raw_pointer_cast(values.data());
+    static constexpr cusparseIndexType_t index_type = CUSPARSE_INDEX_64I;
+    static constexpr cusparseIndexBase_t base_type = CUSPARSE_INDEX_BASE_ZERO;
 
     cusparseSpMatDescr_t A_desc;
-    CUSPARSE_CHECK(cusparseCreateCsr(&A_desc, m, m, m, row_offsets, col_indices,
-                                     d_values, index_type, index_type,
-                                     base_type, data_type));
-
-    // B = 1
-    thrust::device_vector<float> B(m * n);
-    thrust::fill(B.begin(), B.end(), 1);
-    float *d_B = thrust::raw_pointer_cast(B.data());
     cusparseDnMatDescr_t B_desc;
-    CUSPARSE_CHECK(
-        cusparseCreateDnMat(&B_desc, m, n, m, d_B, data_type, order));
-
-    // C initialized
-    thrust::device_vector<float> C(m * n);
-    float *d_C = thrust::raw_pointer_cast(C.data());
     cusparseDnMatDescr_t C_desc;
-    CUSPARSE_CHECK(
-        cusparseCreateDnMat(&C_desc, m, n, m, d_C, data_type, order));
 
+    cusparseHandle_t cusparseH;
+
+    thrust::device_vector<int64_t> A_row_offsets;
+    int64_t *row_offsets = nullptr;
+    thrust::device_vector<int64_t> A_col_indices;
+    int64_t *col_indices = nullptr;
+    thrust::device_vector<T> values;
+    T *d_values = nullptr;
+
+    thrust::device_vector<T> B;
+    T *d_B = nullptr;
+
+    thrust::device_vector<T> C;
+    T *d_C = nullptr;
+
+    Sptri_left_multiply_test()
+        : A_row_offsets(m + 1), A_col_indices(m), values(m * n), B(m * n),
+          C(m * n) {
+        CUSPARSE_CHECK(cusparseCreate(&cusparseH));
+
+        // A = I
+        auto counter = thrust::make_counting_iterator<int64_t>(0);
+        thrust::copy_n(counter, A_row_offsets.size(), A_row_offsets.begin());
+        row_offsets = thrust::raw_pointer_cast(A_row_offsets.data());
+
+        counter = thrust::make_counting_iterator<int64_t>(0);
+        thrust::copy_n(counter, A_col_indices.size(), A_col_indices.begin());
+        col_indices = thrust::raw_pointer_cast(A_col_indices.data());
+
+        thrust::fill(values.begin(), values.end(), 1);
+        d_values = thrust::raw_pointer_cast(values.data());
+
+        CUSPARSE_CHECK(cusparseCreateCsr(&A_desc, m, m, m, row_offsets,
+                                         col_indices, d_values, index_type,
+                                         index_type, base_type, data_type));
+
+        // B = 1
+        thrust::fill(B.begin(), B.end(), 1);
+        d_B = thrust::raw_pointer_cast(B.data());
+        CUSPARSE_CHECK(
+            cusparseCreateDnMat(&B_desc, m, n, m, d_B, data_type, order));
+
+        // C initialized
+        d_C = thrust::raw_pointer_cast(C.data());
+        CUSPARSE_CHECK(
+            cusparseCreateDnMat(&C_desc, m, n, m, d_C, data_type, order));
+    }
+
+    ~Sptri_left_multiply_test() {
+        CUSPARSE_CHECK(cusparseDestroySpMat(A_desc));
+        CUSPARSE_CHECK(cusparseDestroyDnMat(B_desc));
+        CUSPARSE_CHECK(cusparseDestroyDnMat(C_desc));
+
+        CUSPARSE_CHECK(cusparseDestroy(cusparseH));
+    }
+};
+
+using ValidTypes = ::testing::Types<float, double>;
+TYPED_TEST_SUITE(Sptri_left_multiply_test, ValidTypes);
+
+TYPED_TEST(Sptri_left_multiply_test, IdentityStaysSame) {
     constexpr cusparseOperation_t op_type = CUSPARSE_OPERATION_NON_TRANSPOSE;
-    sptri_left_multiply(cusparseH, C_desc, op_type, A_desc, B_desc);
 
-    CUSPARSE_CHECK(cusparseDestroySpMat(A_desc));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(B_desc));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(C_desc));
+    sptri_left_multiply<TypeParam>(this->cusparseH, this->C_desc, op_type,
+                                   this->A_desc, this->B_desc);
 
-    CUSPARSE_CHECK(cusparseDestroy(cusparseH));
+    thrust::host_vector<TypeParam> expected = this->B;
+    thrust::host_vector<TypeParam> got = this->C;
 
-    thrust::host_vector<float> expected = B;
-    thrust::host_vector<float> got = C;
+    std::cerr << "Expected: ";
+    for (int i = 0; i < 8; ++i) {
+        std::cerr << expected[i] << std::endl;
+    }
+    std::cerr << std::endl;
+
+    std::cerr << "Got: ";
+    for (int i = 0; i < 8; ++i) {
+        std::cerr << got[i] << " ";
+    }
+    std::cerr << std::endl;
+
     ASSERT_TRUE(match(expected, got));
 }
