@@ -1,11 +1,15 @@
 #pragma once
 
+#include <nvtx3/nvtx3.hpp>
+
 #include "dr_bcg/helper.h"
 #include "dr_bcg/internal/type_info.h"
 
 template <typename T>
 void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
                       T *d_Q, T *d_R, const int m, const int n, const T *d_A) {
+    NVTX3_FUNC_RANGE();
+
     constexpr cudaDataType_t data_type = Type_info<T>::cuda;
 
     assert(n < m && "Expect cols to be less than rows for DR-BCG");
@@ -99,6 +103,8 @@ void sptri_left_multiply(const cusparseHandle_t &cusparseH,
                          cusparseDnMatDescr_t &C, cusparseOperation_t opA,
                          const cusparseSpMatDescr_t &A,
                          const cusparseDnMatDescr_t &B) {
+    NVTX3_FUNC_RANGE();
+
     constexpr cusparseOperation_t OP_B = CUSPARSE_OPERATION_NON_TRANSPOSE;
     constexpr cudaDataType_t compute_type = Type_info<T>::cuda;
 
@@ -136,6 +142,8 @@ void sptri_left_multiply(const cusparseHandle_t &cusparseH,
 template <typename T>
 void invert_square_matrix(cusolverDnHandle_t &cusolverH,
                           cusolverDnParams_t &params, T *d_A, const int n) {
+    NVTX3_FUNC_RANGE();
+
     constexpr cudaDataType_t data_type = Type_info<T>::cuda;
 
     // LU Decomposition
