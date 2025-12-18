@@ -198,15 +198,3 @@ void print_sparse_matrix(const cusparseHandle_t &cusparseH,
     CUDA_CHECK(cudaFree(dense_d));
     CUSPARSE_CHECK(cusparseDestroyDnMat(dense));
 }
-
-void sptri_left_multiply(const cusparseHandle_t &cusparseH,
-                         cusparseDnMatDescr_t &C, cusparseOperation_t opA,
-                         const cusparseSpMatDescr_t &A,
-                         const cusparseDnMatDescr_t &B,
-                         const cudaDataType compute_type) {
-    if (compute_type == CUDA_R_32F) {
-        sptri_left_multiply<float>(cusparseH, C, opA, A, B);
-    } else {
-        sptri_left_multiply<double>(cusparseH, C, opA, A, B);
-    }
-}

@@ -35,9 +35,3 @@ void print_sparse_matrix(const cusparseHandle_t &cusparseH,
 void copy_upper_triangular(float *dst, float *src, const int m, const int n);
 
 void copy_upper_triangular(double *dst, double *src, const int m, const int n);
-
-void sptri_left_multiply(const cusparseHandle_t &cusparseH,
-                         cusparseDnMatDescr_t &C, cusparseOperation_t opA,
-                         const cusparseSpMatDescr_t &A,
-                         const cusparseDnMatDescr_t &B,
-                         const cudaDataType compute_type = CUDA_R_32F);

@@ -614,8 +614,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     {
         // [w, sigma] = qr(L^-1 * R, 'econ')
-        sptri_left_multiply(handles.cusparse, temp,
-                            CUSPARSE_OPERATION_NON_TRANSPOSE, L, R, CUDA_R_64F);
+        sptri_left_multiply<double>(handles.cusparse, temp,
+                                    CUSPARSE_OPERATION_NON_TRANSPOSE, L, R);
 
         qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
                          d.sigma, n, s, d.temp);
@@ -629,9 +629,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(double) * n * s,
                                    cudaMemcpyDeviceToDevice, stream));
 
-        sptri_left_multiply(handles.cusparse, s_desc,
-                            CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
-                            CUDA_R_64F);
+        sptri_left_multiply<double>(handles.cusparse, s_desc,
+                                    CUSPARSE_OPERATION_TRANSPOSE, L, w_desc);
     }
 
     int iterations = 0;
@@ -763,8 +762,7 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             }
 
             // temp = L^-1 * temp
-            sptri_left_multiply(handles.cusparse, temp, op, L, temp,
-                                compute_type);
+            sptri_left_multiply<double>(handles.cusparse, temp, op, L, temp);
 
             // w = w - temp * xi
             constexpr cublasOperation_t sgemm_op = CUBLAS_OP_N;
@@ -791,9 +789,9 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         op_zeta, diag_type, n, s, &alpha,
                                         d.zeta, s, d.s, n, d.s, n));
 
-            sptri_left_multiply(handles.cusparse, temp,
-                                CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
-                                CUDA_R_64F);
+            sptri_left_multiply<double>(handles.cusparse, temp,
+                                        CUSPARSE_OPERATION_TRANSPOSE, L,
+                                        w_desc);
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
             constexpr double sgeam_alpha = 1.0;

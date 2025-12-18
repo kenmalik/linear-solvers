@@ -6,6 +6,7 @@
 
 #include "dr_bcg/helper.h"
 #include "dr_bcg/internal/math.h"
+#include "dr_bcg/internal/type_info.h"
 
 #include <cuda/std/cmath>
 
@@ -192,13 +193,7 @@ TEST(CopyUpperTriangular, CopyFromTallMatrix) {
 
 template <typename T> class Sptri_left_multiply_test : public testing::Test {
   protected:
-    static constexpr cudaDataType_t data_type = [] {
-        if constexpr (std::is_same_v<T, float>) {
-            return CUDA_R_32F;
-        } else {
-            return CUDA_R_64F;
-        }
-    }();
+    static constexpr cudaDataType_t data_type = Type_info<T>::cuda;
 
     static constexpr int m = 8;
     static constexpr int n = 4;
@@ -275,8 +270,8 @@ TYPED_TEST_SUITE(Sptri_left_multiply_test, ValidTypes);
 TYPED_TEST(Sptri_left_multiply_test, IdentityStaysSame) {
     constexpr cusparseOperation_t op_type = CUSPARSE_OPERATION_NON_TRANSPOSE;
 
-    sptri_left_multiply(this->cusparseH, this->C_desc, op_type, this->A_desc,
-                        this->B_desc, this->data_type);
+    sptri_left_multiply<TypeParam>(this->cusparseH, this->C_desc, op_type,
+                                   this->A_desc, this->B_desc);
 
     thrust::host_vector<TypeParam> expected = this->B;
     thrust::host_vector<TypeParam> got = this->C;
