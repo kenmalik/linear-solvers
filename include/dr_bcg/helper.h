@@ -36,11 +36,6 @@ void copy_upper_triangular(float *dst, float *src, const int m, const int n);
 
 void copy_upper_triangular(double *dst, double *src, const int m, const int n);
 
-void invert_square_matrix(cusolverDnHandle_t &cusolverH,
-                          cusolverDnParams_t &params, float *A, const int n);
-void invert_square_matrix(cusolverDnHandle_t &cusolverH,
-                          cusolverDnParams_t &params, double *A, const int n);
-
 void sptri_left_multiply(const cusparseHandle_t &cusparseH,
                          cusparseDnMatDescr_t &C, cusparseOperation_t opA,
                          const cusparseSpMatDescr_t &A,

@@ -132,3 +132,78 @@ void sptri_left_multiply(const cusparseHandle_t &cusparseH,
     CUDA_CHECK(cudaFree(buffer));
     CUSPARSE_CHECK(cusparseSpSM_destroyDescr(spsm));
 }
+
+template <typename T>
+void invert_square_matrix(cusolverDnHandle_t &cusolverH,
+                          cusolverDnParams_t &params, T *d_A, const int n) {
+    constexpr cudaDataType_t data_type = Type_info<T>::cuda;
+
+    // LU Decomposition
+    size_t d_work_size = 0;
+    void *d_work = nullptr;
+    size_t h_work_size = 0;
+    void *h_work = nullptr;
+
+    int info = 0;
+    int *d_info = nullptr;
+
+    int64_t *d_Ipiv = nullptr;
+
+    CUDA_CHECK(
+        cudaMalloc(reinterpret_cast<void **>(&d_Ipiv), sizeof(int64_t) * n));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int)));
+
+    CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(cusolverH, params, n, n,
+                                               data_type, d_A, n, data_type,
+                                               &d_work_size, &h_work_size));
+
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_work), d_work_size));
+    if (h_work_size > 0) {
+        h_work = reinterpret_cast<void *>(malloc(h_work_size));
+        if (h_work == nullptr) {
+            throw std::runtime_error("Error: h_work not allocated.");
+        }
+    }
+
+    CUSOLVER_CHECK(cusolverDnXgetrf(cusolverH, params, n, n, data_type, d_A, n,
+                                    d_Ipiv, data_type, d_work, d_work_size,
+                                    h_work, h_work_size, d_info));
+
+    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
+    if (0 > info) {
+        throw std::runtime_error(std::to_string(-info) +
+                                 "-th parameter is wrong \n");
+    }
+
+    CUDA_CHECK(cudaFree(d_work));
+    free(h_work);
+
+    // Solve A * X = I for inverse
+    std::vector<T> h_I(n * n, 0);
+    T *d_I = nullptr;
+
+    for (int i = 0; i < n; i++) {
+        h_I.at(i * n + i) = 1;
+    }
+    CUDA_CHECK(
+        cudaMalloc(reinterpret_cast<void **>(&d_I), sizeof(T) * h_I.size()));
+    CUDA_CHECK(cudaMemcpy(d_I, h_I.data(), sizeof(T) * h_I.size(),
+                          cudaMemcpyHostToDevice));
+
+    CUSOLVER_CHECK(cusolverDnXgetrs(cusolverH, params, CUBLAS_OP_N, n, n,
+                                    data_type, d_A, n, d_Ipiv, data_type, d_I,
+                                    n, d_info));
+
+    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
+    if (0 > info) {
+        throw std::runtime_error(std::to_string(-info) +
+                                 "-th parameter is wrong \n");
+    }
+
+    CUDA_CHECK(
+        cudaMemcpy(d_A, d_I, sizeof(T) * h_I.size(), cudaMemcpyDeviceToDevice));
+
+    CUDA_CHECK(cudaFree(d_I));
+    CUDA_CHECK(cudaFree(d_Ipiv));
+    CUDA_CHECK(cudaFree(d_info));
+}
