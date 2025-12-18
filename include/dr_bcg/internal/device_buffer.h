@@ -9,7 +9,7 @@
  * This template manages device memory for all buffers used in the DR-BCG
  * algorithm. It only accepts `float` or `double` as the template parameter.
  */
-template <typename T> struct DeviceBuffer {
+template <typename T> struct Device_buffer {
     static_assert(std::is_same<T, float>::value ||
                       std::is_same<T, double>::value,
                   "DeviceBuffer<T> only supports float or double");
@@ -22,8 +22,8 @@ template <typename T> struct DeviceBuffer {
     T *temp = nullptr;     ///< Device pointer for temporary matrix (n x s)
     T *residual = nullptr; ///< Device pointer for residual vector (n)
 
-    DeviceBuffer(int n, int s) { allocate(n, s); }
-    ~DeviceBuffer() { deallocate(); }
+    Device_buffer(int n, int s) { allocate(n, s); }
+    ~Device_buffer() { deallocate(); }
 
     void allocate(int n, int s) {
         CUDA_CHECK(
@@ -63,5 +63,5 @@ template <typename T> struct DeviceBuffer {
 };
 
 // Common aliases
-using DeviceBufferFloat = DeviceBuffer<float>;
-using DeviceBufferDouble = DeviceBuffer<double>;
+using DeviceBufferFloat = Device_buffer<float>;
+using DeviceBufferDouble = Device_buffer<double>;

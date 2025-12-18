@@ -1,5 +1,5 @@
-#include "dr_bcg/device_buffer.h"
 #include "dr_bcg/helper.h"
+#include "dr_bcg/internal/device_buffer.h"
 #include "dr_bcg/internal/math.h"
 #include "dr_bcg/sparse.h"
 
@@ -53,7 +53,7 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                    cusparseDnMatDescr_t B, float tolerance,
                    int max_iterations) {
     auto [n, s] = get_size(B);
-    DeviceBuffer<float> d(n, s);
+    Device_buffer<float> d(n, s);
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream));
@@ -302,7 +302,7 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                    cusparseDnMatDescr_t B, double tolerance,
                    int max_iterations) {
     auto [n, s] = get_size(B);
-    DeviceBuffer<double> d(n, s);
+    Device_buffer<double> d(n, s);
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream));
@@ -550,7 +550,7 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                    cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
                    double tolerance, int max_iterations) {
     auto [n, s] = get_size(B);
-    DeviceBuffer<double> d(n, s);
+    Device_buffer<double> d(n, s);
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream));

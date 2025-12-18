@@ -1,6 +1,6 @@
 #include "dr_bcg/dense.h"
-#include "dr_bcg/device_buffer.h"
 #include "dr_bcg/helper.h"
+#include "dr_bcg/internal/device_buffer.h"
 #include "dr_bcg/internal/math.h"
 
 #include <cublas_v2.h>
@@ -45,7 +45,7 @@ int dr_bcg::dr_bcg(float *d_A, float *d_X, float *d_B, std::int64_t n,
     Handles h;
     h.set_stream(stream);
 
-    DeviceBuffer<float> d(n, s);
+    Device_buffer<float> d(n, s);
 
     float *d_R = nullptr;
     CUDA_CHECK(cudaMallocAsync(&d_R, sizeof(float) * n * s, stream));
@@ -219,7 +219,7 @@ int dr_bcg::dr_bcg(double *d_A, double *d_X, double *d_B, std::int64_t n,
     Handles h;
     h.set_stream(stream);
 
-    DeviceBuffer<double> d(n, s);
+    Device_buffer<double> d(n, s);
 
     double *d_R = nullptr;
     CUDA_CHECK(cudaMallocAsync(&d_R, sizeof(double) * n * s, stream));
