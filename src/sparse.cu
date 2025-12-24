@@ -216,7 +216,6 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             relative_residual_norm = numerator / B1_norm;
         }
-        std::cerr << iterations << " " << relative_residual_norm << std::endl;
 
         if (relative_residual_norm < tolerance) {
             break;
@@ -465,7 +464,6 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             relative_residual_norm = numerator / B1_norm;
         }
-        std::cerr << iterations << " " << relative_residual_norm << std::endl;
 
         if (relative_residual_norm < tolerance) {
             break;
@@ -725,7 +723,6 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             relative_residual_norm = numerator / B1_norm;
         }
-        std::cerr << iterations << " " << relative_residual_norm << std::endl;
 
         if (relative_residual_norm < tolerance) {
             break;
