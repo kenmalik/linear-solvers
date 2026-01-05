@@ -28,11 +28,6 @@ target_link_libraries(
     nvtx3-cpp
 )
 
-target_compile_options(
-    dr_bcg PUBLIC
-    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-)
-
 target_compile_definitions(
     dr_bcg PRIVATE
     $<$<CONFIG:Debug>:CUDA_DR_BCG_DEBUG_BUILD>
