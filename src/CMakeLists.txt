@@ -11,6 +11,7 @@ add_library(dr_bcg
     "sparse.cu"
     "dense.cu"
 )
+add_library(DR_BCG::dr_bcg ALIAS dr_bcg)
 target_include_directories(dr_bcg PUBLIC "${CMAKE_SOURCE_DIR}/include")
 
 target_link_libraries(
@@ -21,8 +22,12 @@ target_link_libraries(
     nvtx3-cpp
 )
 
-target_compile_options(dr_bcg PUBLIC
+target_compile_options(
+    dr_bcg PUBLIC
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
 )
 
-target_compile_definitions(dr_bcg PRIVATE $<$<CONFIG:Debug>:CUDA_DR_BCG_DEBUG_BUILD>)
+target_compile_definitions(
+    dr_bcg PRIVATE
+    $<$<CONFIG:Debug>:CUDA_DR_BCG_DEBUG_BUILD>
+)

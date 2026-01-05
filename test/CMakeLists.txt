@@ -17,7 +17,7 @@ add_executable(
 target_link_libraries(
     dr_bcg_test
     GTest::gtest_main
-    dr_bcg
+    DR_BCG::dr_bcg
 )
 
 include(GoogleTest)
