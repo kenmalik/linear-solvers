@@ -33,3 +33,14 @@ target_compile_definitions(
     dr_bcg PRIVATE
     $<$<CONFIG:Debug>:CUDA_DR_BCG_DEBUG_BUILD>
 )
+
+install(
+    TARGETS dr_bcg nvtx3-c nvtx3-cpp
+    EXPORT DR_BCG_Targets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+install(
+    EXPORT DR_BCG_Targets
+    NAMESPACE DR_BCG::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DR_BCG
+)
