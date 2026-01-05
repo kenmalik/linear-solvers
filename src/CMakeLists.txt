@@ -14,6 +14,7 @@ add_library(
 )
 add_library(DR_BCG::dr_bcg ALIAS dr_bcg)
 
+include(GNUInstallDirs)
 target_include_directories(
     dr_bcg PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
