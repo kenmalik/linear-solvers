@@ -6,13 +6,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nvtx)
 
-add_library(dr_bcg
+add_library(
+    dr_bcg
     "helper.cu"
     "sparse.cu"
     "dense.cu"
 )
 add_library(DR_BCG::dr_bcg ALIAS dr_bcg)
-target_include_directories(dr_bcg PUBLIC "${CMAKE_SOURCE_DIR}/include")
+
+target_include_directories(
+    dr_bcg PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 
 target_link_libraries(
     dr_bcg PUBLIC
