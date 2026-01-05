@@ -14,7 +14,6 @@ add_library(
 )
 add_library(DR_BCG::dr_bcg ALIAS dr_bcg)
 
-include(GNUInstallDirs)
 target_include_directories(
     dr_bcg PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
@@ -36,11 +35,11 @@ target_compile_definitions(
 
 install(
     TARGETS dr_bcg nvtx3-c nvtx3-cpp
-    EXPORT DR_BCG_Targets
+    EXPORT DR_BCGTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 install(
-    EXPORT DR_BCG_Targets
+    EXPORT DR_BCGTargets
     NAMESPACE DR_BCG::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DR_BCG
 )
