@@ -100,11 +100,19 @@ int main(int argc, char **argv) {
         double *x_d = nullptr;
         cusparseDnVecDescr_t x;
         cudaMalloc(&x_d, sizeof(double) * A_reader.rows());
-        std::vector<double> x_initial(A_reader.rows(), 1);
+        std::vector<double> x_initial(A_reader.rows(), 0);
         cudaMemcpy(x_d, x_initial.data(), sizeof(double) * A_reader.rows(),
                    cudaMemcpyHostToDevice);
 
+        double *f_d = nullptr;
+        cusparseDnVecDescr_t f;
+        cudaMalloc(&f_d, sizeof(double) * A_reader.rows());
+        std::vector<double> f_initial(A_reader.rows(), 1);
+        cudaMemcpy(f_d, f_initial.data(), sizeof(double) * A_reader.rows(),
+                   cudaMemcpyHostToDevice);
+
         cusparseCreateDnVec(&x, A_reader.rows(), x_d, CUDA_R_64F);
+        cusparseCreateDnVec(&f, A_reader.rows(), f_d, CUDA_R_64F);
 
         cusparseHandle_t cusparse;
         cublasHandle_t cublas;
@@ -112,7 +120,10 @@ int main(int argc, char **argv) {
         cusparseCreate(&cusparse);
         cublasCreate_v2(&cublas);
 
-        int iterations = cg_run::cg(cusparse, cublas, A.get(), x, R.get());
+        int iterations = cg_run::cg(cusparse, cublas, A.get(), x, f, R.get());
+
+        cusparseDestroyDnVec(f);
+        cudaFree(f_d);
 
         cusparseDestroyDnVec(x);
         cudaFree(x_d);

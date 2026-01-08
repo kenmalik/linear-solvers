@@ -5,6 +5,6 @@
 
 namespace cg_run {
 int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
-       cusparseDnVecDescr_t x, cusparseSpMatDescr_t R, double tolerance = 1e-6,
-       int max_iterations = 1);
+       cusparseDnVecDescr_t x, cusparseDnVecDescr_t f, cusparseSpMatDescr_t R,
+       double tolerance = 1e-6, int max_iterations = 1);
 }

@@ -24,16 +24,18 @@ template <typename T> struct Device_buffers {
 } // namespace
 
 namespace cg_run {
-// A is
 // R is lower triangular incomplete Cholesky where A ~= M = R^TR
 using data_type = double;
 int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
-       cusparseDnVecDescr_t x, cusparseSpMatDescr_t R, data_type tolerance,
-       int max_iterations) {
+       cusparseDnVecDescr_t x, cusparseDnVecDescr_t f, cusparseSpMatDescr_t R,
+       data_type tolerance, int max_iterations) {
     std::int64_t n;
-    double *_ = nullptr;
+    double *x_d = nullptr;
     cudaDataType_t compute_type;
-    cusparseDnVecGet(x, &n, reinterpret_cast<void **>(&_), &compute_type);
+    cusparseDnVecGet(x, &n, reinterpret_cast<void **>(&x_d), &compute_type);
+
+    double *f_d = nullptr;
+    cusparseDnVecGetValues(f, reinterpret_cast<void **>(&f_d));
 
     // cusparseSpSVDescr_t SV_R_descr;
     // cusparseSpSVDescr_t SV_RT_descr;
@@ -43,8 +45,11 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     Device_buffers<data_type> d{n};
 
     {
-        constexpr data_type alpha = 1.0;
-        constexpr data_type beta = 0.0;
+        // r = f - A x_0
+        constexpr data_type alpha = -1.0;
+        constexpr data_type beta = 1.0;
+
+        cudaMemcpy(d.r_d, f_d, sizeof(data_type) * n, cudaMemcpyDeviceToDevice);
 
         std::size_t buffer_size = 0;
         cusparseSpMV_bufferSize(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
