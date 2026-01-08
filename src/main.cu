@@ -97,18 +97,31 @@ int main(int argc, char **argv) {
         cusparseSpMatSetAttribute(R.get(), CUSPARSE_SPMAT_FILL_MODE,
                                   &R_fill_mode, sizeof(R_fill_mode));
 
+        double *x_d = nullptr;
+        cusparseDnVecDescr_t x;
+        cudaMalloc(&x_d, sizeof(double) * A_reader.rows());
+        std::vector<double> x_initial(A_reader.rows(), 1);
+        cudaMemcpy(x_d, x_initial.data(), sizeof(double) * A_reader.rows(),
+                   cudaMemcpyHostToDevice);
+
+        cusparseCreateDnVec(&x, A_reader.rows(), x_d, CUDA_R_64F);
+
         cusparseHandle_t cusparse;
         cublasHandle_t cublas;
 
         cusparseCreate(&cusparse);
         cublasCreate_v2(&cublas);
 
-        int iterations = cg_run::cg(cusparse, cublas, A.get(), R.get());
+        int iterations = cg_run::cg(cusparse, cublas, A.get(), x, R.get());
 
-        std::cout << iterations << std::endl;
+        cusparseDestroyDnVec(x);
+        cudaFree(x_d);
 
         cublasDestroy_v2(cublas);
         cusparseDestroy(cusparse);
+
+        std::cout << iterations << std::endl;
+
     } else {
         return -1;
     }
