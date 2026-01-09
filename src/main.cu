@@ -19,6 +19,7 @@ namespace fs = std::filesystem;
 struct Args {
     fs::path A;
     fs::path R;
+    std::optional<fs::path> B;
     double tolerance;
     int max_iterations;
 };
@@ -30,6 +31,7 @@ std::optional<Args> validate(int argc, char **argv) {
     options.add_options()
         ("A", "Path to matrix file", cxxopts::value<std::string>())
         ("R", "Path to preconditioner file", cxxopts::value<std::string>())
+        ("B", "Path to B file", cxxopts::value<std::string>())
         ("tolerance", "Convergence tolerance (default: 1e-6)", cxxopts::value<double>()->default_value("1e-6"))
         ("max-iterations", "Maximum iterations (default: 1)", cxxopts::value<int>()->default_value("1"))
         ("h,help", "Print help");
@@ -71,6 +73,10 @@ std::optional<Args> validate(int argc, char **argv) {
         std::cerr << "Error: File " << args.R << " does not exist."
                   << std::endl;
         return std::nullopt;
+    }
+
+    if (result.count("B")) {
+        args.B = result["B"].as<std::string>();
     }
 
     args.tolerance = result["tolerance"].as<double>();
@@ -117,6 +123,12 @@ int main(int argc, char **argv) {
         std::vector<double> f_initial(A_reader.rows(), 1);
         cudaMemcpy(f_d, f_initial.data(), sizeof(double) * A_reader.rows(),
                    cudaMemcpyHostToDevice);
+
+        if (args.B.has_value()) {
+            mat_utils::DnMatReader B_reader{(*args.B).string(), {}, "B"};
+            cudaMemcpy(f_d, B_reader.data(), sizeof(double) * B_reader.rows(),
+                       cudaMemcpyHostToDevice);
+        }
 
         cusparseCreateDnVec(&x, A_reader.rows(), x_d, CUDA_R_64F);
         cusparseCreateDnVec(&f, A_reader.rows(), f_d, CUDA_R_64F);
