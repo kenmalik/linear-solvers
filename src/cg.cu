@@ -56,36 +56,36 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     cusparseDnVecGetValues(f, reinterpret_cast<void **>(&f_d));
 
     // Allocate buffer for SpSV operations
-    cusparseSpSVDescr_t spsvDescrR, spsvDescrRt;
-    cusparseSpSV_createDescr(&spsvDescrR);
-    cusparseSpSV_createDescr(&spsvDescrRt);
+    cusparseSpSVDescr_t descr_SV_R, descr_SV_Rt;
+    cusparseSpSV_createDescr(&descr_SV_R);
+    cusparseSpSV_createDescr(&descr_SV_Rt);
 
     // Analysis phase for R (lower triangular, non-transpose)
     constexpr double alpha_SpSV = 1.0;
     std::size_t bufferSizeR = 0;
     cusparseSpSV_bufferSize(
         cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSV, R, f, f,
-        compute_type, CUSPARSE_SPSV_ALG_DEFAULT, spsvDescrR, &bufferSizeR);
+        compute_type, CUSPARSE_SPSV_ALG_DEFAULT, descr_SV_R, &bufferSizeR);
 
     // Analysis phase for R^T (transpose)
     std::size_t bufferSizeRt = 0;
     cusparseSpSV_bufferSize(cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSV,
                             R, f, f, compute_type, CUSPARSE_SPSV_ALG_DEFAULT,
-                            spsvDescrRt, &bufferSizeRt);
+                            descr_SV_Rt, &bufferSizeRt);
 
     std::size_t bufferSizeSV = std::max(bufferSizeR, bufferSizeRt);
-    void *bufferSV = nullptr;
-    cudaMalloc(&bufferSV, bufferSizeSV);
+    void *buffer_SV = nullptr;
+    cudaMalloc(&buffer_SV, bufferSizeSV);
 
     // Analyze R for non-transpose solve
     cusparseSpSV_analysis(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
                           &alpha_SpSV, R, f, f, compute_type,
-                          CUSPARSE_SPSV_ALG_DEFAULT, spsvDescrR, bufferSV);
+                          CUSPARSE_SPSV_ALG_DEFAULT, descr_SV_R, buffer_SV);
 
     // Analyze R for transpose solve
     cusparseSpSV_analysis(cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSV,
                           R, f, f, compute_type, CUSPARSE_SPSV_ALG_DEFAULT,
-                          spsvDescrRt, bufferSV);
+                          descr_SV_Rt, buffer_SV);
 
     Device_buffers<double> d{n};
 
@@ -120,8 +120,8 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     cusparseSpMV_bufferSize(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
                             &alpha_SpMV, A, d.p, &beta_SpMV, d.q, compute_type,
                             CUSPARSE_SPMV_ALG_DEFAULT, &buffer_size_SpMV);
-    void *bufferMV = nullptr;
-    cudaMalloc(&bufferMV, buffer_size_SpMV);
+    void *buffer_MV = nullptr;
+    cudaMalloc(&buffer_MV, buffer_size_SpMV);
 
     double rho = 0.0, rhop = 0.0, alpha, beta, temp;
 
@@ -132,12 +132,12 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
         // First solve: R t = r (lower triangular)
         cusparseSpSV_solve(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
                            &alpha_SpSV, R, d.r, d.t, compute_type,
-                           CUSPARSE_SPSV_ALG_DEFAULT, spsvDescrR);
+                           CUSPARSE_SPSV_ALG_DEFAULT, descr_SV_R);
 
         // Second solve: R^T z = t (upper triangular)
         cusparseSpSV_solve(cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSV,
                            R, d.t, d.z, compute_type, CUSPARSE_SPSV_ALG_DEFAULT,
-                           spsvDescrRt);
+                           descr_SV_Rt);
 
         // rho = r^T z
         rhop = rho;
@@ -158,7 +158,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
         // q = A p
         cusparseSpMV(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpMV, A,
                      d.p, &beta_SpMV, d.q, compute_type,
-                     CUSPARSE_SPMV_ALG_DEFAULT, bufferMV);
+                     CUSPARSE_SPMV_ALG_DEFAULT, buffer_MV);
 
         // alpha = rho_i / (p^T q)
         cublasDdot_v2(cublas, n, d.p_d, 1, d.q_d, 1, &temp);
@@ -181,10 +181,10 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     }
 
     // Cleanup
-    cudaFree(bufferSV);
-    cudaFree(bufferMV);
-    cusparseSpSV_destroyDescr(spsvDescrR);
-    cusparseSpSV_destroyDescr(spsvDescrRt);
+    cudaFree(buffer_SV);
+    cudaFree(buffer_MV);
+    cusparseSpSV_destroyDescr(descr_SV_R);
+    cusparseSpSV_destroyDescr(descr_SV_Rt);
 
     return iteration + 1; // Return number of iterations performed
 }
