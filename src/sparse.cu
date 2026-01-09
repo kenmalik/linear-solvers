@@ -4,6 +4,7 @@
 #include "dr_bcg/sparse.h"
 
 #include <cstdint>
+#include <functional>
 #include <iostream>
 
 namespace {
@@ -50,8 +51,8 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
 } // namespace
 
 int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-                   cusparseDnMatDescr_t B, float tolerance,
-                   int max_iterations) {
+                   cusparseDnMatDescr_t B, float tolerance, int max_iterations,
+                   std::function<void(int, float)> residual_callback) {
     auto [n, s] = get_size(B);
     Device_buffer<float> d(n, s);
 
@@ -217,6 +218,9 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             relative_residual_norm = residual_norm / B1_norm;
         }
 
+        if (residual_callback) {
+            residual_callback(iterations, relative_residual_norm);
+        }
         if (relative_residual_norm < tolerance) {
             break;
         }
@@ -298,8 +302,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 // Double-precision variant: same algorithm but using double/cuBLAS/cuSPARSE D
 // APIs
 int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-                   cusparseDnMatDescr_t B, double tolerance,
-                   int max_iterations) {
+                   cusparseDnMatDescr_t B, double tolerance, int max_iterations,
+                   std::function<void(int, double)> residual_callback) {
     auto [n, s] = get_size(B);
     Device_buffer<double> d(n, s);
 
@@ -465,6 +469,9 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             relative_residual_norm = residual_norm / B1_norm;
         }
 
+        if (residual_callback) {
+            residual_callback(iterations, relative_residual_norm);
+        }
         if (relative_residual_norm < tolerance) {
             break;
         }
@@ -546,7 +553,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 // Preconditioned double-precision variant
 int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                    cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
-                   double tolerance, int max_iterations) {
+                   double tolerance, int max_iterations,
+                   std::function<void(int, double)> residual_callback) {
     auto [n, s] = get_size(B);
     Device_buffer<double> d(n, s);
 
@@ -724,6 +732,9 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             relative_residual_norm = residual_norm / B1_norm;
         }
 
+        if (residual_callback) {
+            residual_callback(iterations, relative_residual_norm);
+        }
         if (relative_residual_norm < tolerance) {
             break;
         }
@@ -815,10 +826,11 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     return iterations;
 }
 
-// Preconditioned double-precision variant
+// Preconditioned single-precision variant
 int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                    cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
-                   float tolerance, int max_iterations) {
+                   float tolerance, int max_iterations,
+                   std::function<void(int, float)> residual_callback) {
     auto [n, s] = get_size(B);
     Device_buffer<float> d(n, s);
 
@@ -996,6 +1008,9 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             relative_residual_norm = residual_norm / B1_norm;
         }
 
+        if (residual_callback) {
+            residual_callback(iterations, relative_residual_norm);
+        }
         if (relative_residual_norm < tolerance) {
             break;
         }

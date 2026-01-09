@@ -19,6 +19,10 @@
 #include "dr_bcg/helper.h"
 #include "dr_bcg/sparse.h"
 
+template <typename T> void log_residual(int iteration, T residual) {
+    std::cout << iteration << "," << residual << std::endl;
+}
+
 template <typename T>
 void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
             const thrust::device_vector<T> &B_v, bool print_summary = false) {
@@ -325,11 +329,13 @@ int main(int argc, char *argv[]) {
                 mat_utils::SpMatReader L_reader(*args.L_file, {}, "L");
                 DeviceSparseMatrixDouble L(ssm);
 
-                iterations = dr_bcg::dr_bcg(A.get(), X, B, L.get(), tolerance,
-                                            max_iterations);
+                iterations =
+                    dr_bcg::dr_bcg(A.get(), X, B, L.get(), tolerance,
+                                   max_iterations, log_residual<double>);
             } else {
                 iterations =
-                    dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations);
+                    dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations,
+                                   log_residual<double>);
             }
             verify(A.get(), X, n, args.s, B_v, args.print_summary);
         }
@@ -404,8 +410,8 @@ int main(int argc, char *argv[]) {
             CUDA_CHECK(cudaFree(d_A_dense));
             CUSPARSE_CHECK(cusparseDestroy(cusparseH));
         } else {
-            iterations =
-                dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations);
+            iterations = dr_bcg::dr_bcg(A.get(), X, B, tolerance,
+                                        max_iterations, log_residual<float>);
             verify(A.get(), X, n, args.s, B_v, args.print_summary);
         }
 
