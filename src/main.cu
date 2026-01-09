@@ -9,6 +9,8 @@
 #include <cublas_v2.h>
 #include <cusparse_v2.h>
 
+#include <cxxopts.hpp>
+
 #include "cg_run/cg.h"
 #include "cg_run/device_sparse_matrix.h"
 
@@ -21,53 +23,58 @@ struct Args {
     int max_iterations;
 };
 
-void print_usage(const char *progname) {
-    std::cerr << "Usage: " << progname
-              << " <matrix> <preconditioner> [tolerance] [max_iterations]"
-              << std::endl;
-}
-
 std::optional<Args> validate(int argc, char **argv) {
-    if (argc < 3 || argc > 5) {
-        print_usage(argv[0]);
+    cxxopts::Options options(argv[0], "CUDA Conjugate Gradient solver");
+
+    // clang-format off
+    options.add_options()
+        ("A", "Path to matrix file", cxxopts::value<std::string>())
+        ("R", "Path to preconditioner file", cxxopts::value<std::string>())
+        ("tolerance", "Convergence tolerance (default: 1e-6)", cxxopts::value<double>()->default_value("1e-6"))
+        ("max-iterations", "Maximum iterations (default: 1)", cxxopts::value<int>()->default_value("1"))
+        ("h,help", "Print help");
+    options.parse_positional({"A", "R"});
+    // clang-format on
+
+    cxxopts::ParseResult result;
+    try {
+        result = options.parse(argc, argv);
+    } catch (const std::exception &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        std::cerr << options.help() << std::endl;
+        return std::nullopt;
+    }
+
+    if (result.count("help")) {
+        std::cerr << options.help() << std::endl;
+        return std::nullopt;
+    }
+
+    if (!result.count("A") || !result.count("R")) {
+        std::cerr << "Error: Both matrix and preconditioner files are required."
+                  << std::endl;
+        std::cerr << options.help() << std::endl;
         return std::nullopt;
     }
 
     Args args;
 
-    args.A = argv[1];
+    args.A = result["A"].as<std::string>();
     if (!fs::exists(args.A)) {
-        std::cerr << "Error: File " << argv[1] << " does not exist."
+        std::cerr << "Error: File " << args.A << " does not exist."
                   << std::endl;
         return std::nullopt;
     }
 
-    args.R = argv[2];
+    args.R = result["R"].as<std::string>();
     if (!fs::exists(args.R)) {
-        std::cerr << "Error: File " << argv[2] << " does not exist."
+        std::cerr << "Error: File " << args.R << " does not exist."
                   << std::endl;
         return std::nullopt;
     }
 
-    args.tolerance = 1e-6;
-    args.max_iterations = 1;
-
-    try {
-        if (argc >= 4) {
-            args.tolerance = std::stof(argv[3]);
-        }
-
-        if (argc == 5) {
-            args.max_iterations = std::stoi(argv[4]);
-        }
-    } catch (const std::invalid_argument &e) {
-        std::cerr << "Error: "
-                  << (std::strcmp(e.what(), "stof") == 0
-                          ? "Invalid tolerance"
-                          : "Invalid max_iterations")
-                  << std::endl;
-        return std::nullopt;
-    }
+    args.tolerance = result["tolerance"].as<double>();
+    args.max_iterations = result["max-iterations"].as<int>();
 
     return args;
 }

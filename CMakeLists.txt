@@ -16,6 +16,15 @@ target_link_libraries(cgrun MatUtils::mat_utils)
 find_package(CUDAToolkit 12.0 REQUIRED)
 target_link_libraries(cgrun CUDA::cusparse CUDA::cublas)
 
+include(FetchContent)
+FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG v3.3.1
+)
+FetchContent_MakeAvailable(cxxopts)
+target_link_libraries(cgrun cxxopts::cxxopts)
+
 target_include_directories(cgrun PRIVATE include/)
 
 include(GNUInstallDirs)
