@@ -27,5 +27,11 @@ target_link_libraries(cgrun cxxopts::cxxopts)
 
 target_include_directories(cgrun PRIVATE include/)
 
+set_target_properties(
+    cgrun PROPERTIES
+    INSTALL_RPATH "${CUDAToolkit_LIBRARY_DIR}:${Matlab_ROOT_DIR}/bin/glnxa64"
+    BUILD_WITH_INSTALL_RPATH TRUE
+)
+
 include(GNUInstallDirs)
 install(TARGETS cgrun RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
