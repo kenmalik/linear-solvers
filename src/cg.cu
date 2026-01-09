@@ -44,10 +44,9 @@ template <typename T> struct Device_buffers {
 
 namespace cg_run {
 // R is lower triangular incomplete Cholesky where A ~= M = R^TR
-using data_type = double;
 int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
        cusparseDnVecDescr_t x, cusparseDnVecDescr_t f, cusparseSpMatDescr_t R,
-       data_type tolerance, int max_iterations) {
+       double tolerance, int max_iterations) {
     std::int64_t n;
     double *x_d = nullptr;
     cudaDataType_t compute_type;
@@ -62,7 +61,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     cusparseSpSV_createDescr(&spsvDescrRt);
 
     // Analysis phase for R (lower triangular, non-transpose)
-    constexpr data_type alpha_SpSV = 1.0;
+    constexpr double alpha_SpSV = 1.0;
     std::size_t bufferSizeR = 0;
     cusparseSpSV_bufferSize(
         cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSV, R, f, f,
@@ -88,13 +87,13 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
                           R, f, f, compute_type, CUSPARSE_SPSV_ALG_DEFAULT,
                           spsvDescrRt, bufferSV);
 
-    Device_buffers<data_type> d{n};
+    Device_buffers<double> d{n};
 
     // r = f - A x_0
-    constexpr data_type alpha_residual = -1.0;
-    constexpr data_type beta_residual = 1.0;
+    constexpr double alpha_residual = -1.0;
+    constexpr double beta_residual = 1.0;
 
-    cudaMemcpy(d.r_d, f_d, sizeof(data_type) * n, cudaMemcpyDeviceToDevice);
+    cudaMemcpy(d.r_d, f_d, sizeof(double) * n, cudaMemcpyDeviceToDevice);
 
     std::size_t buffer_size = 0;
     cusparseSpMV_bufferSize(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
@@ -111,12 +110,12 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
     cudaFree(buffer);
 
-    data_type norm_r_0 = 0;
+    double norm_r_0 = 0;
     cublasDnrm2_v2(cublas, n, d.r_d, 1, &norm_r_0);
 
     // Allocate buffer for SpMV (A*p operation)
-    constexpr data_type alpha_SpMV = 1.0;
-    constexpr data_type beta_SpMV = 0.0;
+    constexpr double alpha_SpMV = 1.0;
+    constexpr double beta_SpMV = 0.0;
     std::size_t buffer_size_SpMV = 0;
     cusparseSpMV_bufferSize(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
                             &alpha_SpMV, A, d.p, &beta_SpMV, d.q, compute_type,
@@ -124,7 +123,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     void *bufferMV = nullptr;
     cudaMalloc(&bufferMV, buffer_size_SpMV);
 
-    data_type rho = 0.0, rhop = 0.0, alpha, beta, temp;
+    double rho = 0.0, rhop = 0.0, alpha, beta, temp;
 
     // CG iteration loop
     int iteration;
@@ -169,11 +168,11 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
         cublasDaxpy_v2(cublas, n, &alpha, d.p_d, 1, x_d, 1);
 
         // r = r - alpha * q
-        data_type neg_alpha = -alpha;
+        double neg_alpha = -alpha;
         cublasDaxpy_v2(cublas, n, &neg_alpha, d.q_d, 1, d.r_d, 1);
 
         // Check for convergence
-        data_type norm_r;
+        double norm_r;
         cublasDnrm2_v2(cublas, n, d.r_d, 1, &norm_r);
 
         if (norm_r / norm_r_0 < tolerance) {
