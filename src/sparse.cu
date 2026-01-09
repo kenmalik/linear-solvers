@@ -210,11 +210,11 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
 
             constexpr int incx = 1;
-            float numerator = 0;
-            CUBLAS_CHECK(
-                cublasSnrm2_v2(handles.cublas, n, d.temp, incx, &numerator));
+            float residual_norm = 0;
+            CUBLAS_CHECK(cublasSnrm2_v2(handles.cublas, n, d.temp, incx,
+                                        &residual_norm));
 
-            relative_residual_norm = numerator / B1_norm;
+            relative_residual_norm = residual_norm / B1_norm;
         }
 
         if (relative_residual_norm < tolerance) {
@@ -458,11 +458,11 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
 
             constexpr int incx = 1;
-            double numerator = 0;
-            CUBLAS_CHECK(
-                cublasDnrm2_v2(handles.cublas, n, d.temp, incx, &numerator));
+            double residual_norm = 0;
+            CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d.temp, incx,
+                                        &residual_norm));
 
-            relative_residual_norm = numerator / B1_norm;
+            relative_residual_norm = residual_norm / B1_norm;
         }
 
         if (relative_residual_norm < tolerance) {
@@ -717,11 +717,11 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
 
             constexpr int incx = 1;
-            double numerator = 0;
-            CUBLAS_CHECK(
-                cublasDnrm2_v2(handles.cublas, n, d.temp, incx, &numerator));
+            double residual_norm = 0;
+            CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d.temp, incx,
+                                        &residual_norm));
 
-            relative_residual_norm = numerator / B1_norm;
+            relative_residual_norm = residual_norm / B1_norm;
         }
 
         if (relative_residual_norm < tolerance) {
@@ -885,7 +885,7 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     {
         // [w, sigma] = qr(L^-1 * R, 'econ')
         sptri_left_multiply<float>(handles.cusparse, temp,
-                                    CUSPARSE_OPERATION_NON_TRANSPOSE, L, R);
+                                   CUSPARSE_OPERATION_NON_TRANSPOSE, L, R);
 
         qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
                          d.sigma, n, s, d.temp);
@@ -900,7 +900,7 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                    cudaMemcpyDeviceToDevice, stream));
 
         sptri_left_multiply<float>(handles.cusparse, s_desc,
-                                    CUSPARSE_OPERATION_TRANSPOSE, L, w_desc);
+                                   CUSPARSE_OPERATION_TRANSPOSE, L, w_desc);
     }
 
     int iterations = 0;
@@ -989,11 +989,11 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
 
             constexpr int incx = 1;
-            float numerator = 0;
-            CUBLAS_CHECK(
-                cublasSnrm2_v2(handles.cublas, n, d.temp, incx, &numerator));
+            float residual_norm = 0;
+            CUBLAS_CHECK(cublasSnrm2_v2(handles.cublas, n, d.temp, incx,
+                                        &residual_norm));
 
-            relative_residual_norm = numerator / B1_norm;
+            relative_residual_norm = residual_norm / B1_norm;
         }
 
         if (relative_residual_norm < tolerance) {
@@ -1059,8 +1059,7 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         d.zeta, s, d.s, n, d.s, n));
 
             sptri_left_multiply<float>(handles.cusparse, temp,
-                                        CUSPARSE_OPERATION_TRANSPOSE, L,
-                                        w_desc);
+                                       CUSPARSE_OPERATION_TRANSPOSE, L, w_desc);
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
             constexpr float sgeam_alpha = 1.0;
