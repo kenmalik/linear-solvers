@@ -43,6 +43,9 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
     // TODO: Implement setup
     // r = b - A * x
+    // Copy b into r
+    CUBLAS_CHECK(cublasDcopy_v2_64(cublas, n, b_d, 1, d.r_d, 1));
+
     std::size_t bufsize_residual_MV = 0;
     constexpr double alpha_residual_MV = -1.0;
     constexpr double beta_residual_MV = 1.0;
@@ -51,11 +54,23 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
         &beta_residual_MV, d.r, cuda_type, CUSPARSE_SPMV_ALG_DEFAULT,
         &bufsize_residual_MV));
 
+    void *buffer_residual_MV = 0;
+    CUDA_CHECK(cudaMalloc(&buffer_residual_MV, bufsize_residual_MV));
+
+    // TODO: Preprocess if using real residual since it'll be used again in loop
+
+    CUSPARSE_CHECK(cusparseSpMV(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                                &alpha_residual_MV, A, x, &beta_residual_MV,
+                                d.r, cuda_type, CUSPARSE_SPMV_ALG_DEFAULT,
+                                buffer_residual_MV));
+
     int iterations = 0;
     while (iterations < max_iterations) {
         iterations += 1;
         // TODO: Implement solver loop
     }
+
+    CUDA_CHECK(cudaFree(buffer_residual_MV));
 
     return iterations;
 }
