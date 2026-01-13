@@ -139,7 +139,13 @@ int main(int argc, char **argv) {
         cusparseCreate(&cusparse);
         cublasCreate_v2(&cublas);
 
+<<<<<<< Updated upstream
         int iterations = cg_run::cg(cusparse, cublas, A.get(), x, f, R.get());
+=======
+        int iterations =
+            cg_run::cg(cusparse, cublas, A.get(), f, x, R.get(), args.tolerance,
+                       args.max_iterations, args.real_residual);
+>>>>>>> Stashed changes
 
         cusparseDestroyDnVec(f);
         cudaFree(f_d);
