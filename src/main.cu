@@ -22,6 +22,7 @@ struct Args {
     std::optional<fs::path> B;
     double tolerance;
     int max_iterations;
+    bool real_residual;
 };
 
 std::optional<Args> validate(int argc, char **argv) {
@@ -29,12 +30,13 @@ std::optional<Args> validate(int argc, char **argv) {
 
     // clang-format off
     options.add_options()
-        ("A", "Path to matrix file", cxxopts::value<std::string>())
-        ("R", "Path to preconditioner file", cxxopts::value<std::string>())
-        ("B", "Path to B file", cxxopts::value<std::string>())
-        ("tolerance", "Convergence tolerance (default: 1e-6)", cxxopts::value<double>()->default_value("1e-6"))
-        ("max-iterations", "Maximum iterations (default: 1)", cxxopts::value<int>()->default_value("1"))
-        ("h,help", "Print help");
+        ("h,help", "Print this help menu.")
+        ("A", "Path to matrix file.", cxxopts::value<std::string>())
+        ("R", "Path to preconditioner file.", cxxopts::value<std::string>())
+        ("B", "Path to B file.", cxxopts::value<std::string>())
+        ("tolerance", "Convergence tolerance.", cxxopts::value<double>()->default_value("1e-6"))
+        ("max-iterations", "Maximum iterations (default: n).", cxxopts::value<int>())
+        ("real-residual", "Whether to fully recalculate residual every iteration. Uses formula r = b - A * x.");
     options.parse_positional({"A", "R"});
     // clang-format on
 
@@ -79,15 +81,26 @@ std::optional<Args> validate(int argc, char **argv) {
         args.B = result["B"].as<std::string>();
     }
 
+    if (result.count("max-iterations")) {
+        args.max_iterations = result["max-iterations"].as<int>();
+        if (args.max_iterations < 1) {
+            std::cerr << "Error: Max iterations must be positive." << std::endl;
+            return std::nullopt;
+        }
+    } else {
+        args.max_iterations = -1; // Sentinel value (to later be assigned to n)
+    }
+
     args.tolerance = result["tolerance"].as<double>();
-    args.max_iterations = result["max-iterations"].as<int>();
+
+    args.real_residual = result.count("real-residual");
 
     return args;
 }
 
 int main(int argc, char **argv) {
-    if (const auto validated = validate(argc, argv)) {
-        const auto &args = *validated;
+    if (auto validated = validate(argc, argv)) {
+        auto &args = *validated;
         std::cerr << std::format("{} {} {} {}", args.A.string(),
                                  args.R.string(), args.tolerance,
                                  args.max_iterations)
@@ -95,6 +108,10 @@ int main(int argc, char **argv) {
 
         mat_utils::SpMatReader A_reader{args.A.string(), {"Problem"}, "A"};
         mat_utils::SpMatReader R_reader{args.R.string(), {}, "L"};
+
+        if (args.max_iterations == -1) {
+            args.max_iterations = A_reader.rows();
+        }
 
         std::cerr << std::format("A: {} ({}x{})", args.A.stem().string(),
                                  A_reader.rows(), A_reader.cols())
@@ -139,13 +156,9 @@ int main(int argc, char **argv) {
         cusparseCreate(&cusparse);
         cublasCreate_v2(&cublas);
 
-<<<<<<< Updated upstream
-        int iterations = cg_run::cg(cusparse, cublas, A.get(), x, f, R.get());
-=======
         int iterations =
             cg_run::cg(cusparse, cublas, A.get(), f, x, R.get(), args.tolerance,
                        args.max_iterations, args.real_residual);
->>>>>>> Stashed changes
 
         cusparseDestroyDnVec(f);
         cudaFree(f_d);
