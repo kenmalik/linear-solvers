@@ -225,7 +225,10 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
         // beta = delta_new / delta_old
         double beta = delta_new / delta_old;
 
-        // TODO: d
+        // d = s + beta * d
+        // s is no longer needed this iteration so we can overwrite it here
+        CUBLAS_CHECK(cublasDaxpy_v2(cublas, n, &beta, x_d, 1, d.s_d, 1));
+        CUBLAS_CHECK(cublasDcopy_v2(cublas, n, d.s_d, 1, d.d_d, 1));
     }
 
     CUDA_CHECK(cudaFree(buffer_MV_q));
