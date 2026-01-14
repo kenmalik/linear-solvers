@@ -115,8 +115,9 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     CUSPARSE_CHECK(cusparseSpSV_bufferSize(
         cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.d, d.d,
         cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, &bufsize_SpSV_LT));
-    const std::size_t bufsize_SpSV = std::max(bufsize_SpSV_L, bufsize_SpSV_LT);
-    CUDA_CHECK(cudaMalloc(&buffer_SpSV, bufsize_SpSV));
+    const std::size_t bufsize_SpSV_d =
+        std::max(bufsize_SpSV_L, bufsize_SpSV_LT);
+    CUDA_CHECK(cudaMalloc(&buffer_SpSV, bufsize_SpSV_d));
 
     // Analysis
     CUSPARSE_CHECK(cusparseSpSV_analysis(
@@ -133,6 +134,28 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     CUSPARSE_CHECK(cusparseSpSV_solve(cusparse, CUSPARSE_OPERATION_TRANSPOSE,
                                       &alpha_SpSM, L, d.d, d.d, cuda_type,
                                       CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT));
+
+    // Setup for s = L' \ (L \ r)
+    CUSPARSE_CHECK(cusparseSpSV_bufferSize(
+        cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r, d.s,
+        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L, &bufsize_SpSV_L));
+    CUSPARSE_CHECK(cusparseSpSV_bufferSize(
+        cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.s, d.s,
+        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, &bufsize_SpSV_LT));
+    const std::size_t bufsize_SpSV_s =
+        std::max(bufsize_SpSV_L, bufsize_SpSV_LT);
+
+    if (bufsize_SpSV_s > bufsize_SpSV_d) {
+        CUDA_CHECK(cudaFree(buffer_SpSV));
+        CUDA_CHECK(cudaMalloc(&buffer_SpSV, bufsize_SpSV_s));
+    }
+
+    CUSPARSE_CHECK(cusparseSpSV_analysis(
+        cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r, d.s,
+        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L, buffer_SpSV));
+    CUSPARSE_CHECK(cusparseSpSV_analysis(
+        cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.s, d.s,
+        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, buffer_SpSV));
 
     // delta_new = r' * d
     double delta_new = 0;
@@ -185,6 +208,20 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
         // Update residual norm
         CUBLAS_CHECK(cublasDnrm2_v2(cublas, n, d.r_d, 1, &residual_norm));
+
+        // s = L' \ (L \ r)
+        CUSPARSE_CHECK(cusparseSpSV_solve(
+            cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r,
+            d.s, cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L));
+        CUSPARSE_CHECK(cusparseSpSV_solve(
+            cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.s, d.s,
+            cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT));
+
+        // TODO: delta
+
+        // TODO: beta
+
+        // TODO: d
     }
 
     CUDA_CHECK(cudaFree(buffer_MV_q));
