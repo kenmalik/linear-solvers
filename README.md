@@ -7,6 +7,7 @@ The solver uses cuSPARSE and cuBLAS for sparse matrix operations and supports in
 
 - CUDA Toolkit 12.0+
 - [MatUtils](https://github.com/kenmalik/mat-utils) - for reading matrix files
+- [cxxopts](https://github.com/jarro2783/cxxopts) - for argument parsing (automatically fetched)
 - CMake 3.10+
 - C++20 compiler
 
