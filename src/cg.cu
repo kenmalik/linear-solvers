@@ -158,6 +158,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
         cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, buffer_SpSV));
 
     // delta_new = r' * d
+    double delta_old = 0;
     double delta_new = 0;
     CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.r_d, 1, d.d_d, 1, &delta_new));
 
@@ -217,9 +218,12 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
             cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.s, d.s,
             cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT));
 
-        // TODO: delta
+        // delta_new = r' * s
+        delta_old = delta_new;
+        CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.r_d, 1, d.s_d, 1, &delta_new));
 
-        // TODO: beta
+        // beta = delta_new / delta_old
+        double beta = delta_new / delta_old;
 
         // TODO: d
     }
