@@ -136,7 +136,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
     // delta_new = r' * d
     double delta_new = 0;
-    CUBLAS_CHECK(cublasDdot(cublas, n, d.r_d, 1, d.d_d, 1, &delta_new));
+    CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.r_d, 1, d.d_d, 1, &delta_new));
 
     // q = A * d setup
     void *buffer_MV_q = nullptr;
@@ -162,6 +162,29 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
                                     &alpha_MV_q, A, d.d, &beta_MV_q, d.q,
                                     cuda_type, CUSPARSE_SPMV_ALG_DEFAULT,
                                     buffer_MV_q));
+
+        double d_dot_q = 0;
+        CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.d_d, 1, d.q_d, 1, &d_dot_q));
+
+        double alpha = delta_new / d_dot_q;
+        CUBLAS_CHECK(cublasDaxpy(cublas, n, &alpha, d.d_d, 1, x_d, 1));
+
+        if (real_residual) {
+            // r = b - A * x
+            CUBLAS_CHECK(cublasDcopy_v2(cublas, n, b_d, 1, d.r_d, 1));
+            CUSPARSE_CHECK(cusparseSpMV(
+                cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_residual_MV,
+                A, x, &beta_residual_MV, d.r, cuda_type,
+                CUSPARSE_SPMV_ALG_DEFAULT, buffer_residual_MV));
+        } else {
+            // r = r - alpha * q
+            double neg_alpha = -alpha;
+            CUBLAS_CHECK(
+                cublasDaxpy(cublas, n, &neg_alpha, d.q_d, 1, d.r_d, 1));
+        }
+
+        // Update residual norm
+        CUBLAS_CHECK(cublasDnrm2_v2(cublas, n, d.r_d, 1, &residual_norm));
     }
 
     CUDA_CHECK(cudaFree(buffer_MV_q));
