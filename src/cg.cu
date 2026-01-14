@@ -13,29 +13,35 @@ template <typename T> struct Device_buffers {
         cudaMalloc(&r_d, sizeof(T) * n);
         cudaMalloc(&s_d, sizeof(T) * n);
         cudaMalloc(&d_d, sizeof(T) * n);
+        cudaMalloc(&q_d, sizeof(T) * n);
 
         cusparseCreateDnVec(&r, n, r_d, cuda_type);
         cusparseCreateDnVec(&s, n, s_d, cuda_type);
         cusparseCreateDnVec(&d, n, d_d, cuda_type);
+        cusparseCreateDnVec(&q, n, q_d, cuda_type);
     }
 
     ~Device_buffers() {
         cudaFree(r_d);
         cudaFree(s_d);
         cudaFree(d_d);
+        cudaFree(q_d);
 
         cusparseDestroyDnVec(r);
         cusparseDestroyDnVec(s);
         cusparseDestroyDnVec(d);
+        cusparseDestroyDnVec(q);
     }
 
     cusparseDnVecDescr_t r;
     cusparseDnVecDescr_t s;
     cusparseDnVecDescr_t d;
+    cusparseDnVecDescr_t q;
 
     T *r_d;
     T *s_d;
     T *d_d;
+    T *q_d;
 };
 } // namespace
 
@@ -132,12 +138,33 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     double delta_new = 0;
     CUBLAS_CHECK(cublasDdot(cublas, n, d.r_d, 1, d.d_d, 1, &delta_new));
 
+    // q = A * d setup
+    void *buffer_MV_q = nullptr;
+    std::size_t bufsize_MV_q = 0;
+
+    constexpr double alpha_MV_q = 1.0;
+    constexpr double beta_MV_q = 0.0;
+    CUSPARSE_CHECK(cusparseSpMV_bufferSize(
+        cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_MV_q, A, d.d,
+        &beta_MV_q, d.q, cuda_type, CUSPARSE_SPMV_ALG_DEFAULT, &bufsize_MV_q));
+
+    CUDA_CHECK(cudaMalloc(&buffer_MV_q, bufsize_MV_q));
+
+    // TODO: Preprocess MV_q since it'll be in the loop
+
     int iterations = 0;
     while (iterations < max_iterations && residual_norm > tolerance * b_norm) {
         iterations += 1;
+
         // TODO: Implement solver loop
+        // q = A * d
+        CUSPARSE_CHECK(cusparseSpMV(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                                    &alpha_MV_q, A, d.d, &beta_MV_q, d.q,
+                                    cuda_type, CUSPARSE_SPMV_ALG_DEFAULT,
+                                    buffer_MV_q));
     }
 
+    CUDA_CHECK(cudaFree(buffer_MV_q));
     CUSPARSE_CHECK(cusparseSpSV_destroyDescr(desc_SpSV_LT));
     CUSPARSE_CHECK(cusparseSpSV_destroyDescr(desc_SpSV_L));
     CUDA_CHECK(cudaFree(buffer_SpSV));
