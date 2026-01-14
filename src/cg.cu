@@ -54,6 +54,10 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
     Device_buffers<double> d{n};
 
+    // b_norm = sqrt(b' * b)
+    double b_norm = 0;
+    CUBLAS_CHECK(cublasDnrm2_v2(cublas, n, b_d, 1, &b_norm));
+
     // TODO: Check _64 versions of cublas functions
     // TODO: Implement setup
     // r = b - A * x
@@ -124,10 +128,12 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
                                       &alpha_SpSM, L, d.d, d.d, cuda_type,
                                       CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT));
 
-    // TODO: delta_new
+    // delta_new = r' * d
+    double delta_new = 0;
+    CUBLAS_CHECK(cublasDdot(cublas, n, d.r_d, 1, d.d_d, 1, &delta_new));
 
     int iterations = 0;
-    while (iterations < max_iterations) {
+    while (iterations < max_iterations && residual_norm > tolerance * b_norm) {
         iterations += 1;
         // TODO: Implement solver loop
     }
