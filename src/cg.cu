@@ -1,5 +1,8 @@
 #include <cg_run/cg.h>
 #include <cg_run/checks.h>
+
+#include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <type_traits>
@@ -189,9 +192,11 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
         double d_dot_q = 0;
         CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.d_d, 1, d.q_d, 1, &d_dot_q));
+        assert(std::isfinite(d_dot_q));
 
         double alpha = delta_new / d_dot_q;
         CUBLAS_CHECK(cublasDaxpy(cublas, n, &alpha, d.d_d, 1, x_d, 1));
+        assert(std::isfinite(alpha));
 
         if (real_residual) {
             // r = b - A * x
@@ -209,6 +214,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
         // Update residual norm
         CUBLAS_CHECK(cublasDnrm2_v2(cublas, n, d.r_d, 1, &residual_norm));
+        assert(std::isfinite(residual_norm));
 
         // s = L' \ (L \ r)
         CUSPARSE_CHECK(cusparseSpSV_solve(
@@ -221,9 +227,11 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
         // delta_new = r' * s
         delta_old = delta_new;
         CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.r_d, 1, d.s_d, 1, &delta_new));
+        assert(std::isfinite(delta_new));
 
         // beta = delta_new / delta_old
         double beta = delta_new / delta_old;
+        assert(std::isfinite(beta));
 
         // d = s + beta * d
         // s is no longer needed this iteration so we can overwrite it here
