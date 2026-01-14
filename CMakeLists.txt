@@ -8,9 +8,24 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 set(CMAKE_CUDA_ARCHITECTURES 80)
 
+option(CG_RUNNER_DOWNLOAD_DEPENDENCIES "Download dependencies using FetchContent" OFF)
+
 add_executable(cgrun src/main.cu src/cg.cu)
 
-find_package(MatUtils CONFIG REQUIRED)
+find_package(MatUtils CONFIG)
+if(NOT MatUtils_FOUND)
+    if(CG_RUNNER_DOWNLOAD_DEPENDENCIES)
+        include(FetchContent)
+        FetchContent_Declare(
+            MatUtils
+            GIT_REPOSITORY https://github.com/kenmalik/mat-utils.git
+            GIT_TAG v0.2.3
+        )
+        FetchContent_MakeAvailable(MatUtils)
+    else()
+        message(FATAL_ERROR "MatUtils not found. Install it or enable CG_RUNNER_DOWNLOAD_DEPENDENCIES.")
+    endif()
+endif()
 target_link_libraries(cgrun MatUtils::mat_utils)
 
 find_package(CUDAToolkit 12.0 REQUIRED)
