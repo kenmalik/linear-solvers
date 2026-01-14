@@ -20,9 +20,10 @@ make
 
 ### Build Options
 
-| Option | Description |
-|--------|-------------|
-| `CMAKE_CUDA_ARCHITECTURES` | Target GPU architecture (default: 80) |
+| Option | Description | Default |
+|--------|-------------|---------|
+| `CMAKE_CUDA_ARCHITECTURES` | Target GPU architecture | `80` |
+| `CG_RUNNER_DOWNLOAD_DEPENDENCIES` | Download dependencies (MatUtils) via FetchContent if not found | `OFF` |
 
 To install:
 
