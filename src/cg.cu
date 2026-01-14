@@ -227,7 +227,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
         // delta_new = r' * s
         delta_old = delta_new;
         CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.r_d, 1, d.s_d, 1, &delta_new));
-        assert(std::isfinite(delta_new));
+        assert(std::isfinite(delta_new) && delta_new != 0);
 
         // beta = delta_new / delta_old
         double beta = delta_new / delta_old;
