@@ -68,7 +68,6 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     CUBLAS_CHECK(cublasDnrm2_v2(cublas, n, b_d, 1, &b_norm));
 
     // TODO: Check _64 versions of cublas functions
-    // TODO: Implement setup
     // r = b - A * x
     // Copy b into r
     CUBLAS_CHECK(cublasDcopy_v2(cublas, n, b_d, 1, d.r_d, 1));
@@ -183,7 +182,6 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     while (iterations < max_iterations && residual_norm > tolerance * b_norm) {
         iterations += 1;
 
-        // TODO: Implement solver loop
         // q = A * d
         CUSPARSE_CHECK(cusparseSpMV(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
                                     &alpha_MV_q, A, d.d, &beta_MV_q, d.q,
@@ -235,7 +233,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
         // d = s + beta * d
         // s is no longer needed this iteration so we can overwrite it here
-        CUBLAS_CHECK(cublasDaxpy_v2(cublas, n, &beta, x_d, 1, d.s_d, 1));
+        CUBLAS_CHECK(cublasDaxpy_v2(cublas, n, &beta, d.d_d, 1, d.s_d, 1));
         CUBLAS_CHECK(cublasDcopy_v2(cublas, n, d.s_d, 1, d.d_d, 1));
     }
 
