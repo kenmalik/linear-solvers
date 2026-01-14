@@ -212,6 +212,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
         // Update residual norm
         CUBLAS_CHECK(cublasDnrm2_v2(cublas, n, d.r_d, 1, &residual_norm));
+        std::cout << iterations << "," << residual_norm / b_norm << std::endl;
         assert(std::isfinite(residual_norm));
 
         // s = L' \ (L \ r)
