@@ -1,5 +1,5 @@
-#include <cg_run/cg.h>
-#include <cg_run/checks.h>
+#include "cg_run/cg.h"
+#include "cg_run/checks.h"
 
 #include <cassert>
 #include <cmath>
