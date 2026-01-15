@@ -55,6 +55,8 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
 int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                    cusparseDnMatDescr_t B, float tolerance, int max_iterations,
                    std::function<void(int, float)> residual_callback) {
+    NVTX3_FUNC_RANGE();
+
     auto [n, s] = get_size(B);
     Device_buffer<float> d(n, s);
 
@@ -87,6 +89,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         cusparseCreateDnMat(&R, n, s, n, d_R, CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     {
+        nvtx3::scoped_range R_range{"R"};
+
         // R = B - A * X
         std::size_t buffer_size;
         constexpr float alpha = -1.0f;
@@ -113,6 +117,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     }
 
     {
+        nvtx3::scoped_range w_sigma_initial_range{"w_sigma_initial"};
+
         // [w, sigma] = qr(R, 'econ')
         qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
                          d.sigma, n, s, d_R);
@@ -122,6 +128,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUSPARSE_CHECK(cusparseDestroyDnMat(R));
 
     {
+        nvtx3::scoped_range s_initial_range{"s_initial"};
+
         // s = w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(float) * n * s,
                                    cudaMemcpyDeviceToDevice, stream));
@@ -129,9 +137,13 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     int iterations = 0;
     while (iterations < max_iterations) {
+        nvtx3::scoped_range iteration_range{"iteration"};
+
         ++iterations;
 
         {
+            nvtx3::scoped_range xi_range{"xi"};
+
             // xi = (s' * A * s)^-1
             std::size_t buffer_size;
             constexpr float alpha = 1.0f;
@@ -167,6 +179,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range X_range{"X"};
+
             // X = X + s * xi * sigma
             constexpr float alpha_1 = 1.0f;
             constexpr float beta_1 = 0.0f;
@@ -183,6 +197,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         float relative_residual_norm = 0;
         {
+            nvtx3::scoped_range rrn_range{"rrn"};
+
             // norm(B(:,1) - A * X(:,1)) / norm(B(:,1))
             constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
             constexpr float alpha = -1.0f;
@@ -228,6 +244,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range w_zeta_range{"w_zeta"};
+
             // [w, zeta] = qr(w - A * s * xi, 'econ')
             constexpr cublasOperation_t op = CUBLAS_OP_N;
             constexpr float sgemm_alpha = 1.0f;
@@ -265,6 +283,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range s_range{"s"};
+
             // s = w + s * zeta'
             constexpr float alpha = 1.0f;
             constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
@@ -285,6 +305,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range sigma_range{"sigma"};
+
             // sigma = zeta * sigma
             constexpr float alpha = 1.0f;
             constexpr cublasSideMode_t side = CUBLAS_SIDE_LEFT;
@@ -306,6 +328,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                    cusparseDnMatDescr_t B, double tolerance, int max_iterations,
                    std::function<void(int, double)> residual_callback) {
+    NVTX3_FUNC_RANGE();
+
     auto [n, s] = get_size(B);
     Device_buffer<double> d(n, s);
 
@@ -338,6 +362,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         cusparseCreateDnMat(&R, n, s, n, d_R, CUDA_R_64F, CUSPARSE_ORDER_COL));
 
     {
+        nvtx3::scoped_range R_range{"R"};
+
         // R = B - A * X
         std::size_t buffer_size;
         constexpr double alpha = -1.0;
@@ -364,6 +390,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     }
 
     {
+        nvtx3::scoped_range w_sigma_initial_range{"w_sigma_initial"};
+
         // [w, sigma] = qr(R, 'econ')
         qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
                          d.sigma, n, s, d_R);
@@ -373,6 +401,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUSPARSE_CHECK(cusparseDestroyDnMat(R));
 
     {
+        nvtx3::scoped_range s_initial_range{"s_initial"};
+
         // s = w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(double) * n * s,
                                    cudaMemcpyDeviceToDevice, stream));
@@ -380,9 +410,13 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     int iterations = 0;
     while (iterations < max_iterations) {
+        nvtx3::scoped_range iteration_range{"iteration"};
+
         ++iterations;
 
         {
+            nvtx3::scoped_range xi_range{"xi"};
+
             // xi = (s' * A * s)^-1
             std::size_t buffer_size;
             constexpr double alpha = 1.0;
@@ -418,6 +452,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range X_range{"X"};
+
             // X = X + s * xi * sigma
             constexpr double alpha_1 = 1.0;
             constexpr double beta_1 = 0.0;
@@ -434,6 +470,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         double relative_residual_norm = 0;
         {
+            nvtx3::scoped_range rrn_range{"rrn"};
+
             // norm(B(:,1) - A * X(:,1)) / norm(B(:,1))
             constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
             constexpr double alpha = -1.0;
@@ -479,6 +517,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range w_zeta_range{"w_zeta"};
+
             // [w, zeta] = qr(w - A * s * xi, 'econ')
             constexpr cublasOperation_t op = CUBLAS_OP_N;
             constexpr double sgemm_alpha = 1.0;
@@ -516,6 +556,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range s_range{"s"};
+
             // s = w + s * zeta'
             constexpr double alpha = 1.0;
             constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
@@ -536,6 +578,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range sigma_range{"sigma"};
+
             // sigma = zeta * sigma
             constexpr double alpha = 1.0;
             constexpr cublasSideMode_t side = CUBLAS_SIDE_LEFT;
@@ -855,6 +899,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                    cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
                    float tolerance, int max_iterations,
                    std::function<void(int, float)> residual_callback) {
+    NVTX3_FUNC_RANGE();
+
     auto [n, s] = get_size(B);
     Device_buffer<float> d(n, s);
 
@@ -893,6 +939,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         cusparseCreateDnMat(&R, n, s, n, d_R, CUDA_R_32F, CUSPARSE_ORDER_COL));
 
     {
+        nvtx3::scoped_range R_range{"R"};
+
         // R = B - A * X
         std::size_t buffer_size;
         constexpr float alpha = -1.0;
@@ -919,6 +967,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     }
 
     {
+        nvtx3::scoped_range w_sigma_initial_range{"w_sigma_initial"};
+
         // [w, sigma] = qr(L^-1 * R, 'econ')
         sptri_left_multiply<float>(handles.cusparse, temp,
                                    CUSPARSE_OPERATION_NON_TRANSPOSE, L, R);
@@ -931,6 +981,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUSPARSE_CHECK(cusparseDestroyDnMat(R));
 
     {
+        nvtx3::scoped_range s_initial_range{"s_initial"};
+
         // s = (L^-1)' * w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(float) * n * s,
                                    cudaMemcpyDeviceToDevice, stream));
@@ -941,9 +993,13 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     int iterations = 0;
     while (iterations < max_iterations) {
+        nvtx3::scoped_range iteration_range{"iteration"};
+
         ++iterations;
 
         {
+            nvtx3::scoped_range xi_range{"xi"};
+
             // xi = (s' * A * s)^-1
             std::size_t buffer_size;
             constexpr float alpha = 1.0;
@@ -979,15 +1035,17 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range X_range{"X"};
+
             // X = X + s * xi * sigma
-            constexpr float alpha_1 = 1.0;
-            constexpr float beta_1 = 0.0;
+            constexpr float alpha_1 = 1.0f;
+            constexpr float beta_1 = 0.0f;
             CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, CUBLAS_OP_N,
                                         CUBLAS_OP_N, s, s, s, &alpha_1, d.xi, s,
                                         d.sigma, s, &beta_1, d.temp, n));
 
-            constexpr float alpha_2 = 1.0;
-            constexpr float beta_2 = 1.0;
+            constexpr float alpha_2 = 1.0f;
+            constexpr float beta_2 = 1.0f;
             CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, CUBLAS_OP_N,
                                         CUBLAS_OP_N, n, s, s, &alpha_2, d.s, n,
                                         d.temp, n, &beta_2, d_X, n));
@@ -995,10 +1053,12 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         float relative_residual_norm = 0;
         {
+            nvtx3::scoped_range rrn_range{"rrn"};
+
             // norm(B(:,1) - A * X(:,1)) / norm(B(:,1))
             constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-            constexpr float alpha = -1.0;
-            constexpr float beta = 1.0;
+            constexpr float alpha = -1.0f;
+            constexpr float beta = 1.0f;
             constexpr cudaDataType_t compute_type = CUDA_R_32F;
             constexpr cusparseSpMVAlg_t alg = CUSPARSE_SPMV_ALG_DEFAULT;
 
@@ -1040,12 +1100,14 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range w_zeta_range{"w_zeta"};
+
             // [w, zeta] = qr(w - L^-1 * A * s * xi, 'econ')
 
             // temp = A * s
             constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-            constexpr float alpha = 1.0;
-            constexpr float beta = 0.0;
+            constexpr float alpha = 1.0f;
+            constexpr float beta = 0.0f;
             constexpr cudaDataType compute_type = CUDA_R_32F;
             constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
@@ -1074,8 +1136,8 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             // w = w - temp * xi
             constexpr cublasOperation_t sgemm_op = CUBLAS_OP_N;
-            constexpr float sgemm_alpha = -1.0;
-            constexpr float sgemm_beta = 1.0;
+            constexpr float sgemm_alpha = -1.0f;
+            constexpr float sgemm_beta = 1.0f;
             CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, sgemm_op, sgemm_op, n,
                                         s, s, &sgemm_alpha, d.temp, n, d.xi, s,
                                         &sgemm_beta, d.w, n));
@@ -1086,8 +1148,10 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
+            nvtx3::scoped_range s_range{"s"};
+
             // s = (L^-1)' * w + s * zeta'
-            constexpr float alpha = 1.0;
+            constexpr float alpha = 1.0f;
             constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
             constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
             constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
@@ -1101,16 +1165,18 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                        CUSPARSE_OPERATION_TRANSPOSE, L, w_desc);
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
-            constexpr float sgeam_alpha = 1.0;
-            constexpr float sgeam_beta = 1.0;
+            constexpr float sgeam_alpha = 1.0f;
+            constexpr float sgeam_beta = 1.0f;
             CUBLAS_CHECK(cublasSgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
                                      &sgeam_alpha, d.s, n, &sgeam_beta, d.temp,
                                      n, d.s, n));
         }
 
         {
+            nvtx3::scoped_range sigma_range{"sigma"};
+
             // sigma = zeta * sigma
-            constexpr float alpha = 1.0;
+            constexpr float alpha = 1.0f;
             constexpr cublasSideMode_t side = CUBLAS_SIDE_LEFT;
             constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
             constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
