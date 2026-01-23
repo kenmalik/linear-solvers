@@ -1,16 +1,10 @@
 cmake_minimum_required(VERSION 3.10.0)
 project(CGRun VERSION 0.1.0 LANGUAGES CUDA CXX)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_STANDARD 20)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
-set(CMAKE_CUDA_ARCHITECTURES 80)
-
 option(CG_RUNNER_DOWNLOAD_DEPENDENCIES "Download dependencies using FetchContent" OFF)
 
 add_executable(cgrun src/main.cu src/cg.cu)
+target_compile_features(cgrun PRIVATE cxx_std_20 cuda_std_20)
 
 find_package(MatUtils CONFIG)
 if(NOT MatUtils_FOUND)
