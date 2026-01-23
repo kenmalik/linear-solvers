@@ -188,13 +188,15 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
                                     cuda_type, CUSPARSE_SPMV_ALG_DEFAULT,
                                     buffer_MV_q));
 
+        // alpha = delta_new / (d' * q)
         double d_dot_q = 0;
         CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.d_d, 1, d.q_d, 1, &d_dot_q));
         assert(std::isfinite(d_dot_q));
-
         double alpha = delta_new / d_dot_q;
-        CUBLAS_CHECK(cublasDaxpy(cublas, n, &alpha, d.d_d, 1, x_d, 1));
         assert(std::isfinite(alpha));
+        
+        // x = x + alpha * d
+        CUBLAS_CHECK(cublasDaxpy(cublas, n, &alpha, d.d_d, 1, x_d, 1));
 
         if (real_residual) {
             // r = b - A * x
