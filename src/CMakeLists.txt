@@ -14,6 +14,7 @@ add_library(
 )
 add_library(DR_BCG::dr_bcg ALIAS dr_bcg)
 
+target_compile_features(dr_bcg PRIVATE cxx_std_17)
 target_include_directories(
     dr_bcg PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>

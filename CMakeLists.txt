@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 project(DR_BCG VERSION 0.3.1 LANGUAGES CUDA CXX)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(CUDAToolkit 12.0 REQUIRED)
 
 option(DR_BCG_BUILD_TESTS "Enable tests" OFF)
