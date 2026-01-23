@@ -1,8 +1,8 @@
 include(FetchContent)
 FetchContent_Declare(
     mat_utils
-    GIT_REPOSITORY git@github.com:kenmalik/mat-utils.git
-    GIT_TAG main
+    GIT_REPOSITORY https://github.com/kenmalik/mat-utils.git
+    GIT_TAG v0.2.1
 )
 FetchContent_MakeAvailable(mat_utils)
 
@@ -10,7 +10,7 @@ add_executable(
     read_mat_file
     "read_mat_file.cu"
 )
-target_link_libraries(read_mat_file PRIVATE dr_bcg mat_utils)
+target_link_libraries(read_mat_file PRIVATE DR_BCG::dr_bcg mat_utils)
 
 # Set RPATH to prioritize CUDA over MATLAB in conflicts
 set_target_properties(

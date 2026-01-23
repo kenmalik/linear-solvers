@@ -1,7 +1,7 @@
 include(FetchContent)
 FetchContent_Declare(
     googletest
-    GIT_REPOSITORY git@github.com:google/googletest.git
+    GIT_REPOSITORY https://github.com/google/googletest.git
     GIT_TAG v1.17.0
 )
 # For Windows: Prevent overriding the parent project's compiler/linker settings
@@ -17,7 +17,7 @@ add_executable(
 target_link_libraries(
     dr_bcg_test
     GTest::gtest_main
-    dr_bcg
+    DR_BCG::dr_bcg
 )
 
 include(GoogleTest)

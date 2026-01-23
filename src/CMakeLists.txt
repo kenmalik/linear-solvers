@@ -1,20 +1,25 @@
-option(DR_BCG_USE_TENSOR_CORES "Enable the use of tensor cores via cuBLAS math mode" ON)
-option(DR_BCG_USE_THIN_QR "Use thin QR procedure instead of standard QR factorization" OFF)
-
 include(FetchContent)
 FetchContent_Declare(
     nvtx
-    GIT_REPOSITORY git@github.com:NVIDIA/NVTX.git
+    GIT_REPOSITORY https://github.com/NVIDIA/NVTX.git
     GIT_TAG v3.2.1
 )
 FetchContent_MakeAvailable(nvtx)
 
-add_library(dr_bcg
-    "dr_bcg.cu"
+add_library(
+    dr_bcg
     "helper.cu"
-    "device_buffer.cu"
+    "sparse.cu"
+    "dense.cu"
 )
-target_include_directories(dr_bcg PUBLIC "${CMAKE_SOURCE_DIR}/include")
+add_library(DR_BCG::dr_bcg ALIAS dr_bcg)
+
+target_compile_features(dr_bcg PRIVATE cxx_std_17)
+target_include_directories(
+    dr_bcg PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 
 target_link_libraries(
     dr_bcg PUBLIC
@@ -24,14 +29,18 @@ target_link_libraries(
     nvtx3-cpp
 )
 
-if (DR_BCG_USE_TENSOR_CORES)
-    target_compile_definitions(dr_bcg PRIVATE "USE_TENSOR_CORES")
-endif()
+target_compile_definitions(
+    dr_bcg PRIVATE
+    $<$<CONFIG:Debug>:CUDA_DR_BCG_DEBUG_BUILD>
+)
 
-if (DR_BCG_USE_THIN_QR)
-    target_compile_definitions(dr_bcg PUBLIC "USE_THIN_QR")
-endif()
-
-target_compile_options(dr_bcg PUBLIC
-    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+install(
+    TARGETS dr_bcg nvtx3-c nvtx3-cpp
+    EXPORT DR_BCGTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+install(
+    EXPORT DR_BCGTargets
+    NAMESPACE DR_BCG::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DR_BCG
 )

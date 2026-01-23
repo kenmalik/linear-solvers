@@ -1,229 +1,428 @@
-#include <tuple>
-#include <iostream>
-#include <vector>
-#include <string>
+#include <cassert>
 #include <cmath>
+#include <filesystem>
+#include <iostream>
 #include <limits>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <type_traits>
+#include <vector>
 
 #include <mat_utils/mat_reader.h>
+#include <mat_utils/mat_writer.h>
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 
-#include "dr_bcg/dr_bcg.h"
+#include "dr_bcg/dense.h"
+#include "dr_bcg/device_sparse_matrix.h"
 #include "dr_bcg/helper.h"
+#include "dr_bcg/sparse.h"
 
-__global__ void set_val(float *A_d, float val, size_t num_elements)
-{
-    const int idx = blockIdx.x * blockDim.y + threadIdx.x;
-    if (idx < num_elements)
-    {
-        A_d[idx] = val;
-    }
+template <typename T> void log_residual(int iteration, T residual) {
+    std::cout << iteration << "," << residual << std::endl;
 }
 
-int main(int argc, char *argv[])
-{
-    int s;
-    try
-    {
-        if (argc == 2)
-        {
-            s = 1;
-        }
-        else if (argc == 3)
-        {
-            s = std::atoi(argv[2]);
-        }
-        else
-        {
-            throw std::invalid_argument("Invalid arg count");
-        }
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "Usage: ./example_2 [.mat file] [block size]" << std::endl;
-        return 1;
-    }
+template <typename T>
+void verify(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, int n, int s,
+            const thrust::device_vector<T> &B_v, bool print_summary = false) {
+    static_assert(std::is_same<T, float>::value ||
+                      std::is_same<T, double>::value,
+                  "verify<T> only supports float or double");
 
-    cusolverDnHandle_t cusolverH;
-    CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
-    cusolverDnParams_t cusolverP;
-    CUSOLVER_CHECK(cusolverDnCreateParams(&cusolverP));
+    thrust::device_vector<T> AX_v(n * s);
+    T *d_AX = thrust::raw_pointer_cast(AX_v.data());
+    cusparseDnMatDescr_t AX;
+    cudaDataType_t valueType =
+        std::is_same<T, float>::value ? CUDA_R_32F : CUDA_R_64F;
+    CUSPARSE_CHECK(
+        cusparseCreateDnMat(&AX, n, s, n, d_AX, valueType, CUSPARSE_ORDER_COL));
 
-    cublasHandle_t cublasH;
-    CUBLAS_CHECK(cublasCreate_v2(&cublasH));
-
-    cusparseHandle_t cusparseH = NULL;
+    cusparseHandle_t cusparseH;
     CUSPARSE_CHECK(cusparseCreate(&cusparseH));
 
-    const std::string matrix_file = argv[1];
-    mat_utils::MatReader ssm(matrix_file, {"Problem"}, "A");
-
-    int64_t *jc_d = nullptr;
-    int64_t *ir_d = nullptr;
-    float *vals_d = nullptr;
-
-    float *x_d = nullptr;
-    CUDA_CHECK(cudaMalloc(&x_d, sizeof(float) * ssm.rows()));
-
-    float *b_d = nullptr;
-    std::vector<float> b_h(ssm.rows(), 1);
-    CUDA_CHECK(cudaMalloc(&b_d, sizeof(float) * b_h.size()));
-    CUDA_CHECK(cudaMemcpy(b_d, b_h.data(), sizeof(float) * b_h.size(), cudaMemcpyHostToDevice));
-
-    CUDA_CHECK(cudaMalloc(&jc_d, sizeof(int64_t) * ssm.jc_size()));
-    CUDA_CHECK(cudaMalloc(&ir_d, sizeof(int64_t) * ssm.ir_size()));
-    CUDA_CHECK(cudaMalloc(&vals_d, sizeof(float) * ssm.nnz()));
-
-    // Convert from default Matlab types
-    std::vector<int64_t> jc_64i(ssm.jc_size());
-    for (int i = 0; i < ssm.jc_size(); i++)
-    {
-        jc_64i[i] = static_cast<int64_t>(ssm.jc()[i]);
-    }
-    CUDA_CHECK(cudaMemcpy(jc_d, jc_64i.data(), sizeof(int64_t) * jc_64i.size(), cudaMemcpyHostToDevice));
-
-    std::vector<int64_t> ir_64i(ssm.ir_size());
-    for (int i = 0; i < ssm.ir_size(); i++)
-    {
-        ir_64i[i] = static_cast<int64_t>(ssm.ir()[i]);
-    }
-    CUDA_CHECK(cudaMemcpy(ir_d, ir_64i.data(), sizeof(int64_t) * ir_64i.size(), cudaMemcpyHostToDevice));
-
-    std::vector<float> nonzeros_32f(ssm.nnz());
-    for (int i = 0; i < ssm.nnz(); i++)
-    {
-        nonzeros_32f[i] = static_cast<float>(ssm.data()[i]);
-    }
-    CUDA_CHECK(cudaMemcpy(vals_d, nonzeros_32f.data(), sizeof(float) * nonzeros_32f.size(), cudaMemcpyHostToDevice));
-
-    cusparseSpMatDescr_t A;
-    CUSPARSE_CHECK(cusparseCreateCsr(
-        &A, ssm.rows(), ssm.cols(), ssm.nnz(),
-        jc_d, ir_d, vals_d, CUSPARSE_INDEX_64I, CUSPARSE_INDEX_64I,
-        CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F));
-
-    const int n = ssm.rows();
-
-    cusparseDnMatDescr_t X;
-    float *d_X = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_X, sizeof(float) * n * s));
-    CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, s, n, d_X, CUDA_R_32F, CUSPARSE_ORDER_COL));
-
-    cusparseDnMatDescr_t B;
-    float *d_B = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_B, sizeof(float) * n * s));
-
-    constexpr int block_size = 256;
-    const size_t num_elements = n * s;
-    const size_t num_blocks = (num_elements + block_size - 1) / block_size;
-    set_val<<<num_blocks, block_size>>>(d_B, 1, num_elements);
-
-    CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, s, n, d_B, CUDA_R_32F, CUSPARSE_ORDER_COL));
-
-    constexpr float tolerance = std::numeric_limits<float>::epsilon();
-    constexpr int max_iterations = 10000;
-
-    std::cout << "n: " << n << std::endl;
-    std::cout << "s: " << s << std::endl;
-
-    std::cerr << "Running..." << std::endl;
-    int iterations = 0;
-    dr_bcg::dr_bcg(cusolverH, cusolverP, cublasH, cusparseH, A, X, B, tolerance, max_iterations, &iterations);
-    std::cerr << "Finished!" << std::endl;
-
-    // Verification
-    cusparseDnMatDescr_t B_check;
-    float *B_check_d = nullptr;
-    CUDA_CHECK(cudaMalloc(&B_check_d, sizeof(float) * n * s));
-    CUSPARSE_CHECK(cusparseCreateDnMat(&B_check, n, s, n, B_check_d, CUDA_R_32F, CUSPARSE_ORDER_COL));
-
-    constexpr cusparseOperation_t transpose = CUSPARSE_OPERATION_NON_TRANSPOSE;
-    constexpr float alpha = 1;
-    constexpr float beta = 0;
-
+    std::size_t buffer_size;
     void *buffer = nullptr;
-    size_t buffer_size = 0;
 
-    CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-        cusparseH, transpose, transpose,
-        &alpha, A, X, &beta, B_check,
-        CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, &buffer_size));
+    constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
+    T alpha = static_cast<T>(1);
+    T beta = static_cast<T>(0);
+    cudaDataType_t compute_type = valueType;
+    constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
-    if (buffer_size > 0)
-    {
+    CUSPARSE_CHECK(cusparseSpMM_bufferSize(cusparseH, op, op, &alpha, A, X,
+                                           &beta, AX, compute_type, alg,
+                                           &buffer_size));
+
+    if (buffer_size > 0) {
         CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
     }
 
-    CUSPARSE_CHECK(cusparseSpMM(
-        cusparseH, transpose, transpose,
-        &alpha, A, X, &beta, B_check,
-        CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, buffer));
+    CUSPARSE_CHECK(cusparseSpMM(cusparseH, op, op, &alpha, A, X, &beta, AX,
+                                compute_type, alg, buffer));
+    CUDA_CHECK(cudaDeviceSynchronize());
 
-    if (buffer)
-    {
+    if (buffer) {
         CUDA_CHECK(cudaFree(buffer));
     }
 
-    std::vector<float> B_expected(n * s, 1);
-    std::vector<float> B_got(n * s);
-    CUDA_CHECK(cudaMemcpy(B_got.data(), B_check_d, sizeof(float) * B_got.size(), cudaMemcpyDeviceToHost));
+    thrust::host_vector<T> got = AX_v;
+    thrust::host_vector<T> expected = B_v;
 
-    constexpr float check_tolerance = 0.001;
-    float min_error = std::numeric_limits<float>::max();
-    float max_error = 0;
-    float avg_error = 0;
+    if (got.size() != expected.size()) {
+        std::cerr << "Size mismatch" << std::endl;
+        return;
+    }
 
-    int bad_count = 0;
-    int good_count = 0;
-    for (int i = 0; i < B_expected.size(); ++i)
-    {
-        const float error = std::abs(B_expected.at(i) - B_got.at(i));
-        if (error < min_error)
-        {
-            min_error = error;
-        }
-        if (error > max_error)
-        {
+    T avg_error = static_cast<T>(0);
+    T max_error = static_cast<T>(0);
+    T min_error = std::numeric_limits<T>::max();
+
+    for (int i = 0; i < expected.size(); ++i) {
+        T error = std::abs(got[i] - expected[i]);
+        if (error > max_error) {
             max_error = error;
         }
-        avg_error += error;
-
-        if (error > check_tolerance)
-        {
-            ++bad_count;
+        if (error < min_error) {
+            min_error = error;
         }
-        else
-        {
-            ++good_count;
+        avg_error += error;
+    }
+    avg_error /= static_cast<T>(expected.size());
+
+    if (print_summary) {
+        std::cerr << "Summary:" << std::endl;
+        std::cerr << "Max Error: " << max_error << std::endl;
+        std::cerr << "Min Error: " << min_error << std::endl;
+        std::cerr << "Avg Error: " << avg_error << std::endl;
+    }
+}
+
+struct Args {
+    std::string matrix_file;
+    int s = 1;
+    std::optional<int> max_iters = std::nullopt;
+    std::optional<std::filesystem::path> out_file = std::nullopt;
+    std::optional<std::filesystem::path> X_file = std::nullopt;
+    std::optional<std::filesystem::path> B_file = std::nullopt;
+    std::optional<std::filesystem::path> L_file = std::nullopt;
+    double tolerance = 1e-6;
+    bool print_summary = false;
+    bool print_help = false;
+    bool dense = false;
+    bool use_double = false;
+};
+
+Args parse_args(int argc, char *argv[]) {
+    Args args;
+
+    int positional_number = 0;
+
+    for (int i = 1; i < argc; ++i) {
+        const char *arg = argv[i];
+
+        if (std::strcmp(arg, "-h") == 0) {
+            args.print_help = true;
+        } else if (std::strcmp(arg, "-s") == 0) {
+            args.print_summary = true;
+        } else if (std::strcmp(arg, "--dense") == 0) {
+            args.dense = true;
+        } else if (std::strcmp(arg, "--double") == 0) {
+            args.use_double = true;
+        } else if (std::strcmp(arg, "-i") == 0) {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing max iterations value");
+            }
+            char *endptr;
+            long max_iters = std::strtol(argv[++i], &endptr, 10);
+            if (*endptr != '\0' ||
+                max_iters > std::numeric_limits<int>::max()) {
+                throw std::invalid_argument("Invalid max iterations");
+            }
+            args.max_iters = static_cast<int>(max_iters);
+        } else if (std::strcmp(arg, "-t") == 0) {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing tolerance value");
+            }
+            char *endptr;
+            double tol = std::strtod(argv[++i], &endptr);
+            if (*endptr != '\0' || tol <= 0.0) {
+                throw std::invalid_argument("Invalid tolerance");
+            }
+            args.tolerance = tol;
+        } else if (std::strcmp(arg, "-X") == 0) {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing X file path");
+            }
+            std::filesystem::path Xp{argv[++i]};
+            if (!std::filesystem::exists(Xp)) {
+                throw std::invalid_argument("X file does not exist");
+            }
+            args.X_file = Xp;
+        } else if (std::strcmp(arg, "-B") == 0) {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing B file path");
+            }
+            std::filesystem::path Bp{argv[++i]};
+            if (!std::filesystem::exists(Bp)) {
+                throw std::invalid_argument("B file does not exist");
+            }
+            args.B_file = Bp;
+        } else if (std::strcmp(arg, "-L") == 0) {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing L file path");
+            }
+            std::filesystem::path Lp{argv[++i]};
+            if (!std::filesystem::exists(Lp)) {
+                throw std::invalid_argument("L file does not exist");
+            }
+            args.L_file = Lp;
+        } else if (std::strcmp(arg, "-o") == 0) {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("Missing output file path");
+            }
+            std::filesystem::path out_file{argv[++i]};
+            if (std::filesystem::exists(out_file)) {
+                throw std::invalid_argument(
+                    "Output file already exists. Cannot overwrite.");
+            }
+            args.out_file = out_file;
+        } else {
+            if (positional_number == 0) {
+                args.matrix_file = std::string(arg);
+            } else if (positional_number == 1) {
+                char *endptr;
+                long s = std::strtol(arg, &endptr, 10);
+                if (*endptr != '\0' || s > std::numeric_limits<int>::max()) {
+                    throw std::invalid_argument("Invalid block size");
+                }
+
+                args.s = s;
+            } else {
+                throw std::invalid_argument("Invalid argument count");
+            }
+            ++positional_number;
         }
     }
 
-    std::cout << "Iterations: " << iterations << std::endl;
+    return args;
+}
 
-    std::cout << "\nWith check_tolerance=" << check_tolerance << ':' << std::endl;
-    std::cout << "  Good values: " << good_count << std::endl;
-    std::cout << "  Bad values: " << bad_count << std::endl;
+void print_help() {
+    std::cerr << "Usage: ./example_2 [.mat file] [block_size]" << std::endl
+              << std::endl;
+    std::cerr << "Options:" << std::endl;
+    std::cerr << "  -h print this help menu" << std::endl;
+    std::cerr << "  -s (default 1) print summary of errors between AX and 1_nxn"
+              << std::endl;
+    std::cerr << "  -i [max_iterations] (default block_size) set the maximum "
+                 "iterations solver will run"
+              << std::endl;
+    std::cerr << "  -t [tolerance] (float) set solver convergence tolerance"
+              << std::endl;
+    std::cerr << "  -o [output_file] set file to output final X to"
+              << std::endl;
+    std::cerr << "  -X [path to .mat] read initial X from given .mat file"
+              << std::endl;
+    std::cerr
+        << "  -B [path to .mat] read right-hand side B from given .mat file"
+        << std::endl;
+    std::cerr << "  --dense use dense solver variant" << std::endl;
+    std::cerr << "  --double use double-precision variant" << std::endl;
+}
 
-    std::cout << "\nSummary:" << std::endl;
-    std::cout << "  min_error=" << min_error << std::endl;
-    std::cout << "  max_error=" << max_error << std::endl;
-    std::cout << "  avg_error=" << avg_error / B_expected.size() << std::endl;
+template <typename T>
+void load_mat(T *destination_d, mat_utils::DnMatReader &reader) {
+    static_assert(std::is_same<T, float>::value ||
+                      std::is_same<T, double>::value,
+                  "load_mat only supports float or double");
 
-    CUDA_CHECK(cudaFree(B_check_d));
-    CUDA_CHECK(cudaFree(jc_d));
-    CUDA_CHECK(cudaFree(ir_d));
-    CUDA_CHECK(cudaFree(vals_d));
-    CUDA_CHECK(cudaFree(x_d));
-    CUDA_CHECK(cudaFree(b_d));
+    std::vector<T> mat(reader.size());
+    for (int i = 0; i < reader.size(); ++i) {
+        mat[i] = static_cast<T>(reader.data()[i]);
+    }
+    assert(reader.size() == mat.size() &&
+           "Value read from file must be n by s");
+    CUDA_CHECK(cudaMemcpy(destination_d, mat.data(), sizeof(T) * mat.size(),
+                          cudaMemcpyHostToDevice));
+}
 
-    CUSPARSE_CHECK(cusparseDestroySpMat(A));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(X));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(B));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(B_check));
+int main(int argc, char *argv[]) {
+    Args args;
+    try {
+        args = parse_args(argc, argv);
+    } catch (const std::exception &e) {
+        std::cerr << "Error: " << e.what() << std::endl << std::endl;
+        print_help();
+        return 1;
+    }
 
-    CUSPARSE_CHECK(cusparseDestroy(cusparseH));
-    CUBLAS_CHECK(cublasDestroy_v2(cublasH));
-    CUSOLVER_CHECK(cusolverDnDestroy(cusolverH));
-    CUSOLVER_CHECK(cusolverDnDestroyParams(cusolverP));
+    if (args.print_help) {
+        print_help();
+        return 0;
+    }
 
-    return 0;
+    mat_utils::SpMatReader ssm(args.matrix_file, {"Problem"}, "A");
+
+    if (args.use_double) {
+        DeviceSparseMatrixDouble A(ssm);
+        const int n = ssm.rows();
+
+        cusparseDnMatDescr_t X;
+        thrust::device_vector<double> X_v(n * args.s, 0.0);
+        double *d_X = thrust::raw_pointer_cast(X_v.data());
+        CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n, d_X, CUDA_R_64F,
+                                           CUSPARSE_ORDER_COL));
+
+        if (args.X_file.has_value()) {
+            mat_utils::DnMatReader Xr{*args.X_file, {}, "X"};
+            load_mat(d_X, Xr);
+        }
+
+        cusparseDnMatDescr_t B;
+        thrust::device_vector<double> B_v(n * args.s, 1.0);
+        double *d_B = thrust::raw_pointer_cast(B_v.data());
+        CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_64F,
+                                           CUSPARSE_ORDER_COL));
+
+        if (args.B_file.has_value()) {
+            mat_utils::DnMatReader Br{*args.B_file, {}, "B"};
+            load_mat(d_B, Br);
+        }
+
+        double tolerance = args.tolerance;
+        const int max_iterations =
+            args.max_iters.has_value() ? *args.max_iters : n;
+
+        std::cerr << args.matrix_file << ' ' << n << ' ' << args.s << std::endl;
+
+        int iterations = 0;
+        if (args.dense) {
+            cusparseHandle_t cusparseH;
+            CUSPARSE_CHECK(cusparseCreate(&cusparseH));
+
+            cusparseDnMatDescr_t A_dense;
+            thrust::device_vector<double> A_dense_v(n * n);
+            double *d_A_dense = thrust::raw_pointer_cast(A_dense_v.data());
+            CUSPARSE_CHECK(cusparseCreateDnMat(&A_dense, n, n, n, d_A_dense,
+                                               CUDA_R_64F, CUSPARSE_ORDER_COL));
+
+            void *buffer = nullptr;
+            std::size_t buffer_size = 0;
+            CUSPARSE_CHECK(cusparseSparseToDense_bufferSize(
+                cusparseH, A.get(), A_dense, CUSPARSE_SPARSETODENSE_ALG_DEFAULT,
+                &buffer_size));
+            CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
+
+            CUSPARSE_CHECK(cusparseSparseToDense(
+                cusparseH, A.get(), A_dense, CUSPARSE_SPARSETODENSE_ALG_DEFAULT,
+                buffer));
+
+            iterations = dr_bcg::dr_bcg(d_A_dense, d_X, d_B, n, args.s,
+                                        tolerance, max_iterations);
+
+            CUDA_CHECK(cudaFree(buffer));
+            CUSPARSE_CHECK(cusparseDestroyDnMat(A_dense));
+            CUSPARSE_CHECK(cusparseDestroy(cusparseH));
+        } else {
+            if (args.L_file.has_value()) {
+                mat_utils::SpMatReader L_reader(*args.L_file, {}, "L");
+                DeviceSparseMatrixDouble L(ssm);
+
+                iterations =
+                    dr_bcg::dr_bcg(A.get(), X, B, L.get(), tolerance,
+                                   max_iterations, log_residual<double>);
+            } else {
+                iterations =
+                    dr_bcg::dr_bcg(A.get(), X, B, tolerance, max_iterations,
+                                   log_residual<double>);
+            }
+            verify(A.get(), X, n, args.s, B_v, args.print_summary);
+        }
+
+        std::cout << "Iterations: " << iterations << std::endl;
+
+        if (args.out_file) {
+            std::cerr << "Double output currently not supported" << std::endl;
+        }
+
+        return 0;
+    } else {
+        DeviceSparseMatrixFloat A(ssm);
+
+        const int n = ssm.rows();
+
+        cusparseDnMatDescr_t X;
+        thrust::device_vector<float> X_v(n * args.s, 0.0f);
+        float *d_X = thrust::raw_pointer_cast(X_v.data());
+        CUSPARSE_CHECK(cusparseCreateDnMat(&X, n, args.s, n, d_X, CUDA_R_32F,
+                                           CUSPARSE_ORDER_COL));
+
+        if (args.X_file.has_value()) {
+            mat_utils::DnMatReader Xr{*args.X_file, {}, "X"};
+            load_mat(d_X, Xr);
+        }
+
+        cusparseDnMatDescr_t B;
+        thrust::device_vector<float> B_v(n * args.s, 1.0f);
+        float *d_B = thrust::raw_pointer_cast(B_v.data());
+        CUSPARSE_CHECK(cusparseCreateDnMat(&B, n, args.s, n, d_B, CUDA_R_32F,
+                                           CUSPARSE_ORDER_COL));
+
+        if (args.B_file.has_value()) {
+            mat_utils::DnMatReader Br{*args.B_file, {}, "B"};
+            load_mat(d_B, Br);
+        }
+
+        float tolerance = static_cast<float>(args.tolerance);
+        const int max_iterations =
+            args.max_iters.has_value() ? *args.max_iters : n;
+
+        std::cerr << args.matrix_file << ' ' << n << ' ' << args.s << std::endl;
+
+        int iterations = 0;
+        if (args.dense) {
+            cusparseHandle_t cusparseH;
+            CUSPARSE_CHECK(cusparseCreate(&cusparseH));
+
+            cusparseDnMatDescr_t A_dense;
+            float *d_A_dense = nullptr;
+            CUDA_CHECK(cudaMalloc(&d_A_dense, sizeof(float) * n * n));
+            CUSPARSE_CHECK(cusparseCreateDnMat(&A_dense, n, n, n, d_A_dense,
+                                               CUDA_R_32F, CUSPARSE_ORDER_COL));
+
+            void *buffer = nullptr;
+            std::size_t buffer_size = 0;
+            CUSPARSE_CHECK(cusparseSparseToDense_bufferSize(
+                cusparseH, A.get(), A_dense, CUSPARSE_SPARSETODENSE_ALG_DEFAULT,
+                &buffer_size));
+            CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
+
+            CUSPARSE_CHECK(cusparseSparseToDense(
+                cusparseH, A.get(), A_dense, CUSPARSE_SPARSETODENSE_ALG_DEFAULT,
+                buffer));
+
+            iterations = dr_bcg::dr_bcg(d_A_dense, d_X, d_B, n, args.s,
+                                        tolerance, max_iterations);
+
+            CUDA_CHECK(cudaFree(buffer));
+            CUSPARSE_CHECK(cusparseDestroyDnMat(A_dense));
+            CUDA_CHECK(cudaFree(d_A_dense));
+            CUSPARSE_CHECK(cusparseDestroy(cusparseH));
+        } else {
+            iterations = dr_bcg::dr_bcg(A.get(), X, B, tolerance,
+                                        max_iterations, log_residual<float>);
+            verify(A.get(), X, n, args.s, B_v, args.print_summary);
+        }
+
+        std::cout << "Iterations: " << iterations << std::endl;
+
+        if (args.out_file) {
+            std::vector<float> X_final(X_v.begin(), X_v.end());
+            mat_utils::MatWriter w(*args.out_file);
+            w.write_dense("X", X_final, n, args.s);
+        }
+
+        return 0;
+    }
 }
