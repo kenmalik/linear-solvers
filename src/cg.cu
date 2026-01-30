@@ -54,12 +54,13 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
        cusparseDnVecDescr_t b, cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
        double tolerance, int max_iterations, bool real_residual) {
     std::int64_t n = 0;
-    double *x_d = nullptr;
+    void *x_d = nullptr;
     cudaDataType_t cuda_type;
-    cusparseDnVecGet(x, &n, reinterpret_cast<void **>(&x_d), &cuda_type);
+    cusparseDnVecGet(x, &n, &x_d, &cuda_type);
 
-    double *b_d = nullptr;
-    cusparseDnVecGetValues(b, reinterpret_cast<void **>(&b_d));
+    void *b_d_void = nullptr;
+    cusparseDnVecGetValues(b, &b_d_void);
+    double *b_d = static_cast<double *>(b_d_void);
 
     Device_buffers<double> d{n};
 
@@ -194,9 +195,10 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
         assert(std::isfinite(d_dot_q));
         double alpha = delta_new / d_dot_q;
         assert(std::isfinite(alpha));
-        
+
         // x = x + alpha * d
-        CUBLAS_CHECK(cublasDaxpy(cublas, n, &alpha, d.d_d, 1, x_d, 1));
+        CUBLAS_CHECK(cublasDaxpy(cublas, n, &alpha, d.d_d, 1,
+                                 static_cast<double *>(x_d), 1));
 
         if (real_residual) {
             // r = b - A * x
