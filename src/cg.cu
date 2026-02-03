@@ -99,7 +99,8 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     // Since SpSV supports in-place operations, we perform the solve like so:
     //   d = L \ r
     //   d = L' \ d
-    void *buffer_SpSV = nullptr;
+    void *buffer_SpSV_L = nullptr;
+    void *buffer_SpSV_LT = nullptr;
 
     std::size_t bufsize_SpSV_L = 0;
     std::size_t bufsize_SpSV_LT = 0;
@@ -111,24 +112,38 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
     constexpr double alpha_SpSM = 1.0;
 
-    // Reuse larger of two buffers
+    // Compute buffer sizes for the initial d solves
     CUSPARSE_CHECK(cusparseSpSV_bufferSize(
         cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r, d.d,
         cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L, &bufsize_SpSV_L));
     CUSPARSE_CHECK(cusparseSpSV_bufferSize(
         cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.d, d.d,
         cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, &bufsize_SpSV_LT));
-    const std::size_t bufsize_SpSV_d =
-        std::max(bufsize_SpSV_L, bufsize_SpSV_LT);
-    CUDA_CHECK(cudaMalloc(&buffer_SpSV, bufsize_SpSV_d));
 
-    // Analysis
+    // Compute buffer sizes needed for the s solves and take max for each buffer
+    std::size_t bufsize_SpSV_L_s = 0;
+    std::size_t bufsize_SpSV_LT_s = 0;
+    CUSPARSE_CHECK(cusparseSpSV_bufferSize(
+        cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r, d.s,
+        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L, &bufsize_SpSV_L_s));
+    CUSPARSE_CHECK(cusparseSpSV_bufferSize(
+        cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.s, d.s,
+        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT,
+        &bufsize_SpSV_LT_s));
+
+    bufsize_SpSV_L = std::max(bufsize_SpSV_L, bufsize_SpSV_L_s);
+    bufsize_SpSV_LT = std::max(bufsize_SpSV_LT, bufsize_SpSV_LT_s);
+
+    CUDA_CHECK(cudaMalloc(&buffer_SpSV_L, bufsize_SpSV_L));
+    CUDA_CHECK(cudaMalloc(&buffer_SpSV_LT, bufsize_SpSV_LT));
+
+    // Analysis for initial d
     CUSPARSE_CHECK(cusparseSpSV_analysis(
         cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r, d.d,
-        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L, buffer_SpSV));
+        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L, buffer_SpSV_L));
     CUSPARSE_CHECK(cusparseSpSV_analysis(
         cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.d, d.d,
-        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, buffer_SpSV));
+        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, buffer_SpSV_LT));
 
     // Solve
     CUSPARSE_CHECK(cusparseSpSV_solve(
@@ -138,27 +153,13 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
                                       &alpha_SpSM, L, d.d, d.d, cuda_type,
                                       CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT));
 
-    // Setup for s = L' \ (L \ r)
-    CUSPARSE_CHECK(cusparseSpSV_bufferSize(
-        cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r, d.s,
-        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L, &bufsize_SpSV_L));
-    CUSPARSE_CHECK(cusparseSpSV_bufferSize(
-        cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.s, d.s,
-        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, &bufsize_SpSV_LT));
-    const std::size_t bufsize_SpSV_s =
-        std::max(bufsize_SpSV_L, bufsize_SpSV_LT);
-
-    if (bufsize_SpSV_s > bufsize_SpSV_d) {
-        CUDA_CHECK(cudaFree(buffer_SpSV));
-        CUDA_CHECK(cudaMalloc(&buffer_SpSV, bufsize_SpSV_s));
-    }
-
+    // Analysis for s (reuse the dedicated buffers)
     CUSPARSE_CHECK(cusparseSpSV_analysis(
         cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r, d.s,
-        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L, buffer_SpSV));
+        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L, buffer_SpSV_L));
     CUSPARSE_CHECK(cusparseSpSV_analysis(
         cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.s, d.s,
-        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, buffer_SpSV));
+        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, buffer_SpSV_LT));
 
     // delta_new = r' * d
     double delta_old = 0;
@@ -246,7 +247,8 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     CUDA_CHECK(cudaFree(buffer_MV_q));
     CUSPARSE_CHECK(cusparseSpSV_destroyDescr(desc_SpSV_LT));
     CUSPARSE_CHECK(cusparseSpSV_destroyDescr(desc_SpSV_L));
-    CUDA_CHECK(cudaFree(buffer_SpSV));
+    CUDA_CHECK(cudaFree(buffer_SpSV_L));
+    CUDA_CHECK(cudaFree(buffer_SpSV_LT));
     CUDA_CHECK(cudaFree(buffer_residual_MV));
 
     return iterations;
