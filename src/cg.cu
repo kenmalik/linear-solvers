@@ -7,6 +7,8 @@
 #include <iostream>
 #include <type_traits>
 
+#include <nvtx3/nvtx3.hpp>
+
 namespace {
 template <typename T> struct Device_buffers {
     cudaDataType_t cuda_type =
@@ -53,6 +55,8 @@ namespace cg_run {
 int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
        cusparseDnVecDescr_t b, cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
        double tolerance, int max_iterations, bool real_residual) {
+    NVTX3_FUNC_RANGE();
+
     std::int64_t n = 0;
     void *x_d = nullptr;
     cudaDataType_t cuda_type;
@@ -182,6 +186,8 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
     int iterations = 0;
     while (iterations < max_iterations && residual_norm > tolerance * b_norm) {
+        nvtx3::scoped_range iteration_range("iteration");
+
         iterations += 1;
 
         // q = A * d
