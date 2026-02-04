@@ -34,6 +34,21 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(cxxopts)
 target_link_libraries(cgrun cxxopts::cxxopts)
 
+find_package(nvtx3 CONFIG)
+if(NOT nvtx3_FOUND)
+    if(CG_RUNNER_DOWNLOAD_DEPENDENCIES)
+        FetchContent_Declare(
+            nvtx3
+            GIT_REPOSITORY https://github.com/NVIDIA/NVTX.git
+            GIT_TAG v3.4.0
+        )
+        FetchContent_MakeAvailable(nvtx3)
+    else()
+        message(FATAL_ERROR "NVTX not found. Install it or enable CG_RUNNER_DOWNLOAD_DEPENDENCIES.")
+    endif()
+endif()
+target_link_libraries(cgrun nvtx3::nvtx3-cpp)
+
 target_include_directories(cgrun PRIVATE include/)
 
 set_target_properties(
