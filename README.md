@@ -64,3 +64,12 @@ cgrun matrix.mat preconditioner.mat --tolerance 1e-8 --max-iterations 1000
 ## Output
 
 The program prints the number of iterations to convergence on stdout.
+
+## Test Data
+
+Some matrices in the test data (namely `1138_bus.mat`) were sourced from the SuiteSparse Matrix Collection, cited below.
+
+Kolodziej et al., (2019). The SuiteSparse Matrix Collection Website Interface. Journal of Open Source Software, 4(35), 1244, [DOI](https://doi.org/10.21105/joss.01244)
+
+Timothy A. Davis and Yifan Hu. 2011. The University of Florida sparse matrix collection. ACM Trans. Math. Softw. 38, 1, Article 1 (November 2011), 25 pages. [DOI](https://doi.org/10.1145/2049662.2049663)
+
