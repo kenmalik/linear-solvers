@@ -6,6 +6,11 @@ option(CG_RUNNER_DOWNLOAD_DEPENDENCIES "Download dependencies using FetchContent
 add_executable(cgrun src/main.cu src/cg.cu)
 target_compile_features(cgrun PRIVATE cxx_std_20 cuda_std_20)
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "Debug build detected. Adding extra compile options")
+    target_compile_options(cgrun PRIVATE "-Wall -Wextra")
+endif()
+
 find_package(MatUtils CONFIG)
 if(NOT MatUtils_FOUND)
     if(CG_RUNNER_DOWNLOAD_DEPENDENCIES)
