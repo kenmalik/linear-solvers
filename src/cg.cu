@@ -184,6 +184,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
     // TODO: Preprocess MV_q since it'll be in the loop
 
+    std::cout << residual_norm / b_norm << std::endl;
     int iterations = 0;
     while (iterations < max_iterations && residual_norm > tolerance * b_norm) {
         nvtx3::scoped_range iteration_range("iteration");
@@ -223,7 +224,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
         // Update residual norm
         CUBLAS_CHECK(cublasDnrm2_v2(cublas, n, d.r_d, 1, &residual_norm));
-        std::cout << iterations << "," << residual_norm / b_norm << std::endl;
+        std::cout << residual_norm / b_norm << std::endl;
         assert(std::isfinite(residual_norm));
 
         // s = L' \ (L \ r)
