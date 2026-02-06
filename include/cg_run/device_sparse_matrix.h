@@ -1,3 +1,7 @@
+#pragma once
+
+#include <cg_run/checks.h>
+
 #include <mat_utils/mat_reader.h>
 
 #include <algorithm>
@@ -15,6 +19,10 @@ concept FloatOrDouble = std::same_as<float, T> || std::same_as<double, T>;
 namespace cg_run {
 template <FloatOrDouble T> class DeviceSparseMatrix {
   public:
+    constexpr static cusparseIndexType_t idxType = CUSPARSE_INDEX_64I;
+    constexpr static cudaDataType valueType =
+        std::is_same<T, float>::value ? CUDA_R_32F : CUDA_R_64F;
+
     explicit DeviceSparseMatrix(mat_utils::SpMatReader &ssm_A) {
         std::size_t min_row =
             *std::min_element(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
@@ -105,13 +113,26 @@ template <FloatOrDouble T> class DeviceSparseMatrix {
         cudaMemcpy(d_vals, csrVal.data(), sizeof(T) * csrVal.size(),
                    cudaMemcpyHostToDevice);
 
-        cusparseIndexType_t idxType = CUSPARSE_INDEX_64I;
-        cudaDataType valueType =
-            std::is_same<T, float>::value ? CUDA_R_32F : CUDA_R_64F;
-
         cusparseCreateCsr(&A, ssm_A.rows(), ssm_A.cols(), ssm_A.nnz(), d_rowPtr,
                           d_colInd, d_vals, idxType, idxType,
                           CUSPARSE_INDEX_BASE_ZERO, valueType);
+    }
+
+    DeviceSparseMatrix(const std::vector<std::int64_t> &jc,
+                       const std::vector<std::int64_t> &ir,
+                       const std::vector<std::int64_t> &vals) {
+        CUDA_CHECK(cudaMemcpy(d_colInd, jc.data(),
+                              sizeof(std::int64_t) * jc.size(),
+                              cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_rowPtr, ir.data(),
+                              sizeof(std::int64_t) * ir.size(),
+                              cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_vals, vals.data(), sizeof(T) * vals.size(),
+                              cudaMemcpyHostToDevice));
+
+        CUSPARSE_CHECK(cusparseCreateCsr(
+            &A, ir.size(), jc.size(), vals.size(), d_rowPtr, d_colInd, d_vals,
+            idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, valueType));
     }
 
     ~DeviceSparseMatrix() {
