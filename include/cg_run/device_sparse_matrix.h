@@ -23,7 +23,9 @@ template <FloatOrDouble T> class DeviceSparseMatrix {
     constexpr static cudaDataType valueType =
         std::is_same<T, float>::value ? CUDA_R_32F : CUDA_R_64F;
 
-    explicit DeviceSparseMatrix(mat_utils::SpMatReader &ssm_A) {
+    DeviceSparseMatrix() noexcept {}
+
+    explicit DeviceSparseMatrix(mat_utils::SpMatReader &ssm_A) noexcept {
         std::size_t min_row =
             *std::min_element(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
         std::size_t min_col = ssm_A.jc()[0];
@@ -57,11 +59,12 @@ template <FloatOrDouble T> class DeviceSparseMatrix {
         const std::size_t *ir_ptr = ssm_A.ir();
         const std::size_t *jc_ptr = ssm_A.jc();
 
-        cudaMalloc(reinterpret_cast<void **>(&d_rowPtr),
-                   sizeof(std::int64_t) * (ssm_A.rows() + 1));
-        cudaMalloc(reinterpret_cast<void **>(&d_colInd),
-                   sizeof(std::int64_t) * ssm_A.nnz());
-        cudaMalloc(reinterpret_cast<void **>(&d_vals), sizeof(T) * ssm_A.nnz());
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_rowPtr),
+                              sizeof(std::int64_t) * (ssm_A.rows() + 1)));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_colInd),
+                              sizeof(std::int64_t) * ssm_A.nnz()));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_vals),
+                              sizeof(T) * ssm_A.nnz()));
 
         // Step 1: Count entries per row to build CSR row pointers
         std::vector<std::size_t> rowCounts(ssm_A.rows(), 0);
@@ -104,23 +107,23 @@ template <FloatOrDouble T> class DeviceSparseMatrix {
         std::transform(csrColInd.cbegin(), csrColInd.cend(),
                        csrColInd64.begin(), to_int64);
 
-        cudaMemcpy(d_rowPtr, csrRowPtr64.data(),
-                   sizeof(std::int64_t) * csrRowPtr64.size(),
-                   cudaMemcpyHostToDevice);
-        cudaMemcpy(d_colInd, csrColInd64.data(),
-                   sizeof(std::int64_t) * csrColInd64.size(),
-                   cudaMemcpyHostToDevice);
-        cudaMemcpy(d_vals, csrVal.data(), sizeof(T) * csrVal.size(),
-                   cudaMemcpyHostToDevice);
+        CUDA_CHECK(cudaMemcpy(d_rowPtr, csrRowPtr64.data(),
+                              sizeof(std::int64_t) * csrRowPtr64.size(),
+                              cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_colInd, csrColInd64.data(),
+                              sizeof(std::int64_t) * csrColInd64.size(),
+                              cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_vals, csrVal.data(), sizeof(T) * csrVal.size(),
+                              cudaMemcpyHostToDevice));
 
-        cusparseCreateCsr(&A, ssm_A.rows(), ssm_A.cols(), ssm_A.nnz(), d_rowPtr,
-                          d_colInd, d_vals, idxType, idxType,
-                          CUSPARSE_INDEX_BASE_ZERO, valueType);
+        CUSPARSE_CHECK(cusparseCreateCsr(
+            &A, ssm_A.rows(), ssm_A.cols(), ssm_A.nnz(), d_rowPtr, d_colInd,
+            d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, valueType));
     }
 
     DeviceSparseMatrix(const std::vector<std::int64_t> &jc,
                        const std::vector<std::int64_t> &ir,
-                       const std::vector<std::int64_t> &vals) {
+                       const std::vector<T> &vals) {
         CUDA_CHECK(cudaMemcpy(d_colInd, jc.data(),
                               sizeof(std::int64_t) * jc.size(),
                               cudaMemcpyHostToDevice));
@@ -135,23 +138,55 @@ template <FloatOrDouble T> class DeviceSparseMatrix {
             idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, valueType));
     }
 
-    ~DeviceSparseMatrix() {
+    DeviceSparseMatrix(const DeviceSparseMatrix &other) = delete;
+    DeviceSparseMatrix &operator=(const DeviceSparseMatrix &other) = delete;
+
+    DeviceSparseMatrix(DeviceSparseMatrix &&other)
+        : d_rowPtr(other.d_rowPtr), d_colInd(other.d_colInd),
+          d_vals(other.d_vals), A(other.A) {
+        other.d_rowPtr = nullptr;
+        other.d_colInd = nullptr;
+        other.d_vals = nullptr;
+        other.A = nullptr;
+    }
+
+    DeviceSparseMatrix &operator=(DeviceSparseMatrix &&other) {
+        if (this != &other) {
+            reset();
+
+            d_rowPtr = other.d_rowPtr;
+            d_colInd = other.d_colInd;
+            d_vals = other.d_vals;
+            A = other.A;
+
+            other.d_rowPtr = nullptr;
+            other.d_colInd = nullptr;
+            other.d_vals = nullptr;
+            other.A = nullptr;
+        }
+        return *this;
+    }
+
+    void reset() noexcept {
         if (A) {
-            cusparseDestroySpMat(A);
+            CUSPARSE_CHECK(cusparseDestroySpMat(A));
+            A = nullptr;
         }
         if (d_rowPtr) {
-            cudaFree(d_rowPtr);
+            CUDA_CHECK(cudaFree(d_rowPtr));
             d_rowPtr = nullptr;
         }
         if (d_colInd) {
-            cudaFree(d_colInd);
+            CUDA_CHECK(cudaFree(d_colInd));
             d_colInd = nullptr;
         }
         if (d_vals) {
-            cudaFree(d_vals);
+            CUDA_CHECK(cudaFree(d_vals));
             d_vals = nullptr;
         }
     }
+
+    ~DeviceSparseMatrix() noexcept { reset(); }
 
     cusparseSpMatDescr_t &get() { return A; }
 
@@ -159,6 +194,6 @@ template <FloatOrDouble T> class DeviceSparseMatrix {
     std::int64_t *d_rowPtr = nullptr;
     std::int64_t *d_colInd = nullptr;
     T *d_vals = nullptr;
-    cusparseSpMatDescr_t A{};
+    cusparseSpMatDescr_t A = nullptr;
 };
 } // namespace cg_run
