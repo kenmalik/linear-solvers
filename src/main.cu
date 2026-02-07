@@ -22,7 +22,7 @@ struct Args {
     cg_run::DeviceSparseMatrix<double> A;
     cg_run::DeviceSparseMatrix<double> R;
     cg_run::DeviceVector x;
-    cg_run::DeviceVector f;
+    cg_run::DeviceVector b;
     double tolerance;
     int max_iterations;
     bool real_residual;
@@ -40,7 +40,8 @@ std::optional<Args> validate(int argc, char **argv) {
         ("h,help", "Print this help menu.")
         ("A", "Path to matrix file.", cxxopts::value<std::string>())
         ("R", "Path to preconditioner file.", cxxopts::value<std::string>())
-        ("B", "Path to B file.", cxxopts::value<std::string>())
+        ("x", "Path to x file.", cxxopts::value<std::string>())
+        ("b", "Path to b file.", cxxopts::value<std::string>())
         ("tolerance", "Convergence tolerance.", cxxopts::value<double>()->default_value("1e-6"))
         ("max-iterations", "Maximum iterations (default: n).", cxxopts::value<int>())
         ("real-residual", "Whether to fully recalculate residual every iteration. Uses formula r = b - A * x.");
@@ -66,6 +67,7 @@ std::optional<Args> validate(int argc, char **argv) {
     auto A_path = result["A"].as<std::string>();
     if (!fs::exists(A_path) && !fs::is_regular_file(A_path)) {
         print_error("A is an invalid file.");
+        return std::nullopt;
     }
     mat_utils::SpMatReader A_reader{A_path, {"Problem"}, "A"};
     args.A = cg_run::DeviceSparseMatrix<double>{A_reader};
@@ -74,6 +76,7 @@ std::optional<Args> validate(int argc, char **argv) {
         auto R_path = result["R"].as<std::string>();
         if (!fs::exists(R_path) && !fs::is_regular_file(R_path)) {
             print_error("R is an invalid file.");
+            return std::nullopt;
         }
 
         mat_utils::SpMatReader R_reader{R_path, {}, "L"};
@@ -91,9 +94,31 @@ std::optional<Args> validate(int argc, char **argv) {
         args.R = cg_run::DeviceSparseMatrix<double>{jc, ir, vals};
     }
 
-    // TODO: Add f and x reading
-    args.x = std::vector<double>(A_reader.rows(), 0);
-    args.f = std::vector<double>(A_reader.rows(), 1);
+    if (result.count("x")) {
+        auto x_path = result["x"].as<std::string>();
+        if (!fs::exists(x_path) && !fs::is_regular_file(x_path)) {
+            print_error("x is an invalid file.");
+            return std::nullopt;
+        }
+        mat_utils::DnMatReader x_reader{x_path, {}, "X"};
+        args.x = std::vector<double>(x_reader.data(),
+                                     x_reader.data() + x_reader.rows());
+    } else {
+        args.x = std::vector<double>(A_reader.rows(), 0);
+    }
+
+    if (result.count("b")) {
+        auto b_path = result["b"].as<std::string>();
+        if (!fs::exists(b_path) && !fs::is_regular_file(b_path)) {
+            print_error("b is an invalid file.");
+            return std::nullopt;
+        }
+        mat_utils::DnMatReader b_reader{b_path, {}, "B"};
+        args.b = std::vector<double>(b_reader.data(),
+                                     b_reader.data() + b_reader.rows());
+    } else {
+        args.b = std::vector<double>(A_reader.rows(), 1);
+    }
 
     args.tolerance = result["tolerance"].as<double>();
 
@@ -124,7 +149,7 @@ int main(int argc, char **argv) {
         CUBLAS_CHECK(cublasCreate_v2(&cublas));
 
         int iterations =
-            cg_run::cg(cusparse, cublas, args.A.get(), args.f.get(),
+            cg_run::cg(cusparse, cublas, args.A.get(), args.b.get(),
                        args.x.get(), args.R.get(), args.tolerance,
                        args.max_iterations, args.real_residual);
         CUDA_CHECK(cudaDeviceSynchronize());

@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/build/cgrun",
             "args": [
                 "--real-residual",
-                "-B",
+                "-b",
                 "${workspaceFolder}/build/test-matrices/1138_bus_b.mat",
                 "${workspaceFolder}/build/test-matrices/1138_bus.mat",
                 "${workspaceFolder}/build/test-matrices/1138_bus_ichol.mat"
