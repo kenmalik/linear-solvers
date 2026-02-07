@@ -2,7 +2,6 @@
 #include <filesystem>
 #include <format>
 #include <iostream>
-#include <mat_utils/mat_reader.h>
 #include <optional>
 #include <string>
 
@@ -11,19 +10,27 @@
 
 #include <cxxopts.hpp>
 
+#include <mat_utils/mat_reader.h>
+
 #include "cg_run/cg.h"
 #include "cg_run/device_sparse_matrix.h"
+#include "cg_run/device_vector.h"
 
 namespace fs = std::filesystem;
 
 struct Args {
-    fs::path A;
-    fs::path R;
-    std::optional<fs::path> B;
+    cg_run::DeviceSparseMatrix<double> A;
+    cg_run::DeviceSparseMatrix<double> R;
+    cg_run::DeviceVector x;
+    cg_run::DeviceVector f;
     double tolerance;
     int max_iterations;
     bool real_residual;
 };
+
+void print_error(std::string_view message) {
+    std::cerr << "Error: " << message << std::endl;
+}
 
 std::optional<Args> validate(int argc, char **argv) {
     cxxopts::Options options(argv[0], "CUDA Conjugate Gradient solver");
@@ -44,54 +51,57 @@ std::optional<Args> validate(int argc, char **argv) {
     try {
         result = options.parse(argc, argv);
     } catch (const std::exception &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        std::cerr << options.help() << std::endl;
-        return std::nullopt;
-    }
-
-    if (result.count("help")) {
-        std::cerr << options.help() << std::endl;
-        return std::nullopt;
-    }
-
-    if (!result.count("A") || !result.count("R")) {
-        std::cerr << "Error: Both matrix and preconditioner files are required."
-                  << std::endl;
+        print_error(e.what());
         std::cerr << options.help() << std::endl;
         return std::nullopt;
     }
 
     Args args;
 
-    args.A = result["A"].as<std::string>();
-    if (!fs::exists(args.A)) {
-        std::cerr << "Error: File " << args.A << " does not exist."
-                  << std::endl;
+    if (!result.count("A")) {
+        print_error("Missing required argument A.");
         return std::nullopt;
     }
 
-    args.R = result["R"].as<std::string>();
-    if (!fs::exists(args.R)) {
-        std::cerr << "Error: File " << args.R << " does not exist."
-                  << std::endl;
-        return std::nullopt;
+    auto A_path = result["A"].as<std::string>();
+    if (!fs::exists(A_path) && !fs::is_regular_file(A_path)) {
+        print_error("A is an invalid file.");
     }
+    mat_utils::SpMatReader A_reader{A_path, {"Problem"}, "A"};
+    args.A = cg_run::DeviceSparseMatrix<double>{A_reader};
 
-    if (result.count("B")) {
-        args.B = result["B"].as<std::string>();
-    }
-
-    if (result.count("max-iterations")) {
-        args.max_iterations = result["max-iterations"].as<int>();
-        if (args.max_iterations < 1) {
-            std::cerr << "Error: Max iterations must be positive." << std::endl;
-            return std::nullopt;
+    if (result.count("R")) {
+        auto R_path = result["R"].as<std::string>();
+        if (!fs::exists(R_path) && !fs::is_regular_file(R_path)) {
+            print_error("R is an invalid file.");
         }
+
+        mat_utils::SpMatReader R_reader{R_path, {}, "L"};
+        args.R = cg_run::DeviceSparseMatrix<double>{R_reader};
     } else {
-        args.max_iterations = -1; // Sentinel value (to later be assigned to n)
+        std::vector<std::int64_t> ir(A_reader.ir_size());
+        std::vector<std::int64_t> jc(A_reader.jc_size());
+        std::int64_t i;
+        for (i = 0; i < static_cast<std::int64_t>(A_reader.ir_size()); ++i) {
+            ir[i] = i;
+            jc[i] = i;
+        }
+        ir.push_back(i);
+        std::vector<double> vals(A_reader.rows(), 1.0);
+        args.R = cg_run::DeviceSparseMatrix<double>{jc, ir, vals};
     }
+
+    // TODO: Add f and x reading
+    args.x = std::vector<double>(A_reader.rows(), 0);
+    args.f = std::vector<double>(A_reader.rows(), 1);
 
     args.tolerance = result["tolerance"].as<double>();
+
+    if (!result.count("max-iterations")) {
+        args.max_iterations = A_reader.rows();
+    } else {
+        args.max_iterations = result["max-iterations"].as<int>();
+    }
 
     args.real_residual = result.count("real-residual");
 
@@ -101,73 +111,26 @@ std::optional<Args> validate(int argc, char **argv) {
 int main(int argc, char **argv) {
     if (auto validated = validate(argc, argv)) {
         auto &args = *validated;
-        std::cerr << std::format("{} {} {} {}", args.A.string(),
-                                 args.R.string(), args.tolerance,
-                                 args.max_iterations)
-                  << std::endl;
-
-        mat_utils::SpMatReader A_reader{args.A.string(), {"Problem"}, "A"};
-        mat_utils::SpMatReader R_reader{args.R.string(), {}, "L"};
-
-        if (args.max_iterations == -1) {
-            args.max_iterations = A_reader.rows();
-        }
-
-        std::cerr << std::format("A: {} ({}x{})", args.A.stem().string(),
-                                 A_reader.rows(), A_reader.cols())
-                  << std::endl;
-        std::cerr << std::format("R: {} ({}x{})", args.R.stem().string(),
-                                 R_reader.rows(), R_reader.cols())
-                  << std::endl;
-
-        cg_run::DeviceSparseMatrix<double> A{A_reader};
-        cg_run::DeviceSparseMatrix<double> R{R_reader};
 
         cusparseFillMode_t R_fill_mode = CUSPARSE_FILL_MODE_LOWER;
-        cusparseSpMatSetAttribute(R.get(), CUSPARSE_SPMAT_FILL_MODE,
-                                  &R_fill_mode, sizeof(R_fill_mode));
-
-        double *x_d = nullptr;
-        cusparseDnVecDescr_t x;
-        cudaMalloc(&x_d, sizeof(double) * A_reader.rows());
-        std::vector<double> x_initial(A_reader.rows(), 0);
-        cudaMemcpy(x_d, x_initial.data(), sizeof(double) * A_reader.rows(),
-                   cudaMemcpyHostToDevice);
-
-        double *f_d = nullptr;
-        cusparseDnVecDescr_t f;
-        cudaMalloc(&f_d, sizeof(double) * A_reader.rows());
-        std::vector<double> f_initial(A_reader.rows(), 1);
-        cudaMemcpy(f_d, f_initial.data(), sizeof(double) * A_reader.rows(),
-                   cudaMemcpyHostToDevice);
-
-        if (args.B.has_value()) {
-            mat_utils::DnMatReader B_reader{(*args.B).string(), {}, "B"};
-            cudaMemcpy(f_d, B_reader.data(), sizeof(double) * B_reader.rows(),
-                       cudaMemcpyHostToDevice);
-        }
-
-        cusparseCreateDnVec(&x, A_reader.rows(), x_d, CUDA_R_64F);
-        cusparseCreateDnVec(&f, A_reader.rows(), f_d, CUDA_R_64F);
+        CUSPARSE_CHECK(
+            cusparseSpMatSetAttribute(args.R.get(), CUSPARSE_SPMAT_FILL_MODE,
+                                      &R_fill_mode, sizeof(R_fill_mode)));
 
         cusparseHandle_t cusparse;
         cublasHandle_t cublas;
 
-        cusparseCreate(&cusparse);
-        cublasCreate_v2(&cublas);
+        CUSPARSE_CHECK(cusparseCreate(&cusparse));
+        CUBLAS_CHECK(cublasCreate_v2(&cublas));
 
         int iterations =
-            cg_run::cg(cusparse, cublas, A.get(), f, x, R.get(), args.tolerance,
+            cg_run::cg(cusparse, cublas, args.A.get(), args.f.get(),
+                       args.x.get(), args.R.get(), args.tolerance,
                        args.max_iterations, args.real_residual);
+        CUDA_CHECK(cudaDeviceSynchronize());
 
-        cusparseDestroyDnVec(f);
-        cudaFree(f_d);
-
-        cusparseDestroyDnVec(x);
-        cudaFree(x_d);
-
-        cublasDestroy_v2(cublas);
-        cusparseDestroy(cusparse);
+        CUBLAS_CHECK(cublasDestroy_v2(cublas));
+        CUSPARSE_CHECK(cusparseDestroy(cusparse));
 
         std::cout << iterations << std::endl;
 
