@@ -10,10 +10,11 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/cgrun",
             "args": [
+                "--real-residual",
                 "-B",
-                "${workspaceFolder}/build/1138_bus_b.mat",
-                "${workspaceFolder}/build/1138_bus.mat",
-                "${workspaceFolder}/build/1138_bus_ichol.mat"
+                "${workspaceFolder}/build/test-matrices/1138_bus_b.mat",
+                "${workspaceFolder}/build/test-matrices/1138_bus.mat",
+                "${workspaceFolder}/build/test-matrices/1138_bus_ichol.mat"
             ]
         },
         {
