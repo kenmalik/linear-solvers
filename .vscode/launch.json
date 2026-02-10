@@ -5,16 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "CUDA C++: Launch",
+            "name": "CUDA C++: Launch With Preconditioner",
             "type": "cuda-gdb",
             "request": "launch",
             "program": "${workspaceFolder}/build/cgrun",
             "args": [
                 "--real-residual",
                 "-b",
-                "${workspaceFolder}/build/test-matrices/1138_bus_b.mat",
-                "${workspaceFolder}/build/test-matrices/1138_bus.mat",
-                "${workspaceFolder}/build/test-matrices/1138_bus_ichol.mat"
+                "${workspaceFolder}/test/data/1138_bus_b.mat",
+                "${workspaceFolder}/test/data/1138_bus.mat",
+                "${workspaceFolder}/test/data/1138_bus_ichol.mat"
+            ]
+        },
+        {
+            "name": "CUDA C++: Launch No Preconditioner",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/cgrun",
+            "args": [
+                "--real-residual",
+                "-b",
+                "${workspaceFolder}/test/data/1138_bus_b.mat",
+                "${workspaceFolder}/test/data/1138_bus.mat",
             ]
         },
         {
