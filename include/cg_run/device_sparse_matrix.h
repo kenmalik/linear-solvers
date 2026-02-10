@@ -124,6 +124,10 @@ template <FloatOrDouble T> class DeviceSparseMatrix {
     DeviceSparseMatrix(const std::vector<std::int64_t> &jc,
                        const std::vector<std::int64_t> &ir,
                        const std::vector<T> &vals) {
+        CUDA_CHECK(cudaMalloc(&d_colInd, sizeof(T) * jc.size()));
+        CUDA_CHECK(cudaMalloc(&d_rowPtr, sizeof(T) * ir.size()));
+        CUDA_CHECK(cudaMalloc(&d_vals, sizeof(T) * vals.size()));
+
         CUDA_CHECK(cudaMemcpy(d_colInd, jc.data(),
                               sizeof(std::int64_t) * jc.size(),
                               cudaMemcpyHostToDevice));
