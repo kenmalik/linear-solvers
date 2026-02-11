@@ -121,25 +121,26 @@ template <FloatOrDouble T> class DeviceSparseMatrix {
             d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, valueType));
     }
 
-    DeviceSparseMatrix(const std::vector<std::int64_t> &jc,
-                       const std::vector<std::int64_t> &ir,
-                       const std::vector<T> &vals) {
-        CUDA_CHECK(cudaMalloc(&d_colInd, sizeof(T) * jc.size()));
-        CUDA_CHECK(cudaMalloc(&d_rowPtr, sizeof(T) * ir.size()));
+    DeviceSparseMatrix(std::int64_t rows, std::int64_t cols,
+                       const std::vector<std::int64_t> &rowPtr,
+                       const std::vector<std::int64_t> &colInd,
+                       const std::vector<T> &vals) noexcept {
+        CUDA_CHECK(cudaMalloc(&d_rowPtr, sizeof(std::int64_t) * rowPtr.size()));
+        CUDA_CHECK(cudaMalloc(&d_colInd, sizeof(std::int64_t) * colInd.size()));
         CUDA_CHECK(cudaMalloc(&d_vals, sizeof(T) * vals.size()));
 
-        CUDA_CHECK(cudaMemcpy(d_colInd, jc.data(),
-                              sizeof(std::int64_t) * jc.size(),
+        CUDA_CHECK(cudaMemcpy(d_rowPtr, rowPtr.data(),
+                              sizeof(std::int64_t) * rowPtr.size(),
                               cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_rowPtr, ir.data(),
-                              sizeof(std::int64_t) * ir.size(),
+        CUDA_CHECK(cudaMemcpy(d_colInd, colInd.data(),
+                              sizeof(std::int64_t) * colInd.size(),
                               cudaMemcpyHostToDevice));
         CUDA_CHECK(cudaMemcpy(d_vals, vals.data(), sizeof(T) * vals.size(),
                               cudaMemcpyHostToDevice));
 
-        CUSPARSE_CHECK(cusparseCreateCsr(
-            &A, ir.size(), jc.size(), vals.size(), d_rowPtr, d_colInd, d_vals,
-            idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, valueType));
+        CUSPARSE_CHECK(cusparseCreateCsr(&A, rows, cols, vals.size(), d_rowPtr,
+                                         d_colInd, d_vals, idxType, idxType,
+                                         CUSPARSE_INDEX_BASE_ZERO, valueType));
     }
 
     DeviceSparseMatrix(const DeviceSparseMatrix &other) = delete;
