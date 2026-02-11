@@ -14,28 +14,28 @@ template <typename T> struct Device_buffers {
     cudaDataType_t cuda_type =
         std::is_same_v<T, float> ? CUDA_R_32F : CUDA_R_64F;
 
-    Device_buffers(std::int64_t n) {
-        cudaMalloc(&r_d, sizeof(T) * n);
-        cudaMalloc(&s_d, sizeof(T) * n);
-        cudaMalloc(&d_d, sizeof(T) * n);
-        cudaMalloc(&q_d, sizeof(T) * n);
+    Device_buffers(std::int64_t n) noexcept {
+        CUDA_CHECK(cudaMalloc(&r_d, sizeof(T) * n));
+        CUDA_CHECK(cudaMalloc(&s_d, sizeof(T) * n));
+        CUDA_CHECK(cudaMalloc(&d_d, sizeof(T) * n));
+        CUDA_CHECK(cudaMalloc(&q_d, sizeof(T) * n));
 
-        cusparseCreateDnVec(&r, n, r_d, cuda_type);
-        cusparseCreateDnVec(&s, n, s_d, cuda_type);
-        cusparseCreateDnVec(&d, n, d_d, cuda_type);
-        cusparseCreateDnVec(&q, n, q_d, cuda_type);
+        CUSPARSE_CHECK(cusparseCreateDnVec(&r, n, r_d, cuda_type));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&s, n, s_d, cuda_type));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&d, n, d_d, cuda_type));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&q, n, q_d, cuda_type));
     }
 
-    ~Device_buffers() {
-        cudaFree(r_d);
-        cudaFree(s_d);
-        cudaFree(d_d);
-        cudaFree(q_d);
+    ~Device_buffers() noexcept {
+        CUDA_CHECK(cudaFree(r_d));
+        CUDA_CHECK(cudaFree(s_d));
+        CUDA_CHECK(cudaFree(d_d));
+        CUDA_CHECK(cudaFree(q_d));
 
-        cusparseDestroyDnVec(r);
-        cusparseDestroyDnVec(s);
-        cusparseDestroyDnVec(d);
-        cusparseDestroyDnVec(q);
+        CUSPARSE_CHECK(cusparseDestroyDnVec(r));
+        CUSPARSE_CHECK(cusparseDestroyDnVec(s));
+        CUSPARSE_CHECK(cusparseDestroyDnVec(d));
+        CUSPARSE_CHECK(cusparseDestroyDnVec(q));
     }
 
     cusparseDnVecDescr_t r;
