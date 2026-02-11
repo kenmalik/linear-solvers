@@ -88,7 +88,12 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     void *buffer_residual_MV = 0;
     CUDA_CHECK(cudaMalloc(&buffer_residual_MV, bufsize_residual_MV));
 
-    // TODO: Preprocess if using real residual since it'll be used again in loop
+    if (real_residual) {
+        CUSPARSE_CHECK(cusparseSpMV_preprocess(
+            cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_residual_MV, A,
+            x, &beta_residual_MV, d.r, cuda_type, CUSPARSE_SPMV_ALG_DEFAULT,
+            buffer_residual_MV));
+    }
 
     CUSPARSE_CHECK(cusparseSpMV(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
                                 &alpha_residual_MV, A, x, &beta_residual_MV,
