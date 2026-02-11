@@ -182,7 +182,9 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
     CUDA_CHECK(cudaMalloc(&buffer_MV_q, bufsize_MV_q));
 
-    // TODO: Preprocess MV_q since it'll be in the loop
+    CUSPARSE_CHECK(cusparseSpMV_preprocess(
+        cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_MV_q, A, d.d,
+        &beta_MV_q, d.q, cuda_type, CUSPARSE_SPMV_ALG_DEFAULT, buffer_MV_q));
 
     std::cout << residual_norm / b_norm << std::endl;
     int iterations = 0;
