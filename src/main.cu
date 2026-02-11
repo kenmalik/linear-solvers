@@ -82,16 +82,22 @@ std::optional<Args> validate(int argc, char **argv) {
         mat_utils::SpMatReader R_reader{R_path, {}, "L"};
         args.R = cg_run::DeviceSparseMatrix<double>{R_reader};
     } else {
-        std::vector<std::int64_t> ir(A_reader.ir_size());
-        std::vector<std::int64_t> jc(A_reader.jc_size());
+        std::int64_t rows = A_reader.rows();
+        std::int64_t cols = rows;
+
+        std::vector<double> vals(rows, 1.0);
+        std::vector<std::int64_t> rowPtr(rows + 1);
+        std::vector<std::int64_t> colInd(vals.size());
+
         std::int64_t i;
-        for (i = 0; i < static_cast<std::int64_t>(A_reader.ir_size()); ++i) {
-            ir[i] = i;
-            jc[i] = i;
+        for (i = 0; i < vals.size(); ++i) {
+            rowPtr.at(i) = i;
+            colInd.at(i) = i;
         }
-        ir.push_back(i);
-        std::vector<double> vals(A_reader.rows(), 1.0);
-        args.R = cg_run::DeviceSparseMatrix<double>{jc, ir, vals};
+        rowPtr.at(i) = vals.size();
+
+        args.R = cg_run::DeviceSparseMatrix<double>{rows, cols, rowPtr, colInd,
+                                                    vals};
     }
 
     if (result.count("x")) {
