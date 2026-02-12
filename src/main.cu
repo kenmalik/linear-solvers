@@ -61,6 +61,11 @@ std::optional<Args> validate(int argc, char **argv) {
         return std::nullopt;
     }
 
+    if (result.count("help")) {
+        std::cout << options.help() << std::endl;
+        std::exit(0);
+    }
+
     Args args;
 
     if (!result.count("A")) {
