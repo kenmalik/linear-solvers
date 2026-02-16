@@ -7,6 +7,7 @@
 
 #include <cublas_v2.h>
 #include <cusparse_v2.h>
+#include <nvtx3/nvtx3.hpp>
 
 #include <cxxopts.hpp>
 
@@ -140,6 +141,8 @@ std::optional<Args> validate(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+    NVTX3_FUNC_RANGE();
+
     if (auto validated = validate(argc, argv)) {
         auto &args = *validated;
 
