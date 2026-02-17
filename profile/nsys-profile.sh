@@ -36,7 +36,7 @@ nsys profile -f true -o $formatted -t cuda,nvtx \
     build/cgrun --real-residual -b $b_path "${data_dir}/${data_base}.mat" $prec_path
 
 nsys stats -o $formatted --force-overwrite true --force-export true -f csv \
-    -r nvtx_sum "${formatted}.nsys-rep"
+    -r nvtx_sum --filter-nvtx "cg" "${formatted}.nsys-rep"
 nsys stats -o $formatted --force-overwrite true --force-export true -f csv \
     -r cuda_api_sum --filter-nvtx "pre-cg" "${formatted}.nsys-rep"
 nsys stats -o $formatted --force-overwrite true --force-export true -f csv \
