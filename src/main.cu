@@ -4,6 +4,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <cublas_v2.h>
 #include <cusparse_v2.h>
@@ -173,6 +174,26 @@ int main(int argc, char **argv) {
         CUSPARSE_CHECK(cusparseDestroy(cusparse));
 
         std::cout << iterations << std::endl;
+
+        std::int64_t size = 0;
+        void *values = nullptr;
+        cudaDataType_t data_type;
+        CUSPARSE_CHECK(
+            cusparseDnVecGet(args.x.get(), &size, &values, &data_type));
+
+        std::vector<double> h_x(size);
+        CUDA_CHECK(cudaMemcpy(h_x.data(), values, sizeof(double) * size,
+                              cudaMemcpyDeviceToHost));
+
+        std::cout << "\nSolution:" << std::endl;
+        for (int i = 0; i < std::min(static_cast<int>(h_x.size()), 5); ++i) {
+            std::cout << "x[" << i + 1 << "]=" << h_x.at(i) << std::endl;
+        }
+        std::cout << "..." << std::endl;
+        for (int i = std::max(static_cast<int>(h_x.size()) - 5, 5);
+             i < static_cast<int>(h_x.size()); ++i) {
+            std::cout << "x[" << i + 1 << "]=" << h_x.at(i) << std::endl;
+        }
 
         nvtx3::end_range(post_cg);
     } else {
