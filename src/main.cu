@@ -144,7 +144,8 @@ std::optional<Args> validate(int argc, char **argv) {
 int main(int argc, char **argv) {
     NVTX3_FUNC_RANGE();
     nvtx3::event_attributes attr{"pre-cg"};
-    auto pre_cg = nvtx3::start_range(attr);
+    nvtx3::range_handle pre_cg, post_cg;
+    pre_cg = nvtx3::start_range(attr);
 
     if (auto validated = validate(argc, argv)) {
         auto &args = *validated;
@@ -168,7 +169,7 @@ int main(int argc, char **argv) {
         CUDA_CHECK(cudaDeviceSynchronize());
 
         nvtx3::event_attributes attr{"post-cg"};
-        auto post_cg = nvtx3::start_range(attr);
+        post_cg = nvtx3::start_range(attr);
 
         CUBLAS_CHECK(cublasDestroy_v2(cublas));
         CUSPARSE_CHECK(cusparseDestroy(cusparse));
@@ -195,10 +196,10 @@ int main(int argc, char **argv) {
             std::cout << "x[" << i + 1 << "]=" << h_x.at(i) << std::endl;
         }
 
-        nvtx3::end_range(post_cg);
     } else {
         return -1;
     }
 
+    nvtx3::end_range(post_cg);
     return 0;
 }
