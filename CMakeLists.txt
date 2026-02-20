@@ -4,13 +4,7 @@ project(CGRun VERSION 0.1.0 LANGUAGES CUDA CXX)
 option(CG_RUNNER_DOWNLOAD_DEPENDENCIES "Download dependencies using FetchContent" OFF)
 option(CG_RUNNER_BUILD_TESTS "Fetch testing dependencies and build tests" OFF)
 
-add_executable(cgrun src/main.cu src/cg.cu)
-target_compile_features(cgrun PRIVATE cxx_std_20 cuda_std_20)
-
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message(STATUS "Debug build detected. Adding extra compile options")
-    target_compile_options(cgrun PRIVATE "-Wall -Wextra")
-endif()
+find_package(CUDAToolkit 12.0 REQUIRED)
 
 find_package(MatUtils CONFIG)
 if(NOT MatUtils_FOUND)
@@ -26,10 +20,6 @@ if(NOT MatUtils_FOUND)
         message(FATAL_ERROR "MatUtils not found. Install it or enable CG_RUNNER_DOWNLOAD_DEPENDENCIES.")
     endif()
 endif()
-target_link_libraries(cgrun MatUtils::mat_utils)
-
-find_package(CUDAToolkit 12.0 REQUIRED)
-target_link_libraries(cgrun CUDA::cusparse CUDA::cublas)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -38,7 +28,6 @@ FetchContent_Declare(
     GIT_TAG v3.3.1
 )
 FetchContent_MakeAvailable(cxxopts)
-target_link_libraries(cgrun cxxopts::cxxopts)
 
 find_package(nvtx3 CONFIG)
 if(NOT nvtx3_FOUND)
@@ -53,9 +42,21 @@ if(NOT nvtx3_FOUND)
         message(FATAL_ERROR "NVTX not found. Install it or enable CG_RUNNER_DOWNLOAD_DEPENDENCIES.")
     endif()
 endif()
-target_link_libraries(cgrun nvtx3::nvtx3-cpp)
 
-target_include_directories(cgrun PRIVATE include/)
+add_library(cg src/cg.cu)
+target_compile_features(cg PRIVATE cxx_std_20 cuda_std_20)
+target_include_directories(cg PUBLIC include/)
+target_link_libraries(cg PUBLIC CUDA::cusparse CUDA::cublas)
+target_link_libraries(cg PRIVATE nvtx3::nvtx3-cpp)
+
+add_executable(cgrun src/main.cu)
+target_compile_features(cgrun PRIVATE cxx_std_20 cuda_std_20)
+target_link_libraries(cgrun cg MatUtils::mat_utils cxxopts::cxxopts nvtx3::nvtx3-cpp)
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "Debug build detected. Adding extra compile options")
+    target_compile_options(cgrun PRIVATE "-Wall -Wextra")
+endif()
 
 set_target_properties(
     cgrun PROPERTIES
