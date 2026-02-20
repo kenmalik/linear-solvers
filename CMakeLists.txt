@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10.0)
 project(CGRun VERSION 0.1.0 LANGUAGES CUDA CXX)
 
 option(CG_RUNNER_DOWNLOAD_DEPENDENCIES "Download dependencies using FetchContent" OFF)
+option(CG_RUNNER_BUILD_TESTS "Fetch testing dependencies and build tests" OFF)
 
 add_executable(cgrun src/main.cu src/cg.cu)
 target_compile_features(cgrun PRIVATE cxx_std_20 cuda_std_20)
@@ -64,3 +65,7 @@ set_target_properties(
 
 include(GNUInstallDirs)
 install(TARGETS cgrun RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+if (CG_RUNNER_BUILD_TESTS)
+    add_subdirectory("test")
+endif()
