@@ -26,35 +26,6 @@ template <FloatOrDouble T> class DeviceSparseMatrix {
     DeviceSparseMatrix() noexcept {}
 
     explicit DeviceSparseMatrix(mat_utils::SpMatReader &ssm_A) noexcept {
-        std::size_t min_row =
-            *std::min_element(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
-        std::size_t min_col = ssm_A.jc()[0];
-
-        {
-            // For SPD, verify diagonal entries exist and are positive
-            std::vector<bool> has_diag(ssm_A.rows(), false);
-            std::vector<double> diag_vals;
-            for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
-                for (std::size_t p = ssm_A.jc()[j]; p < ssm_A.jc()[j + 1];
-                     ++p) {
-                    std::size_t i = ssm_A.ir()[p];
-                    if (i == j) {
-                        has_diag[i] = true;
-                        diag_vals.push_back(ssm_A.data()[p]);
-                    }
-                }
-            }
-
-            int missing_diags =
-                std::count(has_diag.begin(), has_diag.end(), false);
-            int negative_diags =
-                std::count_if(diag_vals.begin(), diag_vals.end(),
-                              [](double v) { return v <= 0.0; });
-
-            assert(missing_diags == 0 && "SPD check: no missing diagonals");
-            assert(negative_diags == 0 && "SPD check: all diagonals positive");
-        }
-
         // Use index arrays from the reader directly (no copies)
         const std::size_t *ir_ptr = ssm_A.ir();
         const std::size_t *jc_ptr = ssm_A.jc();

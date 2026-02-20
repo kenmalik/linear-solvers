@@ -4,9 +4,11 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <cublas_v2.h>
 #include <cusparse_v2.h>
+#include <nvtx3/nvtx3.hpp>
 
 #include <cxxopts.hpp>
 
@@ -26,6 +28,7 @@ struct Args {
     double tolerance;
     int max_iterations;
     bool real_residual;
+    bool no_tensor_cores;
 };
 
 void print_error(std::string_view message) {
@@ -44,7 +47,8 @@ std::optional<Args> validate(int argc, char **argv) {
         ("b", "Path to b file.", cxxopts::value<std::string>())
         ("tolerance", "Convergence tolerance.", cxxopts::value<double>()->default_value("1e-6"))
         ("max-iterations", "Maximum iterations (default: n).", cxxopts::value<int>())
-        ("real-residual", "Whether to fully recalculate residual every iteration. Uses formula r = b - A * x.");
+        ("real-residual", "Whether to fully recalculate residual every iteration. Uses formula r = b - A * x.")
+        ("no-tensor-cores", "Disable Tensor Core math (use CUBLAS_PEDANTIC_MATH instead of CUBLAS_DEFAULT_MATH).");
     options.parse_positional({"A", "R"});
     // clang-format on
 
@@ -135,11 +139,17 @@ std::optional<Args> validate(int argc, char **argv) {
     }
 
     args.real_residual = result.count("real-residual");
+    args.no_tensor_cores = result.count("no-tensor-cores");
 
     return args;
 }
 
 int main(int argc, char **argv) {
+    NVTX3_FUNC_RANGE();
+    nvtx3::event_attributes attr{"pre-cg"};
+    nvtx3::range_handle pre_cg, post_cg;
+    pre_cg = nvtx3::start_range(attr);
+
     if (auto validated = validate(argc, argv)) {
         auto &args = *validated;
 
@@ -153,21 +163,49 @@ int main(int argc, char **argv) {
 
         CUSPARSE_CHECK(cusparseCreate(&cusparse));
         CUBLAS_CHECK(cublasCreate_v2(&cublas));
+        CUBLAS_CHECK(cublasSetMathMode(
+            cublas, args.no_tensor_cores ? CUBLAS_PEDANTIC_MATH
+                                         : CUBLAS_DEFAULT_MATH));
 
+        nvtx3::end_range(pre_cg);
         int iterations =
             cg_run::cg(cusparse, cublas, args.A.get(), args.b.get(),
                        args.x.get(), args.R.get(), args.tolerance,
                        args.max_iterations, args.real_residual);
         CUDA_CHECK(cudaDeviceSynchronize());
 
+        nvtx3::event_attributes attr{"post-cg"};
+        post_cg = nvtx3::start_range(attr);
+
         CUBLAS_CHECK(cublasDestroy_v2(cublas));
         CUSPARSE_CHECK(cusparseDestroy(cusparse));
 
         std::cout << iterations << std::endl;
 
+        std::int64_t size = 0;
+        void *values = nullptr;
+        cudaDataType_t data_type;
+        CUSPARSE_CHECK(
+            cusparseDnVecGet(args.x.get(), &size, &values, &data_type));
+
+        std::vector<double> h_x(size);
+        CUDA_CHECK(cudaMemcpy(h_x.data(), values, sizeof(double) * size,
+                              cudaMemcpyDeviceToHost));
+
+        std::cout << "\nSolution:" << std::endl;
+        for (int i = 0; i < std::min(static_cast<int>(h_x.size()), 5); ++i) {
+            std::cout << "x[" << i + 1 << "]=" << h_x.at(i) << std::endl;
+        }
+        std::cout << "..." << std::endl;
+        for (int i = std::max(static_cast<int>(h_x.size()) - 5, 5);
+             i < static_cast<int>(h_x.size()); ++i) {
+            std::cout << "x[" << i + 1 << "]=" << h_x.at(i) << std::endl;
+        }
+
     } else {
         return -1;
     }
 
+    nvtx3::end_range(post_cg);
     return 0;
 }
