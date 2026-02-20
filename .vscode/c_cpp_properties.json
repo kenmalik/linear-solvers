@@ -5,7 +5,8 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${userHome}/.local/include",
-                "/usr/local/cuda/include"
+                "/usr/local/cuda/include",
+                "${workspaceFolder}/build/_deps/**"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/g++",
