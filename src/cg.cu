@@ -60,10 +60,10 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     std::int64_t n = 0;
     void *x_d = nullptr;
     cudaDataType_t cuda_type;
-    cusparseDnVecGet(x, &n, &x_d, &cuda_type);
+    CUSPARSE_CHECK(cusparseDnVecGet(x, &n, &x_d, &cuda_type));
 
     void *b_d_void = nullptr;
-    cusparseDnVecGetValues(b, &b_d_void);
+    CUSPARSE_CHECK(cusparseDnVecGetValues(b, &b_d_void));
     double *b_d = static_cast<double *>(b_d_void);
 
     Device_buffers<double> d{n};
