@@ -70,12 +70,11 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
     // b_norm = sqrt(b' * b)
     double b_norm = 0;
-    CUBLAS_CHECK(cublasDnrm2_v2(cublas, n, b_d, 1, &b_norm));
+    CUBLAS_CHECK(cublasDnrm2_v2_64(cublas, n, b_d, 1, &b_norm));
 
-    // TODO: Check _64 versions of cublas functions
     // r = b - A * x
     // Copy b into r
-    CUBLAS_CHECK(cublasDcopy_v2(cublas, n, b_d, 1, d.r_d, 1));
+    CUBLAS_CHECK(cublasDcopy_v2_64(cublas, n, b_d, 1, d.r_d, 1));
 
     std::size_t bufsize_residual_MV = 0;
     constexpr double alpha_residual_MV = -1.0;
@@ -101,7 +100,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
                                 buffer_residual_MV));
 
     double residual_norm = 0;
-    CUBLAS_CHECK(cublasDnrm2_v2(cublas, n, d.r_d, 1, &residual_norm));
+    CUBLAS_CHECK(cublasDnrm2_v2_64(cublas, n, d.r_d, 1, &residual_norm));
 
     // d = L' (L \ r)
     // Solve M = L * L' which approximates A solve
@@ -173,7 +172,7 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
     // delta_new = r' * d
     double delta_old = 0;
     double delta_new = 0;
-    CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.r_d, 1, d.d_d, 1, &delta_new));
+    CUBLAS_CHECK(cublasDdot_v2_64(cublas, n, d.r_d, 1, d.d_d, 1, &delta_new));
 
     // q = A * d setup
     void *buffer_MV_q = nullptr;
@@ -206,18 +205,18 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
         // alpha = delta_new / (d' * q)
         double d_dot_q = 0;
-        CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.d_d, 1, d.q_d, 1, &d_dot_q));
+        CUBLAS_CHECK(cublasDdot_v2_64(cublas, n, d.d_d, 1, d.q_d, 1, &d_dot_q));
         assert(std::isfinite(d_dot_q));
         double alpha = delta_new / d_dot_q;
         assert(std::isfinite(alpha));
 
         // x = x + alpha * d
-        CUBLAS_CHECK(cublasDaxpy(cublas, n, &alpha, d.d_d, 1,
-                                 static_cast<double *>(x_d), 1));
+        CUBLAS_CHECK(cublasDaxpy_v2_64(cublas, n, &alpha, d.d_d, 1,
+                                       static_cast<double *>(x_d), 1));
 
         if (real_residual) {
             // r = b - A * x
-            CUBLAS_CHECK(cublasDcopy_v2(cublas, n, b_d, 1, d.r_d, 1));
+            CUBLAS_CHECK(cublasDcopy_v2_64(cublas, n, b_d, 1, d.r_d, 1));
             CUSPARSE_CHECK(cusparseSpMV(
                 cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_residual_MV,
                 A, x, &beta_residual_MV, d.r, cuda_type,
@@ -226,11 +225,11 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
             // r = r - alpha * q
             double neg_alpha = -alpha;
             CUBLAS_CHECK(
-                cublasDaxpy(cublas, n, &neg_alpha, d.q_d, 1, d.r_d, 1));
+                cublasDaxpy_v2_64(cublas, n, &neg_alpha, d.q_d, 1, d.r_d, 1));
         }
 
         // Update residual norm
-        CUBLAS_CHECK(cublasDnrm2_v2(cublas, n, d.r_d, 1, &residual_norm));
+        CUBLAS_CHECK(cublasDnrm2_v2_64(cublas, n, d.r_d, 1, &residual_norm));
         std::cout << residual_norm / b_norm << std::endl;
         assert(std::isfinite(residual_norm));
 
@@ -244,7 +243,8 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
         // delta_new = r' * s
         delta_old = delta_new;
-        CUBLAS_CHECK(cublasDdot_v2(cublas, n, d.r_d, 1, d.s_d, 1, &delta_new));
+        CUBLAS_CHECK(
+            cublasDdot_v2_64(cublas, n, d.r_d, 1, d.s_d, 1, &delta_new));
         assert(std::isfinite(delta_new));
         assert(delta_new != 0);
 
@@ -254,8 +254,8 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
         // d = s + beta * d
         // s is no longer needed this iteration so we can overwrite it here
-        CUBLAS_CHECK(cublasDaxpy_v2(cublas, n, &beta, d.d_d, 1, d.s_d, 1));
-        CUBLAS_CHECK(cublasDcopy_v2(cublas, n, d.s_d, 1, d.d_d, 1));
+        CUBLAS_CHECK(cublasDaxpy_v2_64(cublas, n, &beta, d.d_d, 1, d.s_d, 1));
+        CUBLAS_CHECK(cublasDcopy_v2_64(cublas, n, d.s_d, 1, d.d_d, 1));
     }
 
     CUDA_CHECK(cudaFree(buffer_MV_q));
