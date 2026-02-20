@@ -51,7 +51,6 @@ template <typename T> struct Device_buffers {
 } // namespace
 
 namespace cg_run {
-// L is lower triangular incomplete Cholesky where A ~= M = L * L'
 int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
        cusparseDnVecDescr_t b, cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
        double tolerance, int max_iterations, bool real_residual) {
