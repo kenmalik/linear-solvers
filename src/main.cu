@@ -28,6 +28,7 @@ struct Args {
     double tolerance;
     int max_iterations;
     bool real_residual;
+    bool no_tensor_cores;
 };
 
 void print_error(std::string_view message) {
@@ -46,7 +47,8 @@ std::optional<Args> validate(int argc, char **argv) {
         ("b", "Path to b file.", cxxopts::value<std::string>())
         ("tolerance", "Convergence tolerance.", cxxopts::value<double>()->default_value("1e-6"))
         ("max-iterations", "Maximum iterations (default: n).", cxxopts::value<int>())
-        ("real-residual", "Whether to fully recalculate residual every iteration. Uses formula r = b - A * x.");
+        ("real-residual", "Whether to fully recalculate residual every iteration. Uses formula r = b - A * x.")
+        ("no-tensor-cores", "Disable Tensor Core math (use CUBLAS_PEDANTIC_MATH instead of CUBLAS_DEFAULT_MATH).");
     options.parse_positional({"A", "R"});
     // clang-format on
 
@@ -137,6 +139,7 @@ std::optional<Args> validate(int argc, char **argv) {
     }
 
     args.real_residual = result.count("real-residual");
+    args.no_tensor_cores = result.count("no-tensor-cores");
 
     return args;
 }
@@ -160,6 +163,9 @@ int main(int argc, char **argv) {
 
         CUSPARSE_CHECK(cusparseCreate(&cusparse));
         CUBLAS_CHECK(cublasCreate_v2(&cublas));
+        CUBLAS_CHECK(cublasSetMathMode(
+            cublas, args.no_tensor_cores ? CUBLAS_PEDANTIC_MATH
+                                         : CUBLAS_DEFAULT_MATH));
 
         nvtx3::end_range(pre_cg);
         int iterations =

@@ -30,16 +30,24 @@ fi
 
 gpu=$(nvidia-smi --query-gpu name --format csv,noheader | sed 's/NVIDIA //g' | tr ' -' '_')
 
-formatted="runtimes-cg-cuda-${data_base}-${prec_type:-"identity"}-${gpu}-"
+function profile_variant() {
+    local variant=$1
+    local extra_args=$2
 
-nsys profile -f true -o $formatted -t cuda,nvtx \
-    build/cgrun --real-residual -b $b_path "${data_dir}/${data_base}.mat" $prec_path
+    local formatted="runtimes-cg-cuda-${data_base}-${prec_type:-"identity"}-${gpu}-${variant}-"
 
-nsys stats -o $formatted --force-overwrite true --force-export true -f csv \
-    --timeunit ms -r nvtx_sum --filter-nvtx "cg" "${formatted}.nsys-rep"
-nsys stats -o $formatted --force-overwrite true --force-export true -f csv \
-    --timeunit ms -r cuda_api_sum --filter-nvtx "pre-cg" "${formatted}.nsys-rep"
-nsys stats -o $formatted --force-overwrite true --force-export true -f csv \
-    --timeunit ms -r cuda_api_sum --filter-nvtx "post-cg" "${formatted}.nsys-rep"
+    nsys profile -f true -o $formatted -t cuda,nvtx \
+        build/cgrun --real-residual -b $b_path "${data_dir}/${data_base}.mat" $prec_path $extra_args
 
-echo nsys profile -f true -o $formatted -t cuda,nvtx build/cgrun --real-residual -b "${data_dir}/${data_base}_b.mat" "${data_dir}/${data_base}.mat" $prec_path
+    nsys stats -o $formatted --force-overwrite true --force-export true -f csv \
+        --timeunit ms -r nvtx_sum --filter-nvtx "cg" "${formatted}.nsys-rep"
+    nsys stats -o $formatted --force-overwrite true --force-export true -f csv \
+        --timeunit ms -r cuda_api_sum --filter-nvtx "pre-cg" "${formatted}.nsys-rep"
+    nsys stats -o $formatted --force-overwrite true --force-export true -f csv \
+        --timeunit ms -r cuda_api_sum --filter-nvtx "post-cg" "${formatted}.nsys-rep"
+
+    echo nsys profile -f true -o $formatted -t cuda,nvtx build/cgrun --real-residual -b "${data_dir}/${data_base}_b.mat" "${data_dir}/${data_base}.mat" $prec_path $extra_args
+}
+
+profile_variant "tc" ""
+profile_variant "notc" "--no-tensor-cores"
