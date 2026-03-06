@@ -104,3 +104,21 @@ TEST(CgSparse, MatchesDenseSolution) {
     for (int i = 0; i < 3; ++i)
         EXPECT_NEAR(x_dense[i], x_sparse[i], 1e-8) << "mismatch at index " << i;
 }
+
+#ifdef USE_MAT_UTILS
+
+#include <mat_utils/mat_reader.h>
+
+TEST(CgSparse, SpMatReader) {
+    mat_utils::SpMatReader A{DATA_DIR "/494_bus.mat", {"Problem"}, "A"};
+
+    constexpr int max_iterations = 2000;
+    std::vector<double> b(A.rows(), 1);
+    std::vector<double> x(A.rows(), 0);
+
+    int iters = cg(A, b, x, tolerance, max_iterations);
+
+    EXPECT_LT(iters, max_iterations) << "solver did not converge";
+}
+
+#endif // USE_MAT_UTILS
