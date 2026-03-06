@@ -107,10 +107,13 @@ TEST(CgSparse, MatchesDenseSolution) {
 
 #ifdef USE_MAT_UTILS
 
+#include <filesystem>
 #include <mat_utils/mat_reader.h>
 
+std::filesystem::path data_dir{DATA_DIR};
+
 TEST(CgSparse, SpMatReader) {
-    mat_utils::SpMatReader A{DATA_DIR "/494_bus.mat", {"Problem"}, "A"};
+    mat_utils::SpMatReader A{data_dir / "494_bus.mat", {"Problem"}, "A"};
 
     constexpr int max_iterations = 2000;
     std::vector<double> b(A.rows(), 1);
