@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
 #include "cg/cg.h"
 #include <cmath>
+#include <gtest/gtest.h>
 
 // 3x3 symmetric positive-definite system used in all tests:
 //
@@ -10,9 +10,9 @@
 
 static constexpr double tolerance = 1e-10;
 
-static double residual_norm(const std::vector<double>& A_dense,
-                             const std::vector<double>& b,
-                             const std::vector<double>& x) {
+static double residual_norm(const std::vector<double> &A_dense,
+                            const std::vector<double> &b,
+                            const std::vector<double> &x) {
     int n = static_cast<int>(b.size());
     double norm = 0.0;
     for (int i = 0; i < n; ++i) {
@@ -28,9 +28,7 @@ static double residual_norm(const std::vector<double>& A_dense,
 
 TEST(CgDense, ConvergesWithinMaxIterations) {
     std::vector<double> A = {
-        4.0, 1.0, 0.0,
-        1.0, 3.0, 1.0,
-        0.0, 1.0, 2.0,
+        4.0, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0,
     };
     std::vector<double> b = {1.0, 2.0, 3.0};
     std::vector<double> x = {0.0, 0.0, 0.0};
@@ -42,9 +40,7 @@ TEST(CgDense, ConvergesWithinMaxIterations) {
 
 TEST(CgDense, SolutionSatisfiesResidualTolerance) {
     std::vector<double> A = {
-        4.0, 1.0, 0.0,
-        1.0, 3.0, 1.0,
-        0.0, 1.0, 2.0,
+        4.0, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0,
     };
     std::vector<double> b = {1.0, 2.0, 3.0};
     std::vector<double> x = {0.0, 0.0, 0.0};
@@ -62,8 +58,8 @@ static CsrMatrix make_sparse_A() {
     //   row 1: (0,1) (1,3) (2,1)
     //   row 2: (1,1) (2,2)
     CsrMatrix A;
-    A.n       = 3;
-    A.values  = {4.0, 1.0, 1.0, 3.0, 1.0, 1.0, 2.0};
+    A.n = 3;
+    A.values = {4.0, 1.0, 1.0, 3.0, 1.0, 1.0, 2.0};
     A.col_idx = {0, 1, 0, 1, 2, 1, 2};
     A.row_ptr = {0, 2, 5, 7};
     return A;
@@ -87,18 +83,14 @@ TEST(CgSparse, SolutionSatisfiesResidualTolerance) {
     cg(A, b, x, tolerance, 100);
 
     std::vector<double> A_dense = {
-        4.0, 1.0, 0.0,
-        1.0, 3.0, 1.0,
-        0.0, 1.0, 2.0,
+        4.0, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0,
     };
     EXPECT_LT(residual_norm(A_dense, b, x), tolerance);
 }
 
 TEST(CgSparse, MatchesDenseSolution) {
     std::vector<double> A_dense = {
-        4.0, 1.0, 0.0,
-        1.0, 3.0, 1.0,
-        0.0, 1.0, 2.0,
+        4.0, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0,
     };
     std::vector<double> b = {1.0, 2.0, 3.0};
 

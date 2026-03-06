@@ -3,27 +3,28 @@
 #include <mkl_spblas.h>
 #include <stdexcept>
 
-int cg(std::vector<double>& A, std::vector<double>& b, std::vector<double>& x,
+int cg(std::vector<double> &A, std::vector<double> &b, std::vector<double> &x,
        double tolerance, int max_iterations) {
 
     int n = static_cast<int>(b.size());
 
     if (A.size() != static_cast<size_t>(n * n)) {
-        throw std::invalid_argument("Matrix A must be n x n where n is the size of b");
+        throw std::invalid_argument(
+            "Matrix A must be n x n where n is the size of b");
     }
     if (x.size() != static_cast<size_t>(n)) {
         throw std::invalid_argument("Vector x must have the same size as b");
     }
 
     // Working vectors
-    std::vector<double> r(n);   // residual
-    std::vector<double> p(n);   // search direction
-    std::vector<double> Ap(n);  // A * p
+    std::vector<double> r(n);  // residual
+    std::vector<double> p(n);  // search direction
+    std::vector<double> Ap(n); // A * p
 
     // r = b - A * x
     cblas_dcopy(n, b.data(), 1, r.data(), 1);
-    cblas_dgemv(CblasRowMajor, CblasNoTrans, n, n, -1.0, A.data(), n,
-                x.data(), 1, 1.0, r.data(), 1);
+    cblas_dgemv(CblasRowMajor, CblasNoTrans, n, n, -1.0, A.data(), n, x.data(),
+                1, 1.0, r.data(), 1);
 
     // p = r
     cblas_dcopy(n, r.data(), 1, p.data(), 1);
@@ -70,7 +71,7 @@ int cg(std::vector<double>& A, std::vector<double>& b, std::vector<double>& x,
     return iter;
 }
 
-int cg(CsrMatrix& A, std::vector<double>& b, std::vector<double>& x,
+int cg(CsrMatrix &A, std::vector<double> &b, std::vector<double> &x,
        double tolerance, int max_iterations) {
 
     int n = static_cast<int>(b.size());
@@ -90,16 +91,16 @@ int cg(CsrMatrix& A, std::vector<double>& b, std::vector<double>& x,
     // and rows_end = row_ptr[1..n].
     sparse_matrix_t mkl_A;
     mkl_sparse_d_create_csr(&mkl_A, SPARSE_INDEX_BASE_ZERO, n, n,
-                             A.row_ptr.data(), A.row_ptr.data() + 1,
-                             A.col_idx.data(), A.values.data());
+                            A.row_ptr.data(), A.row_ptr.data() + 1,
+                            A.col_idx.data(), A.values.data());
 
     struct matrix_descr descr;
     descr.type = SPARSE_MATRIX_TYPE_GENERAL;
 
     // Working vectors
-    std::vector<double> r(n);   // residual
-    std::vector<double> p(n);   // search direction
-    std::vector<double> Ap(n);  // A * p
+    std::vector<double> r(n);  // residual
+    std::vector<double> p(n);  // search direction
+    std::vector<double> Ap(n); // A * p
 
     // r = b - A * x
     cblas_dcopy(n, b.data(), 1, r.data(), 1);
