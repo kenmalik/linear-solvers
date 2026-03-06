@@ -16,10 +16,18 @@ else()
 endif()
 
 option(MKL_CG_BUILD_TESTS "Build tests" OFF)
+option(MKL_CG_BUILD_MAT_READERS
+    "Build CG overloads which take MatUtils MatReaders. Requires a MATLAB installation" OFF)
 
 add_library(cg src/cg.cpp)
 target_include_directories(cg PUBLIC include/)
 target_compile_features(cg PRIVATE cxx_std_17)
+if(MKL_CG_BUILD_MATLAB_READERS)
+    find_package(MatUtils CONFIG REQUIRED)
+    target_link_libraries(cg PRIVATE MatUtils::mat_utils)
+    target_compile_definitions(cg PRIVATE USE_MAT_UTILS)
+endif()
+
 add_executable(main src/main.cpp)
 target_link_libraries(main PRIVATE cg)
 
