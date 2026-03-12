@@ -5,48 +5,19 @@ option(MKL_CG_BUILD_CLI "Build CLI runner" OFF)
 option(MKL_CG_PRINT_RELATIVE_RESIDUAL_NORMS
     "Print relative residual norms to cerr while solving" OFF)
 
-add_library(cg src/cg.cpp)
-target_include_directories(cg PUBLIC include/)
-target_compile_features(cg PRIVATE cxx_std_17)
+add_library(mkl_cg src/cg.cpp)
+add_library(cg::mkl ALIAS mkl_cg)
 
-if(MKL_CG_BUILD_MAT_READERS)
-    find_package(MatUtils CONFIG REQUIRED)
-    target_link_libraries(cg PUBLIC MatUtils::mat_utils)
-    target_compile_definitions(cg PUBLIC USE_MAT_UTILS)
-endif()
-
-if(MKL_CG_BUILD_CLI)
-    if(NOT MKL_CG_BUILD_MAT_READERS)
-        message(FATAL_ERROR "CLI requires .mat file readers. Use MKL_CG_BUILD_MAT_READERS to enable them.")
-    endif()
-    find_package(cxxopts CONFIG REQUIRED)
-    add_executable(mkl-cgrun src/cli.cpp src/parser.cpp)
-    target_link_libraries(mkl-cgrun PRIVATE
-        cg
-        cxxopts::cxxopts
-    )
-endif()
+target_include_directories(mkl_cg PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_compile_features(mkl_cg PRIVATE cxx_std_17)
 
 if(MKL_CG_PRINT_RELATIVE_RESIDUAL_NORMS)
-    target_compile_definitions(cg PRIVATE PRINT_RRN)
+    target_compile_definitions(mkl_cg PRIVATE PRINT_RRN)
 endif()
 
-if(MKL_FOUND)
-    target_compile_options(cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
-    target_include_directories(cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)
-    target_link_libraries(cg PUBLIC MKL::MKL)
-else()
-    target_include_directories(cg PUBLIC ${MKL_INCLUDE_DIR})
-    target_link_libraries(cg PUBLIC
-        -L${MKL_LIB_DIR}
-        -lmkl_intel_lp64
-        -lmkl_sequential
-        -lmkl_core
-        -lpthread
-        -lm
-        -ldl
-    )
-endif()
+target_compile_options(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
+target_include_directories(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)
+target_link_libraries(mkl_cg PUBLIC MKL::MKL CUDA::cublas MatUtils::mat_utils)
 
 if(MKL_CG_BUILD_TESTS)
     enable_testing()

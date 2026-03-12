@@ -22,10 +22,18 @@ int main(int argc, char *argv[]) {
 
 #ifdef MKL_CG_ENABLED
     int iters;
+
+    const auto A = cg::mkl::MKLSparse{args->A};
     if (args->L.has_value()) {
-        iters = cg::mkl::solve(args->A, b, x, args->L.value(), 1e-6, n);
+        auto L = cg::mkl::MKLSparse{args->L.value()};
+        L.descr.type = SPARSE_MATRIX_TYPE_TRIANGULAR;
+        L.descr.mode = SPARSE_FILL_MODE_UPPER;
+        L.descr.diag = SPARSE_DIAG_NON_UNIT;
+
+        iters = cg::mkl::solve(A, b, x, L, 1e-6, n);
     } else {
-        iters = cg::mkl::solve(args->A, b, x, 1e-6, n);
+        std::cerr << "Not implemented" << std::endl;
+        // iters = cg::mkl::solve(args->A, b, x, 1e-6, n);
     }
 
     std::cout << iters << std::endl;
