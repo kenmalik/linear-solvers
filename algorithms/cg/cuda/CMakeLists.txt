@@ -1,6 +1,3 @@
-cmake_minimum_required(VERSION 3.10.0)
-project(CGRun VERSION 0.1.0 LANGUAGES CUDA CXX)
-
 add_library(cg src/cg.cu)
 target_compile_features(cg PRIVATE cxx_std_20 cuda_std_20)
 target_include_directories(cg PUBLIC include/)

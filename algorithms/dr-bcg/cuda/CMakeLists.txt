@@ -1,5 +1,3 @@
-project(DR_BCG VERSION 0.4.0 LANGUAGES CUDA CXX)
-
 option(DR_BCG_BUILD_TESTS "Enable tests" OFF)
 option(DR_BCG_BUILD_BENCHMARKS "Enable benchmarks" OFF)
 option(DR_BCG_BUILD_EXAMPLES "Enable examples" OFF)

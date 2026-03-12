@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10.0)
-project(Solvers VERSION 0.1.0)
+project(Solvers VERSION 0.1.0 LANGUAGES CXX CUDA)
 
 option(SOLVERS_BUILD_CUDA "Build CUDA implementations of solvers" OFF)
 option(SOLVERS_BUILD_MKL "Build MKL implementations of solvers" OFF)

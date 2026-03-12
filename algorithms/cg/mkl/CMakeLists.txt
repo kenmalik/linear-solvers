@@ -1,5 +1,3 @@
-project(mkl_cg CXX)
-
 option(MKL_CG_BUILD_TESTS "Build tests" OFF)
 option(MKL_CG_BUILD_MAT_READERS
     "Build CG overloads which take MatUtils MatReaders. Requires a MATLAB installation" OFF)
