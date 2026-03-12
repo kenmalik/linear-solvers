@@ -5,7 +5,7 @@ option(MKL_CG_BUILD_CLI "Build CLI runner" OFF)
 option(MKL_CG_PRINT_RELATIVE_RESIDUAL_NORMS
     "Print relative residual norms to cerr while solving" OFF)
 
-add_library(mkl_cg src/cg.cpp)
+add_library(mkl_cg cg.cpp)
 add_library(cg::mkl ALIAS mkl_cg)
 
 target_include_directories(mkl_cg PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")

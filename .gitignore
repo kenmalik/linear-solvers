@@ -47,3 +47,4 @@
 *.fatbin
 
 build/
+.claude/worktrees
