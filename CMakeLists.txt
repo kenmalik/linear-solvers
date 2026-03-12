@@ -10,9 +10,6 @@ option(SOLVERS_BUILD_DR_BCG "Build DR-BCG implementations" OFF)
 option(SOLVERS_BUILD_TESTS "Build tests" OFF)
 option(SOLVERS_BUILD_RUNNER "Build runner program" OFF)
 
-find_package(MatUtils CONFIG REQUIRED)
-find_package(cxxopts CONFIG REQUIRED)
-
 if(SOLVERS_BUILD_CUDA)
     find_package(CUDAToolkit 12.0 REQUIRED)
 endif()
