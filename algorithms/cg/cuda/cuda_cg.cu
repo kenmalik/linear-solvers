@@ -1,5 +1,5 @@
-#include "cg/cg.h"
-#include "cg/checks.h"
+#include "cg/cuda.h"
+#include "checks.h"
 
 #include <cassert>
 #include <cmath>

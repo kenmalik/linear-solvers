@@ -1,4 +1,4 @@
-#include "cg/cg.h"
+#include "cg/mkl.h"
 #include <cassert>
 #include <mkl_cblas.h>
 #include <mkl_spblas.h>

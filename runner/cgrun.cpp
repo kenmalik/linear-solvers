@@ -2,11 +2,11 @@
 #include <vector>
 
 #ifdef MKL_CG_ENABLED
-#include <cg/cg.h>
+#include <cg/mkl.h>
 #endif
 
 #ifdef CUDA_CG_ENABLED
-#include <cg/cg.h>
+#include <cg/cuda.h>
 #endif
 
 #include "parser.h"
