@@ -1,0 +1,6 @@
+build/
+
+# Nsight artifacts
+*.nsys-rep
+*.sqlite
+*.csv
