@@ -4,7 +4,12 @@
 
 #include <mat_utils/mat_reader.h>
 
+enum class Algorithm { CG };
+enum class Implementation { MKL, CUDA };
+
 struct Args {
+    Algorithm algorithm;
+    Implementation implementation;
     mat_utils::SpMatReader A;
     std::optional<mat_utils::SpMatReader> L;
 };
