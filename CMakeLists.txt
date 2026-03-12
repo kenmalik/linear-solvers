@@ -7,6 +7,7 @@ option(SOLVERS_BUILD_MKL "Build MKL implementations of solvers" OFF)
 option(SOLVERS_BUILD_CG "Build CG implementations" OFF)
 option(SOLVERS_BUILD_DR_BCG "Build DR-BCG implementations" OFF)
 
+option(SOLVERS_BUILD_TESTS "Build tests" OFF)
 option(SOLVERS_BUILD_RUNNER "Build runner program" OFF)
 
 find_package(MatUtils CONFIG REQUIRED)
@@ -41,4 +42,8 @@ endif()
 
 if(SOLVERS_BUILD_RUNNER)
     add_subdirectory(runner)
+endif()
+
+if(SOLVERS_BUILD_TESTS)
+    add_subdirectory(test)
 endif()
