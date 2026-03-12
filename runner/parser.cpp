@@ -1,4 +1,4 @@
-#include "cli/parser.h"
+#include "parser.h"
 
 #include <cxxopts.hpp>
 #include <exception>
@@ -7,8 +7,8 @@
 #include <utility>
 
 std::optional<Args> parse_args(int argc, char *argv[]) {
-    cxxopts::Options options("mkl-cgrun",
-                             "Run MKL conjugate gradient on .mat files");
+    cxxopts::Options options("cgrun",
+                             "Run conjugate gradient variants on .mat files");
 
     // clang-format off
     options.add_options()

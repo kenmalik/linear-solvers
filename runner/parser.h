@@ -1,5 +1,4 @@
-#ifndef MKL_CG_PARSER
-#define MKL_CG_PARSER
+#pragma once
 
 #include <optional>
 
@@ -11,5 +10,3 @@ struct Args {
 };
 
 std::optional<Args> parse_args(int argc, char *argv[]);
-
-#endif // !MKL_CG_PARSER

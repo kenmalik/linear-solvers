@@ -1,7 +1,8 @@
 find_package(MatUtils CONFIG REQUIRED)
 find_package(cxxopts CONFIG REQUIRED)
 
-add_executable(cgrun cgrun.cpp)
+add_executable(cgrun cgrun.cpp parser.cpp)
+target_link_libraries(cgrun PRIVATE MatUtils::mat_utils)
 
 if(SOLVERS_BUILD_CUDA)
     if(SOLVERS_BUILD_CG)

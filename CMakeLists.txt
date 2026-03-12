@@ -12,6 +12,7 @@ option(SOLVERS_BUILD_RUNNER "Build runner program" OFF)
 
 if(SOLVERS_BUILD_CUDA)
     find_package(CUDAToolkit 12.0 REQUIRED)
+    find_package(nvtx3 CONFIG REQUIRED)
 endif()
 
 if(SOLVERS_BUILD_MKL)
