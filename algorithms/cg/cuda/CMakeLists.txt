@@ -1,6 +1,6 @@
-add_library(cg src/cg.cu)
+add_library(cg cg.cu)
+target_include_directories(cg PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_compile_features(cg PRIVATE cxx_std_20 cuda_std_20)
-target_include_directories(cg PUBLIC include/)
 target_link_libraries(cg PUBLIC CUDA::cusparse CUDA::cublas)
 target_link_libraries(cg PRIVATE nvtx3::nvtx3-cpp)
 

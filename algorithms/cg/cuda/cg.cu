@@ -1,5 +1,5 @@
-#include "cg_run/cg.h"
-#include "cg_run/checks.h"
+#include "cg/cg.h"
+#include "cg/checks.h"
 
 #include <cassert>
 #include <cmath>
@@ -50,8 +50,8 @@ template <typename T> struct Device_buffers {
 };
 } // namespace
 
-namespace cg_run {
-int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
+namespace cg::cuda {
+int solve(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
        cusparseDnVecDescr_t b, cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
        double tolerance, int max_iterations, bool real_residual) {
     NVTX3_FUNC_RANGE();
@@ -266,4 +266,4 @@ int cg(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
 
     return iterations;
 }
-} // namespace cg_run
+} // namespace cg::cuda
