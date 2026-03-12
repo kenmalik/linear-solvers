@@ -1,19 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
 project(mkl_cg CXX)
-
-# Find MKL
-find_package(MKL CONFIG)
-if(MKL_FOUND)
-    message(STATUS "Found MKL: ${MKL_ROOT}")
-else()
-    # Fallback: try to find MKL manually
-    set(MKL_ROOT $ENV{MKLROOT})
-    if(NOT MKL_ROOT)
-        message(FATAL_ERROR "MKL not found. Set MKLROOT environment variable.")
-    endif()
-    set(MKL_INCLUDE_DIR ${MKL_ROOT}/include)
-    set(MKL_LIB_DIR ${MKL_ROOT}/lib/intel64)
-endif()
 
 option(MKL_CG_BUILD_TESTS "Build tests" OFF)
 option(MKL_CG_BUILD_MAT_READERS

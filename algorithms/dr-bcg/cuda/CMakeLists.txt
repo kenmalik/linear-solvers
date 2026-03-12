@@ -1,7 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
 project(DR_BCG VERSION 0.4.0 LANGUAGES CUDA CXX)
-
-find_package(CUDAToolkit 12.0 REQUIRED)
 
 option(DR_BCG_BUILD_TESTS "Enable tests" OFF)
 option(DR_BCG_BUILD_BENCHMARKS "Enable benchmarks" OFF)
