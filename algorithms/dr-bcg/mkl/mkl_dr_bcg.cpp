@@ -32,35 +32,19 @@ void copy_dense(DenseMatrix &dst, const DenseMatrix &src) {
 // Uses MKL sparse BLAS (mkl_dcsrmm)
 void sparse_mm(const CSRMatrix &A, char op, double alpha, const DenseMatrix &X,
                double beta, DenseMatrix &Y) {
-    // MKL sparse matrix descriptor
-    struct matrix_descr descr;
-    descr.type = SPARSE_MATRIX_TYPE_GENERAL;
-
-    sparse_matrix_t A_mkl;
-    sparse_status_t status =
-        mkl_sparse_d_create_csr(&A_mkl, SPARSE_INDEX_BASE_ZERO, A.rows, A.cols,
-                                const_cast<MKL_INT *>(A.row_ptr.data()),
-                                const_cast<MKL_INT *>(A.row_ptr.data()) + 1,
-                                const_cast<MKL_INT *>(A.col_idx.data()),
-                                const_cast<double *>(A.values.data()));
-
-    if (status != SPARSE_STATUS_SUCCESS)
-        throw std::runtime_error("mkl_sparse_d_create_csr failed");
-
     sparse_operation_t op_type = (op == 'T') ? SPARSE_OPERATION_TRANSPOSE
                                              : SPARSE_OPERATION_NON_TRANSPOSE;
 
     // Output rows depend on operation
     MKL_INT out_rows = (op == 'T') ? A.cols : A.rows;
 
-    status = mkl_sparse_d_mm(op_type, alpha, A_mkl, descr,
-                             SPARSE_LAYOUT_COLUMN_MAJOR, X.data.data(),
-                             X.cols, // number of columns (vectors)
-                             X.rows, // leading dimension of X
-                             beta, Y.data.data(),
-                             out_rows); // leading dimension of Y
-
-    mkl_sparse_destroy(A_mkl);
+    sparse_status_t status =
+        mkl_sparse_d_mm(op_type, alpha, A.mat, A.descr,
+                        SPARSE_LAYOUT_COLUMN_MAJOR, X.data.data(),
+                        X.cols, // number of columns (vectors)
+                        X.rows, // leading dimension of X
+                        beta, Y.data.data(),
+                        out_rows); // leading dimension of Y
 
     if (status != SPARSE_STATUS_SUCCESS)
         throw std::runtime_error("mkl_sparse_d_mm failed");
@@ -72,22 +56,6 @@ void sparse_mm(const CSRMatrix &A, char op, double alpha, const DenseMatrix &X,
 // MKL requires separate input/output buffers, so we allocate Y internally
 // and move it into X on success.
 void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) {
-    sparse_matrix_t L_mkl;
-    sparse_status_t status =
-        mkl_sparse_d_create_csr(&L_mkl, SPARSE_INDEX_BASE_ZERO, L.rows, L.cols,
-                                const_cast<MKL_INT *>(L.row_ptr.data()),
-                                const_cast<MKL_INT *>(L.row_ptr.data()) + 1,
-                                const_cast<MKL_INT *>(L.col_idx.data()),
-                                const_cast<double *>(L.values.data()));
-
-    if (status != SPARSE_STATUS_SUCCESS)
-        throw std::runtime_error("mkl_sparse_d_create_csr failed for L");
-
-    struct matrix_descr descr;
-    descr.type = SPARSE_MATRIX_TYPE_TRIANGULAR;
-    descr.mode = SPARSE_FILL_MODE_LOWER;
-    descr.diag = SPARSE_DIAG_NON_UNIT;
-
     sparse_operation_t op_type = (op == 'T') ? SPARSE_OPERATION_TRANSPOSE
                                              : SPARSE_OPERATION_NON_TRANSPOSE;
 
@@ -95,16 +63,15 @@ void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) {
     // x and y must not overlap — use a fresh output buffer.
     DenseMatrix Y = alloc_dense(X.rows, X.cols);
 
-    status = mkl_sparse_d_trsm(op_type,
-                               1.0, // alpha
-                               L_mkl, descr, SPARSE_LAYOUT_COLUMN_MAJOR,
-                               X.data.data(), // input  (rhs)
-                               X.cols,        // number of columns
-                               X.rows,        // leading dimension of input
-                               Y.data.data(), // output
-                               Y.rows);       // leading dimension of output
-
-    mkl_sparse_destroy(L_mkl);
+    sparse_status_t status =
+        mkl_sparse_d_trsm(op_type,
+                          1.0, // alpha
+                          L.mat, L.descr, SPARSE_LAYOUT_COLUMN_MAJOR,
+                          X.data.data(), // input  (rhs)
+                          X.cols,        // number of columns
+                          X.rows,        // leading dimension of input
+                          Y.data.data(), // output
+                          Y.rows);       // leading dimension of output
 
     if (status != SPARSE_STATUS_SUCCESS)
         throw std::runtime_error("mkl_sparse_d_trsm failed");
@@ -191,7 +158,7 @@ void invert_square(std::vector<double> &A_data, MKL_INT n) {
 // ---------------------------------------------------------------------------
 namespace dr_bcg::mkl {
 int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
-            DenseMatrix &X, double tolerance, int max_iterations) {
+          DenseMatrix &X, double tolerance, int max_iterations) {
     const MKL_INT n = A.rows;
     const MKL_INT nrhs = B.cols;
 
