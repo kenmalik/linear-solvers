@@ -8,7 +8,7 @@ option(MKL_CG_PRINT_RELATIVE_RESIDUAL_NORMS
 add_library(mkl_cg mkl_cg.cpp)
 add_library(cg::mkl ALIAS mkl_cg)
 
-target_include_directories(mkl_cg PUBLIC include)
+target_include_directories(mkl_cg PUBLIC include ${COMMON_HEADERS})
 target_compile_features(mkl_cg PRIVATE cxx_std_17)
 
 if(MKL_CG_PRINT_RELATIVE_RESIDUAL_NORMS)

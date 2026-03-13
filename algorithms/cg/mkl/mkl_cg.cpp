@@ -9,8 +9,8 @@
 #endif // PRINT_RRN
 
 namespace cg::mkl {
-int solve(const MKLSparse &A, const std::vector<double> &b,
-          std::vector<double> &x, const MKLSparse &L, double tolerance,
+int solve(const CSRMatrix &A, const std::vector<double> &b,
+          std::vector<double> &x, const CSRMatrix &L, double tolerance,
           int max_iterations, bool real_residual) {
     assert(A.descr.type == SPARSE_MATRIX_TYPE_GENERAL);
     assert(L.descr.type == SPARSE_MATRIX_TYPE_TRIANGULAR);

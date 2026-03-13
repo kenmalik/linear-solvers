@@ -6,6 +6,8 @@
 
 // CSR sparse matrix descriptor
 struct CSRMatrix {
+    sparse_matrix_t mat;
+    struct matrix_descr descr;
     MKL_INT rows;
     MKL_INT cols;
     std::vector<double> values;

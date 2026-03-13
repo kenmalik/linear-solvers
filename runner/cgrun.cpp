@@ -1,3 +1,4 @@
+#include "common/mkl_matrices.h"
 #include <iostream>
 #include <vector>
 
@@ -6,8 +7,8 @@
 #endif
 
 #ifdef CUDA_CG_ENABLED
-#include <cg/cuda.h>
 #include "cuda_adapter.h"
+#include <cg/cuda.h>
 #endif
 
 #include "cgrun.h"
@@ -74,7 +75,7 @@ int run_cg(const Args &args) {
     }
 }
 
-cg::mkl::MKLSparse read_mkl(const mat_utils::SpMatReader &reader) {
+CSRMatrix read_mkl(const mat_utils::SpMatReader &reader) {
     // SpMatReader stores the matrix in MATLAB's CSC format:
     //   jc: column pointers (size cols+1)
     //   ir: row indices    (size nnz)
@@ -84,18 +85,20 @@ cg::mkl::MKLSparse read_mkl(const mat_utils::SpMatReader &reader) {
     //
     // The index arrays are size_t; copy to MKL_INT64 as required by the
     // API.
+    const double *vals = reader.data();
     const size_t *jc = reader.jc();
     const size_t *ir = reader.ir();
 
-    cg::mkl::MKLSparse sparse;
+    CSRMatrix sparse;
 
+    sparse.values.assign(vals, vals + reader.nnz());
     sparse.row_ptr.assign(jc, jc + reader.jc_size());
     sparse.col_idx.assign(ir, ir + reader.ir_size());
 
     mkl_sparse_d_create_csr(&sparse.mat, SPARSE_INDEX_BASE_ZERO, reader.rows(),
                             reader.cols(), sparse.row_ptr.data(),
                             sparse.row_ptr.data() + 1, sparse.col_idx.data(),
-                            reader.data());
+                            sparse.values.data());
 
     sparse.descr.type = SPARSE_MATRIX_TYPE_GENERAL;
 

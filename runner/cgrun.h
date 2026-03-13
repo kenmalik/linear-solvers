@@ -5,7 +5,8 @@
 #include <cg/mkl.h>
 
 #include "parser.h"
+#include "common/mkl_matrices.h"
 
 int run_cg(const Args &args);
 
-cg::mkl::MKLSparse read_mkl(const mat_utils::SpMatReader &reader);
+CSRMatrix read_mkl(const mat_utils::SpMatReader &reader);
