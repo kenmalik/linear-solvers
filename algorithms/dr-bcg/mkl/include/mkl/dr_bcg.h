@@ -21,6 +21,6 @@ namespace dr_bcg::mkl {
 /// column max_iterations- maximum number of iterations
 ///
 /// @return number of iterations performed
-int PDR_BCG(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
+int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
             DenseMatrix &X, double tolerance, int max_iterations);
 } // namespace dr_bcg::mkl

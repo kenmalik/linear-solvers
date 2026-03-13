@@ -190,7 +190,7 @@ void invert_square(std::vector<double> &A_data, MKL_INT n) {
 // PDR-BCG implementation
 // ---------------------------------------------------------------------------
 namespace dr_bcg::mkl {
-int PDR_BCG(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
+int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
             DenseMatrix &X, double tolerance, int max_iterations) {
     const MKL_INT n = A.rows;
     const MKL_INT nrhs = B.cols;
