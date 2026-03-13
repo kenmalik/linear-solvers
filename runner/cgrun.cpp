@@ -15,6 +15,11 @@
 #include <cg/cuda.h>
 #endif
 
+#ifdef CUDA_DR_BCG_ENABLED
+#include "cuda_adapter.h"
+#include <dr_bcg/cuda.h>
+#endif
+
 #include "cgrun.h"
 #include "parser.h"
 
@@ -76,7 +81,8 @@ int run_cg(const Args &args) {
 #endif
 #ifdef CUDA_CG_ENABLED
     case Implementation::CUDA: {
-        return run_cuda(args.A, b, x, args.L.value(), args.tolerance, max_iters);
+        return run_cuda_cg(args.A, b, x, args.L.value(), args.tolerance,
+                           max_iters);
     }
 #endif
     default:
@@ -89,8 +95,8 @@ int run_cg(const Args &args) {
 int run_dr_bcg(const Args &args) {
     int n = args.A.rows();
     int s = args.block_size;
-    DenseMatrix b{n, s, std::vector<double>(n * s, 1)};
-    DenseMatrix x{n, s, std::vector<double>(n * s, 0)};
+    std::vector<double> b(n * s, 1);
+    std::vector<double> x(n * s, 0);
 
     int max_iters = args.max_iterations.value_or(n);
 
@@ -102,16 +108,26 @@ int run_dr_bcg(const Args &args) {
         auto A = read_mkl(args.A);
         A.descr.type = SPARSE_MATRIX_TYPE_GENERAL;
 
+        DenseMatrix b_dm{n, s, b};
+        DenseMatrix x_dm{n, s, x};
+
         if (args.L.has_value()) {
             auto L = read_mkl(args.L.value());
             L.descr.type = SPARSE_MATRIX_TYPE_TRIANGULAR;
             L.descr.mode = SPARSE_FILL_MODE_LOWER;
             L.descr.diag = SPARSE_DIAG_NON_UNIT;
-            return dr_bcg::mkl::solve(A, L, b, x, args.tolerance, max_iters);
+            return dr_bcg::mkl::solve(A, L, b_dm, x_dm, args.tolerance,
+                                      max_iters);
         } else {
             std::cerr << "Not implemented" << std::endl;
             return -1;
         }
+    }
+#endif
+#ifdef CUDA_DR_BCG_ENABLED
+    case Implementation::CUDA: {
+        return run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
+                               max_iters, args.block_size);
     }
 #endif
     default:

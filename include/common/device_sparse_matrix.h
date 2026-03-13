@@ -1,4 +1,4 @@
-#include "checks.h"
+#include "cuda_checks.h"
 
 #include <mat_utils/mat_reader.h>
 
