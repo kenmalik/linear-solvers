@@ -1,6 +1,6 @@
 add_library(
     cuda_dr_bcg
-    "sparse.cu"
+    "cuda_dr_bcg.cu"
     "helper.cu"
 )
 add_library(dr_bcg::cuda ALIAS cuda_dr_bcg)
