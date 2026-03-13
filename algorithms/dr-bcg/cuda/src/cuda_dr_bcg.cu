@@ -2,7 +2,7 @@
 #include "dr_bcg/internal/device_buffer.h"
 #include "dr_bcg/internal/math.h"
 
-#include "common/checks.h"
+#include "common/cuda_checks.h"
 
 #include <cstdint>
 #include <functional>

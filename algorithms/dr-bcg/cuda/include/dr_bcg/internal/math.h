@@ -7,7 +7,7 @@
 
 #include <cusolverDn.h>
 
-#include "common/checks.h"
+#include "common/cuda_checks.h"
 #include "dr_bcg/internal/type_info.h"
 #include "dr_bcg/helper.h"
 

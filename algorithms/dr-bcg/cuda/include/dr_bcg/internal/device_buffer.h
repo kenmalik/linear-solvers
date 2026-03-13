@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/checks.h"
+#include "common/cuda_checks.h"
 #include <type_traits>
 
 /**
