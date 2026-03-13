@@ -7,6 +7,7 @@
 
 #ifdef CUDA_CG_ENABLED
 #include <cg/cuda.h>
+#include "cuda_adapter.h"
 #endif
 
 #include "cgrun.h"
@@ -63,8 +64,7 @@ int run_cg(const Args &args) {
 #endif
 #ifdef CUDA_CG_ENABLED
     case Implementation::CUDA: {
-        std::cerr << "CUDA CG not yet wired up in runner" << std::endl;
-        return -1;
+        return run_cuda(args.A, b, x, args.L.value());
     }
 #endif
     default:
