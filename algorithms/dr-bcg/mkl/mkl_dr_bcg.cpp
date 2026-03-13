@@ -61,15 +61,10 @@ void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) noexcept {
     // x and y must not overlap — use a fresh output buffer.
     DenseMatrix Y = alloc_dense(X.rows, X.cols);
 
-    MKL_SPARSE_CHECK(mkl_sparse_d_trsm(op_type,
-                                       1.0, // alpha
-                                       L.mat, L.descr,
-                                       SPARSE_LAYOUT_COLUMN_MAJOR,
-                                       X.data.data(), // input  (rhs)
-                                       X.cols,        // number of columns
-                                       X.rows, // leading dimension of input
-                                       Y.data.data(), // output
-                                       Y.rows)); // leading dimension of output
+    constexpr double alpha = 1.0;
+    MKL_SPARSE_CHECK(mkl_sparse_d_trsm(
+        op_type, alpha, L.mat, L.descr, SPARSE_LAYOUT_COLUMN_MAJOR,
+        X.data.data(), X.cols, X.rows, Y.data.data(), Y.rows));
 
     X = std::move(Y);
 }
