@@ -48,7 +48,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         auto algorithm = parse_algorithm(result["algorithm"].as<std::string>());
         if (!algorithm) {
             std::cerr << "Unknown algorithm: " << result["algorithm"].as<std::string>() << "\n"
-                      << "Available: cg\n" << std::endl;
+                      << "Available: cg, dr-bcg\n" << std::endl;
             std::cerr << options.help();
             return std::nullopt;
         }

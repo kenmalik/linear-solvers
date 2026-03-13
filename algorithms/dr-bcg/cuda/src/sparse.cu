@@ -1,7 +1,7 @@
+#include "dr_bcg/cuda.h"
 #include "dr_bcg/helper.h"
 #include "dr_bcg/internal/device_buffer.h"
 #include "dr_bcg/internal/math.h"
-#include "dr_bcg/sparse.h"
 
 #include <cstdint>
 #include <functional>
@@ -52,9 +52,10 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
 }
 } // namespace
 
-int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-                   cusparseDnMatDescr_t B, float tolerance, int max_iterations,
-                   std::function<void(int, float)> residual_callback) {
+namespace dr_bcg::cuda {
+int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+           cusparseDnMatDescr_t B, float tolerance, int max_iterations,
+           std::function<void(int, float)> residual_callback) {
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
@@ -325,9 +326,9 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
 // Double-precision variant: same algorithm but using double/cuBLAS/cuSPARSE D
 // APIs
-int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-                   cusparseDnMatDescr_t B, double tolerance, int max_iterations,
-                   std::function<void(int, double)> residual_callback) {
+int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+           cusparseDnMatDescr_t B, double tolerance, int max_iterations,
+           std::function<void(int, double)> residual_callback) {
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
@@ -597,10 +598,9 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 }
 
 // Preconditioned double-precision variant
-int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-                   cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
-                   double tolerance, int max_iterations,
-                   std::function<void(int, double)> residual_callback) {
+int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+          cusparseDnMatDescr_t B, cusparseSpMatDescr_t L, double tolerance,
+          int max_iterations) {
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
@@ -794,9 +794,6 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             relative_residual_norm = residual_norm / B1_norm;
         }
 
-        if (residual_callback) {
-            residual_callback(iterations, relative_residual_norm);
-        }
         if (relative_residual_norm < tolerance) {
             break;
         }
@@ -895,10 +892,10 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 }
 
 // Preconditioned single-precision variant
-int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-                   cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
-                   float tolerance, int max_iterations,
-                   std::function<void(int, float)> residual_callback) {
+int dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L, float tolerance,
+           int max_iterations,
+           std::function<void(int, float)> residual_callback) {
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
@@ -1190,3 +1187,4 @@ int dr_bcg::dr_bcg(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     return iterations;
 }
+} // namespace dr_bcg::cuda
