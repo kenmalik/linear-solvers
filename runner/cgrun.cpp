@@ -9,37 +9,36 @@
 #include <cg/cuda.h>
 #endif
 
+#include "cgrun.h"
 #include "parser.h"
 
-cg::mkl::MKLSparse read_mkl(const mat_utils::SpMatReader &reader) {
-    // SpMatReader stores the matrix in MATLAB's CSC format:
-    //   jc: column pointers (size cols+1)
-    //   ir: row indices    (size nnz)
-    //
-    // Since A is symmetric (SPD), treating the CSC arrays as CSR gives Aᵀ =
-    // A, so we can use mkl_sparse_d_create_csr directly with jc/ir.
-    //
-    // The index arrays are size_t; copy to MKL_INT64 as required by the
-    // API.
-    const size_t *jc = reader.jc();
-    const size_t *ir = reader.ir();
+int main(int argc, char *argv[]) {
+    auto args = parse_args(argc, argv);
 
-    cg::mkl::MKLSparse sparse;
+    if (!args) {
+        return -1;
+    }
 
-    sparse.row_ptr.assign(jc, jc + reader.jc_size());
-    sparse.col_idx.assign(ir, ir + reader.ir_size());
+    int iters;
 
-    mkl_sparse_d_create_csr(&sparse.mat, SPARSE_INDEX_BASE_ZERO, reader.rows(),
-                            reader.cols(), sparse.row_ptr.data(),
-                            sparse.row_ptr.data() + 1, sparse.col_idx.data(),
-                            reader.data());
+    switch (args->algorithm) {
+    case Algorithm::CG:
+        iters = run_cg(*args);
+        break;
+    default:
+        std::cerr << "Unknown algorithm" << std::endl;
+        return -1;
+    }
 
-    sparse.descr.type = SPARSE_MATRIX_TYPE_GENERAL;
+    if (iters < 0) {
+        return -1;
+    }
 
-    return sparse;
+    std::cout << iters << std::endl;
+    return 0;
 }
 
-static int run_cg(const Args &args) {
+int run_cg(const Args &args) {
     int n = args.A.rows();
     std::vector<double> b(n, 1);
     std::vector<double> x(n, 0);
@@ -75,28 +74,30 @@ static int run_cg(const Args &args) {
     }
 }
 
-int main(int argc, char *argv[]) {
-    auto args = parse_args(argc, argv);
+cg::mkl::MKLSparse read_mkl(const mat_utils::SpMatReader &reader) {
+    // SpMatReader stores the matrix in MATLAB's CSC format:
+    //   jc: column pointers (size cols+1)
+    //   ir: row indices    (size nnz)
+    //
+    // Since A is symmetric (SPD), treating the CSC arrays as CSR gives Aᵀ =
+    // A, so we can use mkl_sparse_d_create_csr directly with jc/ir.
+    //
+    // The index arrays are size_t; copy to MKL_INT64 as required by the
+    // API.
+    const size_t *jc = reader.jc();
+    const size_t *ir = reader.ir();
 
-    if (!args) {
-        return -1;
-    }
+    cg::mkl::MKLSparse sparse;
 
-    int iters;
+    sparse.row_ptr.assign(jc, jc + reader.jc_size());
+    sparse.col_idx.assign(ir, ir + reader.ir_size());
 
-    switch (args->algorithm) {
-    case Algorithm::CG:
-        iters = run_cg(*args);
-        break;
-    default:
-        std::cerr << "Unknown algorithm" << std::endl;
-        return -1;
-    }
+    mkl_sparse_d_create_csr(&sparse.mat, SPARSE_INDEX_BASE_ZERO, reader.rows(),
+                            reader.cols(), sparse.row_ptr.data(),
+                            sparse.row_ptr.data() + 1, sparse.col_idx.data(),
+                            reader.data());
 
-    if (iters < 0) {
-        return -1;
-    }
+    sparse.descr.type = SPARSE_MATRIX_TYPE_GENERAL;
 
-    std::cout << iters << std::endl;
-    return 0;
+    return sparse;
 }
