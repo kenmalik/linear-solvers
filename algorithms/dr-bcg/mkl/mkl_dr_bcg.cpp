@@ -4,7 +4,6 @@
 
 #include <cassert>
 #include <cstring>
-#include <stdexcept>
 
 #include <mkl.h>
 #include <mkl_lapacke.h>
@@ -15,7 +14,7 @@
 // ---------------------------------------------------------------------------
 namespace {
 // Allocate a column-major dense matrix of given size (uninitialized)
-DenseMatrix alloc_dense(MKL_INT rows, MKL_INT cols) {
+DenseMatrix alloc_dense(MKL_INT rows, MKL_INT cols) noexcept {
     DenseMatrix m;
     m.rows = rows;
     m.cols = cols;
@@ -24,7 +23,7 @@ DenseMatrix alloc_dense(MKL_INT rows, MKL_INT cols) {
 }
 
 // Copy src into dst (must have identical dimensions)
-void copy_dense(DenseMatrix &dst, const DenseMatrix &src) {
+void copy_dense(DenseMatrix &dst, const DenseMatrix &src) noexcept {
     dst.rows = src.rows;
     dst.cols = src.cols;
     dst.data = src.data;
@@ -140,16 +139,14 @@ void invert_square(std::vector<double> &A_data, MKL_INT n) {
 // ---------------------------------------------------------------------------
 namespace dr_bcg::mkl {
 int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
-          DenseMatrix &X, double tolerance, int max_iterations) {
+          DenseMatrix &X, double tolerance, int max_iterations) noexcept {
     const MKL_INT n = A.rows;
     const MKL_INT nrhs = B.cols;
 
-    if (X.rows != n || X.cols != nrhs)
-        throw std::invalid_argument("X dimensions do not match A and B");
-    if (B.rows != n)
-        throw std::invalid_argument("B row count does not match A");
-    if (L.rows != n || L.cols != n)
-        throw std::invalid_argument("L dimensions do not match A");
+    assert(X.rows == n && X.cols == nrhs &&
+           "X dimensions do not match A and B");
+    assert(B.rows == n && "B row count does not match A");
+    assert(L.rows == n && L.cols == n && "L dimensions do not match A");
 
     // ------------------------------------------------------------------
     // Initialization
