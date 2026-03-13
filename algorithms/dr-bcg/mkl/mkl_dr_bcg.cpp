@@ -1,7 +1,9 @@
 #include "dr_bcg/mkl.h"
 
+#include "common/mkl_checks.h"
+
+#include <cassert>
 #include <cstring>
-#include <stdexcept>
 
 #include <mkl.h>
 #include <mkl_lapacke.h>
@@ -12,7 +14,7 @@
 // ---------------------------------------------------------------------------
 namespace {
 // Allocate a column-major dense matrix of given size (uninitialized)
-DenseMatrix alloc_dense(MKL_INT rows, MKL_INT cols) {
+DenseMatrix alloc_dense(MKL_INT rows, MKL_INT cols) noexcept {
     DenseMatrix m;
     m.rows = rows;
     m.cols = cols;
@@ -20,50 +22,23 @@ DenseMatrix alloc_dense(MKL_INT rows, MKL_INT cols) {
     return m;
 }
 
-// Copy src into dst (must have identical dimensions)
-void copy_dense(DenseMatrix &dst, const DenseMatrix &src) {
-    dst.rows = src.rows;
-    dst.cols = src.cols;
-    dst.data = src.data;
-}
-
 // Compute Y = alpha * op(A_sparse) * X_dense + beta * Y_dense
 // op: 'N' = no transpose, 'T' = transpose
 // Uses MKL sparse BLAS (mkl_dcsrmm)
 void sparse_mm(const CSRMatrix &A, char op, double alpha, const DenseMatrix &X,
-               double beta, DenseMatrix &Y) {
-    // MKL sparse matrix descriptor
-    struct matrix_descr descr;
-    descr.type = SPARSE_MATRIX_TYPE_GENERAL;
-
-    sparse_matrix_t A_mkl;
-    sparse_status_t status =
-        mkl_sparse_d_create_csr(&A_mkl, SPARSE_INDEX_BASE_ZERO, A.rows, A.cols,
-                                const_cast<MKL_INT *>(A.row_ptr.data()),
-                                const_cast<MKL_INT *>(A.row_ptr.data()) + 1,
-                                const_cast<MKL_INT *>(A.col_idx.data()),
-                                const_cast<double *>(A.values.data()));
-
-    if (status != SPARSE_STATUS_SUCCESS)
-        throw std::runtime_error("mkl_sparse_d_create_csr failed");
-
+               double beta, DenseMatrix &Y) noexcept {
     sparse_operation_t op_type = (op == 'T') ? SPARSE_OPERATION_TRANSPOSE
                                              : SPARSE_OPERATION_NON_TRANSPOSE;
 
     // Output rows depend on operation
     MKL_INT out_rows = (op == 'T') ? A.cols : A.rows;
 
-    status = mkl_sparse_d_mm(op_type, alpha, A_mkl, descr,
-                             SPARSE_LAYOUT_COLUMN_MAJOR, X.data.data(),
-                             X.cols, // number of columns (vectors)
-                             X.rows, // leading dimension of X
-                             beta, Y.data.data(),
-                             out_rows); // leading dimension of Y
-
-    mkl_sparse_destroy(A_mkl);
-
-    if (status != SPARSE_STATUS_SUCCESS)
-        throw std::runtime_error("mkl_sparse_d_mm failed");
+    MKL_SPARSE_CHECK(mkl_sparse_d_mm(op_type, alpha, A.mat, A.descr,
+                                     SPARSE_LAYOUT_COLUMN_MAJOR, X.data.data(),
+                                     X.cols, // number of columns (vectors)
+                                     X.rows, // leading dimension of X
+                                     beta, Y.data.data(),
+                                     out_rows)); // leading dimension of Y
 }
 
 // Solve op(L) * Y = X, writing result back into X.
@@ -71,23 +46,7 @@ void sparse_mm(const CSRMatrix &A, char op, double alpha, const DenseMatrix &X,
 // L is lower triangular CSR.
 // MKL requires separate input/output buffers, so we allocate Y internally
 // and move it into X on success.
-void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) {
-    sparse_matrix_t L_mkl;
-    sparse_status_t status =
-        mkl_sparse_d_create_csr(&L_mkl, SPARSE_INDEX_BASE_ZERO, L.rows, L.cols,
-                                const_cast<MKL_INT *>(L.row_ptr.data()),
-                                const_cast<MKL_INT *>(L.row_ptr.data()) + 1,
-                                const_cast<MKL_INT *>(L.col_idx.data()),
-                                const_cast<double *>(L.values.data()));
-
-    if (status != SPARSE_STATUS_SUCCESS)
-        throw std::runtime_error("mkl_sparse_d_create_csr failed for L");
-
-    struct matrix_descr descr;
-    descr.type = SPARSE_MATRIX_TYPE_TRIANGULAR;
-    descr.mode = SPARSE_FILL_MODE_LOWER;
-    descr.diag = SPARSE_DIAG_NON_UNIT;
-
+void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) noexcept {
     sparse_operation_t op_type = (op == 'T') ? SPARSE_OPERATION_TRANSPOSE
                                              : SPARSE_OPERATION_NON_TRANSPOSE;
 
@@ -95,19 +54,10 @@ void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) {
     // x and y must not overlap — use a fresh output buffer.
     DenseMatrix Y = alloc_dense(X.rows, X.cols);
 
-    status = mkl_sparse_d_trsm(op_type,
-                               1.0, // alpha
-                               L_mkl, descr, SPARSE_LAYOUT_COLUMN_MAJOR,
-                               X.data.data(), // input  (rhs)
-                               X.cols,        // number of columns
-                               X.rows,        // leading dimension of input
-                               Y.data.data(), // output
-                               Y.rows);       // leading dimension of output
-
-    mkl_sparse_destroy(L_mkl);
-
-    if (status != SPARSE_STATUS_SUCCESS)
-        throw std::runtime_error("mkl_sparse_d_trsm failed");
+    constexpr double alpha = 1.0;
+    MKL_SPARSE_CHECK(mkl_sparse_d_trsm(
+        op_type, alpha, L.mat, L.descr, SPARSE_LAYOUT_COLUMN_MAJOR,
+        X.data.data(), X.cols, X.rows, Y.data.data(), Y.rows));
 
     X = std::move(Y);
 }
@@ -117,7 +67,7 @@ void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) {
 // op_a / op_b: 'N' or 'T'
 void dense_mm(char op_a, char op_b, MKL_INT m, MKL_INT n, MKL_INT k,
               double alpha, const double *A, MKL_INT lda, const double *B,
-              MKL_INT ldb, double beta, double *C, MKL_INT ldc) {
+              MKL_INT ldb, double beta, double *C, MKL_INT ldc) noexcept {
     CBLAS_TRANSPOSE ta = (op_a == 'T') ? CblasTrans : CblasNoTrans;
     CBLAS_TRANSPOSE tb = (op_b == 'T') ? CblasTrans : CblasNoTrans;
     cblas_dgemm(CblasColMajor, ta, tb, m, n, k, alpha, A, lda, B, ldb, beta, C,
@@ -129,12 +79,12 @@ void dense_mm(char op_a, char op_b, MKL_INT m, MKL_INT n, MKL_INT k,
 //   Q  - m x n orthonormal matrix (replaces M in output)
 //   R_out - n x n upper triangular factor
 // We use LAPACK dgeqrf + dorgqr.
-void thin_qr(const DenseMatrix &M, DenseMatrix &Q, DenseMatrix &R_out) {
+void thin_qr(const DenseMatrix &M, DenseMatrix &Q,
+             DenseMatrix &R_out) noexcept {
     MKL_INT m = M.rows;
     MKL_INT n = M.cols;
 
-    if (m < n)
-        throw std::runtime_error("thin_qr: requires m >= n");
+    assert(m >= n && "thin_qr: requires m >= n");
 
     // Copy M into Q (we work in-place)
     Q.rows = m;
@@ -144,11 +94,8 @@ void thin_qr(const DenseMatrix &M, DenseMatrix &Q, DenseMatrix &R_out) {
     std::vector<double> tau(n);
 
     // QR factorization
-    lapack_int info =
-        LAPACKE_dgeqrf(LAPACK_COL_MAJOR, m, n, Q.data.data(), m, tau.data());
-    if (info != 0)
-        throw std::runtime_error("LAPACKE_dgeqrf failed, info=" +
-                                 std::to_string(info));
+    MKL_LAPACKE_CHECK(
+        LAPACKE_dgeqrf(LAPACK_COL_MAJOR, m, n, Q.data.data(), m, tau.data()));
 
     // Extract upper triangular R (n x n) from the upper triangle of Q
     R_out = alloc_dense(n, n);
@@ -160,29 +107,18 @@ void thin_qr(const DenseMatrix &M, DenseMatrix &Q, DenseMatrix &R_out) {
     }
 
     // Form Q explicitly
-    info =
-        LAPACKE_dorgqr(LAPACK_COL_MAJOR, m, n, n, Q.data.data(), m, tau.data());
-    if (info != 0)
-        throw std::runtime_error("LAPACKE_dorgqr failed, info=" +
-                                 std::to_string(info));
+    MKL_LAPACKE_CHECK(LAPACKE_dorgqr(LAPACK_COL_MAJOR, m, n, n, Q.data.data(),
+                                     m, tau.data()));
 }
 
 // Invert a small square matrix in-place using LAPACK dgetrf + dgetri.
 void invert_square(std::vector<double> &A_data, MKL_INT n) {
     std::vector<lapack_int> ipiv(n);
 
-    lapack_int info =
-        LAPACKE_dgetrf(LAPACK_COL_MAJOR, n, n, A_data.data(), n, ipiv.data());
-    if (info != 0)
-        throw std::runtime_error(
-            "LAPACKE_dgetrf failed in invert_square, info=" +
-            std::to_string(info));
-
-    info = LAPACKE_dgetri(LAPACK_COL_MAJOR, n, A_data.data(), n, ipiv.data());
-    if (info != 0)
-        throw std::runtime_error(
-            "LAPACKE_dgetri failed in invert_square, info=" +
-            std::to_string(info));
+    MKL_LAPACKE_CHECK(
+        LAPACKE_dgetrf(LAPACK_COL_MAJOR, n, n, A_data.data(), n, ipiv.data()));
+    MKL_LAPACKE_CHECK(
+        LAPACKE_dgetri(LAPACK_COL_MAJOR, n, A_data.data(), n, ipiv.data()));
 }
 } // namespace
 
@@ -191,16 +127,14 @@ void invert_square(std::vector<double> &A_data, MKL_INT n) {
 // ---------------------------------------------------------------------------
 namespace dr_bcg::mkl {
 int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
-            DenseMatrix &X, double tolerance, int max_iterations) {
+          DenseMatrix &X, double tolerance, int max_iterations) noexcept {
     const MKL_INT n = A.rows;
     const MKL_INT nrhs = B.cols;
 
-    if (X.rows != n || X.cols != nrhs)
-        throw std::invalid_argument("X dimensions do not match A and B");
-    if (B.rows != n)
-        throw std::invalid_argument("B row count does not match A");
-    if (L.rows != n || L.cols != n)
-        throw std::invalid_argument("L dimensions do not match A");
+    assert(X.rows == n && X.cols == nrhs &&
+           "X dimensions do not match A and B");
+    assert(B.rows == n && "B row count does not match A");
+    assert(L.rows == n && L.cols == n && "L dimensions do not match A");
 
     // ------------------------------------------------------------------
     // Initialization
@@ -208,7 +142,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
 
     // R = B - A * X
     DenseMatrix R = alloc_dense(n, nrhs);
-    copy_dense(R, B);                   // R = B
+    R = B;
     sparse_mm(A, 'N', -1.0, X, 1.0, R); // R = B - A*X
 
     // tmp = L^{-1} * R   (forward triangular solve: L * tmp = R)

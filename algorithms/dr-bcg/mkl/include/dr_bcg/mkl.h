@@ -22,5 +22,5 @@ namespace dr_bcg::mkl {
 ///
 /// @return number of iterations performed
 int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
-            DenseMatrix &X, double tolerance, int max_iterations);
+          DenseMatrix &X, double tolerance, int max_iterations) noexcept;
 } // namespace dr_bcg::mkl
