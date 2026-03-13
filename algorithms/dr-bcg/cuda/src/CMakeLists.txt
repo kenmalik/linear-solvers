@@ -1,11 +1,3 @@
-include(FetchContent)
-FetchContent_Declare(
-    nvtx
-    GIT_REPOSITORY https://github.com/NVIDIA/NVTX.git
-    GIT_TAG v3.2.1
-)
-FetchContent_MakeAvailable(nvtx)
-
 add_library(
     dr_bcg
     "helper.cu"
@@ -26,7 +18,7 @@ target_link_libraries(
     CUDA::cublas
     CUDA::cusolver
     CUDA::cusparse
-    nvtx3-cpp
+    nvtx3::nvtx3-cpp
 )
 
 target_compile_definitions(
@@ -34,13 +26,13 @@ target_compile_definitions(
     $<$<CONFIG:Debug>:CUDA_DR_BCG_DEBUG_BUILD>
 )
 
-install(
-    TARGETS dr_bcg nvtx3-c nvtx3-cpp
-    EXPORT DR_BCGTargets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
-install(
-    EXPORT DR_BCGTargets
-    NAMESPACE DR_BCG::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DR_BCG
-)
+# install(
+#     TARGETS dr_bcg nvtx3-c nvtx3-cpp
+#     EXPORT DR_BCGTargets
+#     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+# )
+# install(
+#     EXPORT DR_BCGTargets
+#     NAMESPACE DR_BCG::
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DR_BCG
+# )

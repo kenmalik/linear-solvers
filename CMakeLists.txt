@@ -10,6 +10,8 @@ option(SOLVERS_BUILD_DR_BCG "Build DR-BCG implementations" OFF)
 option(SOLVERS_BUILD_TESTS "Build tests" OFF)
 option(SOLVERS_BUILD_RUNNER "Build runner program" OFF)
 
+set(COMMON_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
 if(SOLVERS_BUILD_CUDA)
     find_package(CUDAToolkit 12.0 REQUIRED)
     find_package(nvtx3 CONFIG REQUIRED)
