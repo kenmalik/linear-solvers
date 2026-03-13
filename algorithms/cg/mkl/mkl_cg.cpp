@@ -14,7 +14,7 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
           int max_iterations, bool real_residual) {
     assert(A.descr.type == SPARSE_MATRIX_TYPE_GENERAL);
     assert(L.descr.type == SPARSE_MATRIX_TYPE_TRIANGULAR);
-    assert(L.descr.mode == SPARSE_FILL_MODE_UPPER);
+    assert(L.descr.mode == SPARSE_FILL_MODE_LOWER);
     assert(L.descr.diag == SPARSE_DIAG_NON_UNIT);
 
     int n = static_cast<int>(b.size());
@@ -31,14 +31,14 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
     std::vector<double> tmp(n); // intermediate for triangular solves
 
     // Apply preconditioner: z = L^{-T} L^{-1} rhs  (i.e. M^{-1} rhs)
-    // mkl_L stores L^T (upper triangular), so:
-    //   Step 1: solve L * y   = rhs  → (L^T)^T * y = rhs  → TRANSPOSE on mkl_L
-    //   Step 2: solve L^T * z = y    → NON_TRANSPOSE on mkl_L
+    // mkl_L stores L (lower triangular), so:
+    //   Step 1: solve L * y   = rhs
+    //   Step 2: solve L^T * z = y
     auto apply_precond = [&L, &tmp](const std::vector<double> &rhs,
                                     std::vector<double> &result) {
-        mkl_sparse_d_trsv(SPARSE_OPERATION_TRANSPOSE, 1.0, L.mat, L.descr,
-                          rhs.data(), tmp.data());
         mkl_sparse_d_trsv(SPARSE_OPERATION_NON_TRANSPOSE, 1.0, L.mat, L.descr,
+                          rhs.data(), tmp.data());
+        mkl_sparse_d_trsv(SPARSE_OPERATION_TRANSPOSE, 1.0, L.mat, L.descr,
                           tmp.data(), result.data());
     };
 
