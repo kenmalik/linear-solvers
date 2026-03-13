@@ -1,4 +1,4 @@
-#include "mkl/dr_bcg.h"
+#include "dr_bcg/mkl.h"
 
 #include <cstring>
 #include <stdexcept>
