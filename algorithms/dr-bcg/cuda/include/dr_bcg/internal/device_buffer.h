@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dr_bcg/helper.h"
+#include "common/checks.h"
 #include <type_traits>
 
 /**

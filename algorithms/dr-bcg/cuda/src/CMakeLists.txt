@@ -1,8 +1,7 @@
 add_library(
     cuda_dr_bcg
-    "helper.cu"
     "sparse.cu"
-    "dense.cu"
+    "helper.cu"
 )
 add_library(dr_bcg::cuda ALIAS cuda_dr_bcg)
 
@@ -11,6 +10,7 @@ target_include_directories(
     cuda_dr_bcg PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    ${COMMON_HEADERS}
 )
 
 target_link_libraries(
@@ -25,14 +25,3 @@ target_compile_definitions(
     cuda_dr_bcg PRIVATE
     $<$<CONFIG:Debug>:CUDA_DR_BCG_DEBUG_BUILD>
 )
-
-# install(
-#     TARGETS cuda_dr_bcg nvtx3-c nvtx3-cpp
-#     EXPORT DR_BCGTargets
-#     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-# )
-# install(
-#     EXPORT DR_BCGTargets
-#     NAMESPACE DR_BCG::
-#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DR_BCG
-# )

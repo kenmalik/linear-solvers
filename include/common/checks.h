@@ -6,6 +6,7 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>
+#include <cusolver_common.h>
 
 // Helper macros for checking CUDA / cuBLAS / cuSPARSE calls.
 // On error these print a concise message (file:line) and abort().
@@ -36,6 +37,16 @@
         cusparseStatus_t _status = (call);                                     \
         if (_status != CUSPARSE_STATUS_SUCCESS) {                              \
             std::cerr << "cuSPARSE error at " << __FILE__ << ":" << __LINE__   \
+                      << ": status=" << static_cast<int>(_status) << '\n';     \
+            std::abort();                                                      \
+        }                                                                      \
+    } while (0)
+
+#define CUSOLVER_CHECK(call)                                                   \
+    do {                                                                       \
+        cusolverStatus_t _status = (call);                                     \
+        if (_status != CUSOLVER_STATUS_SUCCESS) {                              \
+            std::cerr << "cuSOLVER error at " << __FILE__ << ":" << __LINE__   \
                       << ": status=" << static_cast<int>(_status) << '\n';     \
             std::abort();                                                      \
         }                                                                      \

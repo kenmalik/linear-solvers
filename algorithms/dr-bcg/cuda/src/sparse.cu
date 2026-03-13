@@ -1,7 +1,8 @@
 #include "dr_bcg/cuda.h"
-#include "dr_bcg/helper.h"
 #include "dr_bcg/internal/device_buffer.h"
 #include "dr_bcg/internal/math.h"
+
+#include "common/checks.h"
 
 #include <cstdint>
 #include <functional>
