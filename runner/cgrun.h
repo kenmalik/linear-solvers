@@ -8,6 +8,7 @@
 #include "common/mkl_matrices.h"
 
 int run_cg(const Args &args);
+int run_dr_bcg(const Args &args);
 
 // Convert a MATLAB CSC sparse matrix (as read by SpMatReader) to MKL CSR.
 // MATLAB stores sparse matrices in CSC: jc[j]..jc[j+1]-1 are the entry

@@ -8,6 +8,7 @@
 
 static std::optional<Algorithm> parse_algorithm(const std::string &s) {
     if (s == "cg") return Algorithm::CG;
+    if (s == "dr-bcg") return Algorithm::DR_BCG;
     return std::nullopt;
 }
 

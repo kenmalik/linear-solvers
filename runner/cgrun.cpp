@@ -6,6 +6,10 @@
 #include <cg/mkl.h>
 #endif
 
+#ifdef MKL_DR_BCG_ENABLED
+#include <dr_bcg/mkl.h>
+#endif
+
 #ifdef CUDA_CG_ENABLED
 #include "cuda_adapter.h"
 #include <cg/cuda.h>
@@ -26,6 +30,9 @@ int main(int argc, char *argv[]) {
     switch (args->algorithm) {
     case Algorithm::CG:
         iters = run_cg(*args);
+        break;
+    case Algorithm::DR_BCG:
+        iters = run_dr_bcg(*args);
         break;
     default:
         std::cerr << "Unknown algorithm" << std::endl;
@@ -68,6 +75,38 @@ int run_cg(const Args &args) {
 #ifdef CUDA_CG_ENABLED
     case Implementation::CUDA: {
         return run_cuda(args.A, b, x, args.L.value(), 1e-6, n);
+    }
+#endif
+    default:
+        std::cerr << "Selected implementation not available in this build"
+                  << std::endl;
+        return -1;
+    }
+}
+
+int run_dr_bcg(const Args &args) {
+    int n = args.A.rows();
+    DenseMatrix b{n, 1, std::vector<double>(n, 1)};
+    DenseMatrix x{n, 1, std::vector<double>(n, 0)};
+
+    std::cerr << "Running solver..." << std::endl;
+
+    switch (args.implementation) {
+#ifdef MKL_DR_BCG_ENABLED
+    case Implementation::MKL: {
+        auto A = read_mkl(args.A);
+        A.descr.type = SPARSE_MATRIX_TYPE_GENERAL;
+
+        if (args.L.has_value()) {
+            auto L = read_mkl(args.L.value());
+            L.descr.type = SPARSE_MATRIX_TYPE_TRIANGULAR;
+            L.descr.mode = SPARSE_FILL_MODE_LOWER;
+            L.descr.diag = SPARSE_DIAG_NON_UNIT;
+            return dr_bcg::mkl::solve(A, L, b, x, 1e-6, n);
+        } else {
+            std::cerr << "Not implemented" << std::endl;
+            return -1;
+        }
     }
 #endif
     default:
