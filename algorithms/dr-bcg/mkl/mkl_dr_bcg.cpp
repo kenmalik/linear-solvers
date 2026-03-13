@@ -1,5 +1,7 @@
 #include "dr_bcg/mkl.h"
 
+#include "common/mkl_checks.h"
+
 #include <cstring>
 #include <stdexcept>
 
@@ -31,23 +33,19 @@ void copy_dense(DenseMatrix &dst, const DenseMatrix &src) {
 // op: 'N' = no transpose, 'T' = transpose
 // Uses MKL sparse BLAS (mkl_dcsrmm)
 void sparse_mm(const CSRMatrix &A, char op, double alpha, const DenseMatrix &X,
-               double beta, DenseMatrix &Y) {
+               double beta, DenseMatrix &Y) noexcept {
     sparse_operation_t op_type = (op == 'T') ? SPARSE_OPERATION_TRANSPOSE
                                              : SPARSE_OPERATION_NON_TRANSPOSE;
 
     // Output rows depend on operation
     MKL_INT out_rows = (op == 'T') ? A.cols : A.rows;
 
-    sparse_status_t status =
-        mkl_sparse_d_mm(op_type, alpha, A.mat, A.descr,
-                        SPARSE_LAYOUT_COLUMN_MAJOR, X.data.data(),
-                        X.cols, // number of columns (vectors)
-                        X.rows, // leading dimension of X
-                        beta, Y.data.data(),
-                        out_rows); // leading dimension of Y
-
-    if (status != SPARSE_STATUS_SUCCESS)
-        throw std::runtime_error("mkl_sparse_d_mm failed");
+    MKL_SPARSE_CHECK(mkl_sparse_d_mm(op_type, alpha, A.mat, A.descr,
+                                     SPARSE_LAYOUT_COLUMN_MAJOR, X.data.data(),
+                                     X.cols, // number of columns (vectors)
+                                     X.rows, // leading dimension of X
+                                     beta, Y.data.data(),
+                                     out_rows)); // leading dimension of Y
 }
 
 // Solve op(L) * Y = X, writing result back into X.
@@ -55,7 +53,7 @@ void sparse_mm(const CSRMatrix &A, char op, double alpha, const DenseMatrix &X,
 // L is lower triangular CSR.
 // MKL requires separate input/output buffers, so we allocate Y internally
 // and move it into X on success.
-void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) {
+void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) noexcept {
     sparse_operation_t op_type = (op == 'T') ? SPARSE_OPERATION_TRANSPOSE
                                              : SPARSE_OPERATION_NON_TRANSPOSE;
 
@@ -63,18 +61,15 @@ void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) {
     // x and y must not overlap — use a fresh output buffer.
     DenseMatrix Y = alloc_dense(X.rows, X.cols);
 
-    sparse_status_t status =
-        mkl_sparse_d_trsm(op_type,
-                          1.0, // alpha
-                          L.mat, L.descr, SPARSE_LAYOUT_COLUMN_MAJOR,
-                          X.data.data(), // input  (rhs)
-                          X.cols,        // number of columns
-                          X.rows,        // leading dimension of input
-                          Y.data.data(), // output
-                          Y.rows);       // leading dimension of output
-
-    if (status != SPARSE_STATUS_SUCCESS)
-        throw std::runtime_error("mkl_sparse_d_trsm failed");
+    MKL_SPARSE_CHECK(mkl_sparse_d_trsm(op_type,
+                                       1.0, // alpha
+                                       L.mat, L.descr,
+                                       SPARSE_LAYOUT_COLUMN_MAJOR,
+                                       X.data.data(), // input  (rhs)
+                                       X.cols,        // number of columns
+                                       X.rows, // leading dimension of input
+                                       Y.data.data(), // output
+                                       Y.rows)); // leading dimension of output
 
     X = std::move(Y);
 }
