@@ -6,6 +6,8 @@ target_link_libraries(cgrun PRIVATE MatUtils::mat_utils)
 
 if(SOLVERS_BUILD_CUDA)
     if(SOLVERS_BUILD_CG)
+        target_sources(cgrun PRIVATE cuda_adapter.cu)
+        target_include_directories(cgrun PRIVATE ../include)
         target_link_libraries(cgrun PRIVATE cg::cuda)
         target_compile_definitions(cgrun PRIVATE CUDA_CG_ENABLED)
     endif()

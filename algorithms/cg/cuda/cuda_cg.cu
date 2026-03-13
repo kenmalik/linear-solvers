@@ -1,10 +1,9 @@
-#include "cg/cg.h"
-#include "cg/checks.h"
+#include "cg/cuda.h"
+#include "checks.h"
 
 #include <cassert>
 #include <cmath>
 #include <cstdint>
-#include <iostream>
 #include <type_traits>
 
 #include <nvtx3/nvtx3.hpp>
@@ -189,7 +188,6 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t
         cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_MV_q, A, d.d,
         &beta_MV_q, d.q, cuda_type, CUSPARSE_SPMV_ALG_DEFAULT, buffer_MV_q));
 
-    std::cout << residual_norm / b_norm << std::endl;
     int iterations = 0;
     while (iterations < max_iterations && residual_norm > tolerance * b_norm) {
         nvtx3::scoped_range iteration_range("iteration");
@@ -229,7 +227,6 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t
 
         // Update residual norm
         CUBLAS_CHECK(cublasDnrm2_v2_64(cublas, n, d.r_d, 1, &residual_norm));
-        std::cout << residual_norm / b_norm << std::endl;
         assert(std::isfinite(residual_norm));
 
         // s = L' \ (L \ r)
