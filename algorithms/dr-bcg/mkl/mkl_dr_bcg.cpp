@@ -22,13 +22,6 @@ DenseMatrix alloc_dense(MKL_INT rows, MKL_INT cols) noexcept {
     return m;
 }
 
-// Copy src into dst (must have identical dimensions)
-void copy_dense(DenseMatrix &dst, const DenseMatrix &src) noexcept {
-    dst.rows = src.rows;
-    dst.cols = src.cols;
-    dst.data = src.data;
-}
-
 // Compute Y = alpha * op(A_sparse) * X_dense + beta * Y_dense
 // op: 'N' = no transpose, 'T' = transpose
 // Uses MKL sparse BLAS (mkl_dcsrmm)
@@ -149,7 +142,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
 
     // R = B - A * X
     DenseMatrix R = alloc_dense(n, nrhs);
-    copy_dense(R, B);                   // R = B
+    R = B;
     sparse_mm(A, 'N', -1.0, X, 1.0, R); // R = B - A*X
 
     // tmp = L^{-1} * R   (forward triangular solve: L * tmp = R)
