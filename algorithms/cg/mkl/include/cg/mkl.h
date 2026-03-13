@@ -1,4 +1,3 @@
-#include <mat_utils/mat_reader.h>
 #include <mkl_spblas.h>
 #include <mkl_types.h>
 #include <vector>
@@ -9,32 +8,6 @@ struct MKLSparse {
     struct matrix_descr descr;
     std::vector<MKL_INT> row_ptr;
     std::vector<MKL_INT> col_idx;
-
-    explicit MKLSparse(const mat_utils::SpMatReader &reader) {
-        // SpMatReader accessors are not const-qualified, so cast away const.
-        // The accessors are read-only; this is safe.
-        auto &A_mut = const_cast<mat_utils::SpMatReader &>(reader);
-
-        // SpMatReader stores the matrix in MATLAB's CSC format:
-        //   jc: column pointers (size cols+1)
-        //   ir: row indices    (size nnz)
-        //
-        // Since A is symmetric (SPD), treating the CSC arrays as CSR gives Aᵀ =
-        // A, so we can use mkl_sparse_d_create_csr directly with jc/ir.
-        //
-        // The index arrays are size_t; copy to MKL_INT64 as required by the
-        // API.
-        const size_t *jc = A_mut.jc();
-        const size_t *ir = A_mut.ir();
-        row_ptr.assign(jc, jc + A_mut.jc_size());
-        col_idx.assign(ir, ir + A_mut.ir_size());
-
-        mkl_sparse_d_create_csr(
-            &mat, SPARSE_INDEX_BASE_ZERO, A_mut.rows(), A_mut.cols(),
-            row_ptr.data(), row_ptr.data() + 1, col_idx.data(), A_mut.data());
-
-        descr.type = SPARSE_MATRIX_TYPE_GENERAL;
-    }
 
     ~MKLSparse() { mkl_sparse_destroy(mat); }
 };

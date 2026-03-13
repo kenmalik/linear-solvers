@@ -17,7 +17,7 @@ endif()
 
 target_compile_options(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
 target_include_directories(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)
-target_link_libraries(mkl_cg PUBLIC MKL::MKL MatUtils::mat_utils)
+target_link_libraries(mkl_cg PUBLIC MKL::MKL)
 
 if(MKL_CG_BUILD_TESTS)
     enable_testing()

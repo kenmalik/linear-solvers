@@ -11,6 +11,34 @@
 
 #include "parser.h"
 
+cg::mkl::MKLSparse read_mkl(const mat_utils::SpMatReader &reader) {
+    // SpMatReader stores the matrix in MATLAB's CSC format:
+    //   jc: column pointers (size cols+1)
+    //   ir: row indices    (size nnz)
+    //
+    // Since A is symmetric (SPD), treating the CSC arrays as CSR gives Aᵀ =
+    // A, so we can use mkl_sparse_d_create_csr directly with jc/ir.
+    //
+    // The index arrays are size_t; copy to MKL_INT64 as required by the
+    // API.
+    const size_t *jc = reader.jc();
+    const size_t *ir = reader.ir();
+
+    cg::mkl::MKLSparse sparse;
+
+    sparse.row_ptr.assign(jc, jc + reader.jc_size());
+    sparse.col_idx.assign(ir, ir + reader.ir_size());
+
+    mkl_sparse_d_create_csr(&sparse.mat, SPARSE_INDEX_BASE_ZERO, reader.rows(),
+                            reader.cols(), sparse.row_ptr.data(),
+                            sparse.row_ptr.data() + 1, sparse.col_idx.data(),
+                            reader.data());
+
+    sparse.descr.type = SPARSE_MATRIX_TYPE_GENERAL;
+
+    return sparse;
+}
+
 static int run_cg(const Args &args) {
     int n = args.A.rows();
     std::vector<double> b(n, 1);
@@ -21,9 +49,9 @@ static int run_cg(const Args &args) {
     switch (args.implementation) {
 #ifdef MKL_CG_ENABLED
     case Implementation::MKL: {
-        const auto A = cg::mkl::MKLSparse{args.A};
+        const auto A = read_mkl(args.A);
         if (args.L.has_value()) {
-            auto L = cg::mkl::MKLSparse{args.L.value()};
+            auto L = read_mkl(args.L.value());
             L.descr.type = SPARSE_MATRIX_TYPE_TRIANGULAR;
             L.descr.mode = SPARSE_FILL_MODE_UPPER;
             L.descr.diag = SPARSE_DIAG_NON_UNIT;
