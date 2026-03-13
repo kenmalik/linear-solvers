@@ -2,6 +2,7 @@
 
 #include "common/mkl_checks.h"
 
+#include <cassert>
 #include <cstring>
 #include <stdexcept>
 
@@ -79,7 +80,7 @@ void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) noexcept {
 // op_a / op_b: 'N' or 'T'
 void dense_mm(char op_a, char op_b, MKL_INT m, MKL_INT n, MKL_INT k,
               double alpha, const double *A, MKL_INT lda, const double *B,
-              MKL_INT ldb, double beta, double *C, MKL_INT ldc) {
+              MKL_INT ldb, double beta, double *C, MKL_INT ldc) noexcept {
     CBLAS_TRANSPOSE ta = (op_a == 'T') ? CblasTrans : CblasNoTrans;
     CBLAS_TRANSPOSE tb = (op_b == 'T') ? CblasTrans : CblasNoTrans;
     cblas_dgemm(CblasColMajor, ta, tb, m, n, k, alpha, A, lda, B, ldb, beta, C,
@@ -91,12 +92,12 @@ void dense_mm(char op_a, char op_b, MKL_INT m, MKL_INT n, MKL_INT k,
 //   Q  - m x n orthonormal matrix (replaces M in output)
 //   R_out - n x n upper triangular factor
 // We use LAPACK dgeqrf + dorgqr.
-void thin_qr(const DenseMatrix &M, DenseMatrix &Q, DenseMatrix &R_out) {
+void thin_qr(const DenseMatrix &M, DenseMatrix &Q,
+             DenseMatrix &R_out) noexcept {
     MKL_INT m = M.rows;
     MKL_INT n = M.cols;
 
-    if (m < n)
-        throw std::runtime_error("thin_qr: requires m >= n");
+    assert(m >= n && "thin_qr: requires m >= n");
 
     // Copy M into Q (we work in-place)
     Q.rows = m;
@@ -106,11 +107,8 @@ void thin_qr(const DenseMatrix &M, DenseMatrix &Q, DenseMatrix &R_out) {
     std::vector<double> tau(n);
 
     // QR factorization
-    lapack_int info =
-        LAPACKE_dgeqrf(LAPACK_COL_MAJOR, m, n, Q.data.data(), m, tau.data());
-    if (info != 0)
-        throw std::runtime_error("LAPACKE_dgeqrf failed, info=" +
-                                 std::to_string(info));
+    MKL_LAPACKE_CHECK(
+        LAPACKE_dgeqrf(LAPACK_COL_MAJOR, m, n, Q.data.data(), m, tau.data()));
 
     // Extract upper triangular R (n x n) from the upper triangle of Q
     R_out = alloc_dense(n, n);
@@ -122,29 +120,18 @@ void thin_qr(const DenseMatrix &M, DenseMatrix &Q, DenseMatrix &R_out) {
     }
 
     // Form Q explicitly
-    info =
-        LAPACKE_dorgqr(LAPACK_COL_MAJOR, m, n, n, Q.data.data(), m, tau.data());
-    if (info != 0)
-        throw std::runtime_error("LAPACKE_dorgqr failed, info=" +
-                                 std::to_string(info));
+    MKL_LAPACKE_CHECK(LAPACKE_dorgqr(LAPACK_COL_MAJOR, m, n, n, Q.data.data(),
+                                     m, tau.data()));
 }
 
 // Invert a small square matrix in-place using LAPACK dgetrf + dgetri.
 void invert_square(std::vector<double> &A_data, MKL_INT n) {
     std::vector<lapack_int> ipiv(n);
 
-    lapack_int info =
-        LAPACKE_dgetrf(LAPACK_COL_MAJOR, n, n, A_data.data(), n, ipiv.data());
-    if (info != 0)
-        throw std::runtime_error(
-            "LAPACKE_dgetrf failed in invert_square, info=" +
-            std::to_string(info));
-
-    info = LAPACKE_dgetri(LAPACK_COL_MAJOR, n, A_data.data(), n, ipiv.data());
-    if (info != 0)
-        throw std::runtime_error(
-            "LAPACKE_dgetri failed in invert_square, info=" +
-            std::to_string(info));
+    MKL_LAPACKE_CHECK(
+        LAPACKE_dgetrf(LAPACK_COL_MAJOR, n, n, A_data.data(), n, ipiv.data()));
+    MKL_LAPACKE_CHECK(
+        LAPACKE_dgetri(LAPACK_COL_MAJOR, n, A_data.data(), n, ipiv.data()));
 }
 } // namespace
 
