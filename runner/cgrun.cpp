@@ -64,7 +64,7 @@ int run_cg(const Args &args) {
 #endif
 #ifdef CUDA_CG_ENABLED
     case Implementation::CUDA: {
-        return run_cuda(args.A, b, x, args.L.value());
+        return run_cuda(args.A, b, x, args.L.value(), 1e-6, n);
     }
 #endif
     default:
