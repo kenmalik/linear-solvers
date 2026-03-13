@@ -1,3 +1,5 @@
+#pragma once
+
 #include <mkl_spblas.h>
 #include <mkl_types.h>
 #include <vector>
