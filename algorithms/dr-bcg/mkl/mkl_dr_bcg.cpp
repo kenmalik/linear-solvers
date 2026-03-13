@@ -1,19 +1,16 @@
 #include "mkl/dr_bcg.h"
 
+#include <cstring>
+#include <stdexcept>
+
 #include <mkl.h>
 #include <mkl_lapacke.h>
 #include <mkl_spblas.h>
-
-#include <cstring>
-#include <stdexcept>
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 namespace {
-using dr_bcg::mkl::CSRMatrix;
-using dr_bcg::mkl::DenseMatrix;
-
 // Allocate a column-major dense matrix of given size (uninitialized)
 DenseMatrix alloc_dense(MKL_INT rows, MKL_INT cols) {
     DenseMatrix m;
