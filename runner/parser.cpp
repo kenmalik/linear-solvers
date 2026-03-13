@@ -27,7 +27,10 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         ("algorithm", "Algorithm to run (cg)", cxxopts::value<std::string>())
         ("implementation", "Implementation to use (mkl, cuda)", cxxopts::value<std::string>())
         ("A", "A matrix's .mat file", cxxopts::value<std::string>())
-        ("L", "L matrix's .mat file", cxxopts::value<std::string>());
+        ("L", "L matrix's .mat file", cxxopts::value<std::string>())
+        ("t,tolerance", "Convergence tolerance", cxxopts::value<double>()->default_value("1e-6"))
+        ("i,max-iterations", "Maximum number of iterations (default: n)", cxxopts::value<int>())
+        ("s,block-size", "Block size (DR-BCG only)", cxxopts::value<int>()->default_value("1"));
     // clang-format on
 
     options.parse_positional({"algorithm", "implementation", "A", "L"});
@@ -73,13 +76,21 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         mat_utils::SpMatReader A_reader{
             result["A"].as<std::string>(), {"Problem"}, "A"};
 
+        double tolerance = result["tolerance"].as<double>();
+        std::optional<int> max_iterations;
+        if (result.count("max-iterations"))
+            max_iterations = result["max-iterations"].as<int>();
+        int block_size = result["block-size"].as<int>();
+
         if (result.count("L")) {
             mat_utils::SpMatReader L_reader{
                 result["L"].as<std::string>(), {}, "L"};
-            return Args{*algorithm, *implementation, std::move(A_reader), std::move(L_reader)};
+            return Args{*algorithm, *implementation, std::move(A_reader), std::move(L_reader),
+                        tolerance, max_iterations, block_size};
         }
 
-        return Args{*algorithm, *implementation, std::move(A_reader), std::nullopt};
+        return Args{*algorithm, *implementation, std::move(A_reader), std::nullopt,
+                    tolerance, max_iterations, block_size};
     } catch (const cxxopts::exceptions::exception &e) {
         std::cerr << e.what() << '\n' << std::endl;
         std::cerr << options.help();

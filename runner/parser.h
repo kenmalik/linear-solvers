@@ -12,6 +12,9 @@ struct Args {
     Implementation implementation;
     mat_utils::SpMatReader A;
     std::optional<mat_utils::SpMatReader> L;
+    double tolerance;
+    std::optional<int> max_iterations;
+    int block_size;
 };
 
 std::optional<Args> parse_args(int argc, char *argv[]);

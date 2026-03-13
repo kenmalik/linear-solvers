@@ -52,6 +52,8 @@ int run_cg(const Args &args) {
     std::vector<double> b(n, 1);
     std::vector<double> x(n, 0);
 
+    int max_iters = args.max_iterations.value_or(n);
+
     std::cerr << "Running solver..." << std::endl;
 
     switch (args.implementation) {
@@ -65,7 +67,7 @@ int run_cg(const Args &args) {
             L.descr.type = SPARSE_MATRIX_TYPE_TRIANGULAR;
             L.descr.mode = SPARSE_FILL_MODE_LOWER;
             L.descr.diag = SPARSE_DIAG_NON_UNIT;
-            return cg::mkl::solve(A, b, x, L, 1e-6, n);
+            return cg::mkl::solve(A, b, x, L, args.tolerance, max_iters);
         } else {
             std::cerr << "Not implemented" << std::endl;
             return -1;
@@ -74,7 +76,7 @@ int run_cg(const Args &args) {
 #endif
 #ifdef CUDA_CG_ENABLED
     case Implementation::CUDA: {
-        return run_cuda(args.A, b, x, args.L.value(), 1e-6, n);
+        return run_cuda(args.A, b, x, args.L.value(), args.tolerance, max_iters);
     }
 #endif
     default:
@@ -86,8 +88,11 @@ int run_cg(const Args &args) {
 
 int run_dr_bcg(const Args &args) {
     int n = args.A.rows();
-    DenseMatrix b{n, 1, std::vector<double>(n, 1)};
-    DenseMatrix x{n, 1, std::vector<double>(n, 0)};
+    int s = args.block_size;
+    DenseMatrix b{n, s, std::vector<double>(n * s, 1)};
+    DenseMatrix x{n, s, std::vector<double>(n * s, 0)};
+
+    int max_iters = args.max_iterations.value_or(n);
 
     std::cerr << "Running solver..." << std::endl;
 
@@ -102,7 +107,7 @@ int run_dr_bcg(const Args &args) {
             L.descr.type = SPARSE_MATRIX_TYPE_TRIANGULAR;
             L.descr.mode = SPARSE_FILL_MODE_LOWER;
             L.descr.diag = SPARSE_DIAG_NON_UNIT;
-            return dr_bcg::mkl::solve(A, L, b, x, 1e-6, n);
+            return dr_bcg::mkl::solve(A, L, b, x, args.tolerance, max_iters);
         } else {
             std::cerr << "Not implemented" << std::endl;
             return -1;
