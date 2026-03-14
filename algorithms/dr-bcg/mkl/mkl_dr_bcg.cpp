@@ -1,5 +1,6 @@
 #include "dr_bcg/mkl.h"
 
+#include "common/log.h"
 #include "common/mkl_checks.h"
 
 #include <cassert>
@@ -207,6 +208,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         sparse_mm(A, 'N', -1.0, X_col1, 1.0, r1);
 
         double rrn = cblas_dnrm2(n, r1.data.data(), 1) / b_norm;
+        LOG_TRACE(rrn);
 
         if (rrn < tolerance)
             break;

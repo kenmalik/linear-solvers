@@ -3,6 +3,7 @@
 #include "dr_bcg/internal/math.h"
 
 #include "common/cuda_checks.h"
+#include "common/log.h"
 
 #include <cstdint>
 #include <functional>
@@ -516,6 +517,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         &residual_norm));
 
             relative_residual_norm = residual_norm / B1_norm;
+            LOG_TRACE(relative_residual_norm);
         }
 
         if (relative_residual_norm < tolerance) {
