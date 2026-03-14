@@ -11,9 +11,7 @@ add_library(cg::mkl ALIAS mkl_cg)
 target_include_directories(mkl_cg PUBLIC include ${COMMON_HEADERS})
 target_compile_features(mkl_cg PRIVATE cxx_std_17)
 
-if(MKL_CG_PRINT_RELATIVE_RESIDUAL_NORMS)
-    target_compile_definitions(mkl_cg PRIVATE PRINT_RRN)
-endif()
+target_compile_definitions(mkl_cg PRIVATE $<$<BOOL:${SOLVERS_VERBOSE}>:SOLVERS_VERBOSE>)
 
 target_compile_options(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
 target_include_directories(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)

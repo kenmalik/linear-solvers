@@ -1,5 +1,6 @@
 #include "cg/cuda.h"
-#include "checks.h"
+#include "common/cuda_checks.h"
+#include "common/log.h"
 
 #include <cassert>
 #include <cmath>
@@ -50,9 +51,10 @@ template <typename T> struct Device_buffers {
 } // namespace
 
 namespace cg::cuda {
-int solve(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t A,
-       cusparseDnVecDescr_t b, cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
-       double tolerance, int max_iterations, bool real_residual) {
+int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
+          cusparseSpMatDescr_t A, cusparseDnVecDescr_t b,
+          cusparseDnVecDescr_t x, cusparseSpMatDescr_t L, double tolerance,
+          int max_iterations, bool real_residual) {
     NVTX3_FUNC_RANGE();
 
     std::int64_t n = 0;
@@ -191,6 +193,8 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas, cusparseSpMatDescr_t
     int iterations = 0;
     while (iterations < max_iterations && residual_norm > tolerance * b_norm) {
         nvtx3::scoped_range iteration_range("iteration");
+
+        LOG_TRACE(residual_norm / b_norm);
 
         iterations += 1;
 
