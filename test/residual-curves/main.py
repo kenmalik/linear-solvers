@@ -43,7 +43,7 @@ def main():
         residuals = pd.Series(res.stderr.splitlines()).astype(float)
         data.setdefault(alg, []).append((impl, residuals))
 
-    plot(data)
+    plot(data, args.dataset)
 
 
 if __name__ == "__main__":

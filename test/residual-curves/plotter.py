@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 
-def plot(data: dict[str, list]):
+def plot(data: dict[str, list], dataset: str):
     fig, ax = plt.subplots(len(data), figsize=(8, 8))
 
     for i, [alg, info] in enumerate(data.items()):
@@ -13,6 +13,6 @@ def plot(data: dict[str, list]):
         ax[i].set_ylabel("Relative Residual Norm")
         ax[i].set_xlabel("Iteration")
 
-    fig.suptitle("Residual Error Curve Comparison", fontweight="bold")
+    fig.suptitle(f"Residual Error Curve Comparison ({dataset})", fontweight="bold")
     plt.tight_layout()
     plt.show()
