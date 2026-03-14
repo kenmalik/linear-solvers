@@ -59,8 +59,6 @@ int run_cg(const Args &args) {
 
     int max_iters = args.max_iterations.value_or(n);
 
-    std::cerr << "Running solver..." << std::endl;
-
     switch (args.implementation) {
 #ifdef MKL_CG_ENABLED
     case Implementation::MKL: {
@@ -99,8 +97,6 @@ int run_dr_bcg(const Args &args) {
     std::vector<double> x(n * s, 0);
 
     int max_iters = args.max_iterations.value_or(n);
-
-    std::cerr << "Running solver..." << std::endl;
 
     switch (args.implementation) {
 #ifdef MKL_DR_BCG_ENABLED

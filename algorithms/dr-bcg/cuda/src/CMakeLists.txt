@@ -24,4 +24,5 @@ target_link_libraries(
 target_compile_definitions(
     cuda_dr_bcg PRIVATE
     $<$<CONFIG:Debug>:CUDA_DR_BCG_DEBUG_BUILD>
+    $<$<BOOL:SOLVERS_VERBOSE>:SOLVERS_VERBOSE>
 )

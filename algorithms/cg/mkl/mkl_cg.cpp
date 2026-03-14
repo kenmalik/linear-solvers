@@ -3,10 +3,11 @@
 #include <mkl_cblas.h>
 #include <mkl_spblas.h>
 
-#ifdef PRINT_RRN
+#include "common/log.h"
+
+#ifdef SOLVERS_VERBOSE
 #include <cmath>
-#include <iostream>
-#endif // PRINT_RRN
+#endif
 
 namespace cg::mkl {
 int solve(const CSRMatrix &A, const std::vector<double> &b,
@@ -55,9 +56,7 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
 
     int iter;
     for (iter = 0; iter < max_iterations; ++iter) {
-#ifdef PRINT_RRN
-        std::cerr << std::sqrt(residual_sq / norm_b_sq) << std::endl;
-#endif // PRINT_RRN
+        LOG_TRACE(std::sqrt(residual_sq / norm_b_sq));
 
         if (residual_sq <= tol_sq) {
             break;
