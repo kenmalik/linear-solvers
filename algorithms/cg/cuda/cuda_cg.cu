@@ -194,7 +194,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
     while (iterations < max_iterations && residual_norm > tolerance * b_norm) {
         nvtx3::scoped_range iteration_range("iteration");
 
-        LOG_TRACE(residual_norm / b_norm);
+        LOG_TRACE(residual_norm);
 
         iterations += 1;
 

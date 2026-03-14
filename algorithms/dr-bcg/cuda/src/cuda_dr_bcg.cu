@@ -516,8 +516,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d.temp, incx,
                                         &residual_norm));
 
+            LOG_TRACE(residual_norm);
             relative_residual_norm = residual_norm / B1_norm;
-            LOG_TRACE(relative_residual_norm);
         }
 
         if (relative_residual_norm < tolerance) {
