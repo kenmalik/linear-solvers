@@ -56,7 +56,7 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
 
     int iter;
     for (iter = 0; iter < max_iterations; ++iter) {
-        LOG_TRACE(std::sqrt(residual_sq));
+        LOG_TRACE(std::sqrt(residual_sq / norm_b_sq));
 
         if (residual_sq <= tol_sq) {
             break;

@@ -12,12 +12,12 @@ def plot(data: dict[str, list], dataset: str):
 
         ax[i, 0].set_title(alg)
         ax[i, 0].legend()
-        ax[i, 0].set_ylabel(r"$\Vert r \Vert$")
+        ax[i, 0].set_ylabel(r"$\frac{\Vert r \Vert}{\Vert b \Vert}$")
         ax[i, 0].set_xlabel("Iteration")
         
         ax[i, 1].set_title(alg)
         ax[i, 1].legend()
-        ax[i, 1].set_ylabel(r"$\log \left( \Vert r \Vert \right)$")
+        ax[i, 1].set_ylabel(r"$\log \left( \frac{\Vert r \Vert}{\Vert b \Vert} \right)$")
         ax[i, 1].set_xlabel("Iteration")
 
     fig.suptitle(f"Residual Error Curve Comparison ({dataset})", fontweight="bold")

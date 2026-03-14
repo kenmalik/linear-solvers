@@ -3,7 +3,7 @@ function [X, iters] = dr_bcg(A, B, X, L, tol, max_iters)
     [w,sigma] = qr(L^-1 * R,'econ');
     s = (L^-1)' * w;
 
-    B_norm = norm(B(:,1));
+    b1_norm = norm(B(:,1));
 
     iters = 0;
     for k = 1:max_iters
@@ -13,9 +13,9 @@ function [X, iters] = dr_bcg(A, B, X, L, tol, max_iters)
         X = X + s * xi * sigma;
 
         r_norm = norm(B(:,1) - A * X(:,1));
-        fprintf("%.15e\n", r_norm);
+        fprintf("%.15e\n", r_norm / b1_norm);
 
-        if r_norm / B_norm < tol
+        if r_norm / b1_norm < tol
             break
         else
             [w,zeta] = qr(w - (L^-1) * A * s * xi,'econ');

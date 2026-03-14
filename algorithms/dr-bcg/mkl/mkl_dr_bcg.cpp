@@ -208,7 +208,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         sparse_mm(A, 'N', -1.0, X_col1, 1.0, r1);
 
         double residual_norm = cblas_dnrm2(n, r1.data.data(), 1);
-        LOG_TRACE(residual_norm);
+        LOG_TRACE(residual_norm / b_norm);
 
         if (residual_norm / b_norm < tolerance)
             break;

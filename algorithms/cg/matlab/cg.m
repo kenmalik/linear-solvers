@@ -23,7 +23,7 @@ function [x, iters] = cg(A, b, x, L, tol, max_iters, real_residual)
         end
 
         r_norm = norm(r);
-        fprintf("%.15e\n", r_norm);
+        fprintf("%.15e\n", r_norm / b_norm);
 
         s = L' \ (L \ r);
 
