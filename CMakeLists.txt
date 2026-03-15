@@ -11,6 +11,7 @@ option(SOLVERS_BUILD_TESTS "Build tests" OFF)
 option(SOLVERS_BUILD_RUNNER "Build runner program" OFF)
 
 option(SOLVERS_VERBOSE "Enable verbose output" OFF)
+option(SOLVERS_ENABLE_TIMER "Enable timing output" OFF)
 
 set(COMMON_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
