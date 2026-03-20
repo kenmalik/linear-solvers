@@ -366,7 +366,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         cusparseCreateDnMat(&R, n, s, n, d_R, CUDA_R_64F, CUSPARSE_ORDER_COL));
 
     {
-        nvtx3::scoped_range R_range{"R"};
+        nvtx3::scoped_range R_range{"R = B - A * X"};
 
         // R = B - A * X
         std::size_t buffer_size;
@@ -394,7 +394,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     }
 
     {
-        nvtx3::scoped_range w_sigma_initial_range{"w_sigma_initial"};
+        nvtx3::scoped_range w_sigma_initial_range{"[w, sigma] = QR(L^-1 * R)"};
 
         // [w, sigma] = qr(L^-1 * R, 'econ')
         sptri_left_multiply<double>(handles.cusparse, temp,
@@ -408,7 +408,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUSPARSE_CHECK(cusparseDestroyDnMat(R));
 
     {
-        nvtx3::scoped_range s_initial_range{"s_initial"};
+        nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
 
         // s = (L^-1)' * w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(double) * n * s,
@@ -425,7 +425,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         ++iterations;
 
         {
-            nvtx3::scoped_range xi_range{"xi"};
+            nvtx3::scoped_range xi_range{"xi = (s' * As)^-1"};
 
             // xi = (s' * A * s)^-1
             std::size_t buffer_size;
@@ -462,7 +462,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
-            nvtx3::scoped_range X_range{"X"};
+            nvtx3::scoped_range X_range{"X = X + s * xi * sigma"};
 
             // X = X + s * xi * sigma
             constexpr double alpha_1 = 1.0;
@@ -480,7 +480,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         double relative_residual_norm = 0;
         {
-            nvtx3::scoped_range rrn_range{"rrn"};
+            nvtx3::scoped_range rrn_range{
+                "norm(B(:,1) - A * X(:,1)) / norm(B(:,1))"};
 
             // norm(B(:,1) - A * X(:,1)) / norm(B(:,1))
             constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
@@ -525,7 +526,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
-            nvtx3::scoped_range w_zeta_range{"w_zeta"};
+            nvtx3::scoped_range w_zeta_range{
+                "[w, zeta] = QR(w - L^{-1} * A * s * xi)"};
 
             // [w, zeta] = qr(w - L^-1 * A * s * xi, 'econ')
 
@@ -573,7 +575,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
-            nvtx3::scoped_range s_range{"s"};
+            nvtx3::scoped_range s_range{"s = (L^-1)' * w + s * zeta'"};
 
             // s = (L^-1)' * w + s * zeta'
             constexpr double alpha = 1.0;
@@ -599,7 +601,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
 
         {
-            nvtx3::scoped_range sigma_range{"sigma"};
+            nvtx3::scoped_range sigma_range{"sigma = zeta * sigma"};
 
             // sigma = zeta * sigma
             constexpr double alpha = 1.0;
