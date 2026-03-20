@@ -53,17 +53,20 @@ def main():
     if args.impl == "cuda":
         data["Range"] = data["Range"].str.slice(start=1)
     data = data[data["Range"].isin(ranges)]
+    data["Range"] = pd.Categorical(data["Range"], categories=ranges, ordered=True)
+    data = data.sort_values("Range")
 
     fig, ax = plt.subplots()
 
     bottom = 0
-    for _, row in data[["Range", "Avg (ms)"]].iterrows():  # type: ignore
+    for _, row in data[["Range", "Avg (ms)"]].iloc[::-1].iterrows():  # type: ignore
         label = row["Range"]
         ax.bar("Runtime", row["Avg (ms)"], 0.5, bottom=bottom, label=label)
         bottom += row["Avg (ms)"]
 
+    handles, labels = ax.get_legend_handles_labels()
     ax.set_ylabel("Avg (ms) per iteration")
-    ax.legend(loc="upper right", fontsize="small")
+    ax.legend(handles[::-1], labels[::-1], loc="upper right", fontsize="small")
     fig.suptitle(f"{args.impl.upper()} {args.algo.upper()} Runtime Breakdown")
 
     plt.tight_layout()
