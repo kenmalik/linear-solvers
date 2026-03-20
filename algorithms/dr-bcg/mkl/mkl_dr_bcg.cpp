@@ -150,7 +150,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
     g_timer.stop("R = B - A * X");
 
     // [w, sigma] = [w, sigma] = qr(L^-1 * R, 'econ')
-    g_timer.start("[w, sigma] = QR(L^-1 * R)");
+    g_timer.start("[w sigma] = QR(L^-1 * R)");
 
     // tmp = L^{-1} * R
     DenseMatrix tmp = R;
@@ -158,7 +158,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
 
     DenseMatrix w, sigma;
     thin_qr(tmp, w, sigma);
-    g_timer.stop("[w, sigma] = QR(L^-1 * R)");
+    g_timer.stop("[w sigma] = QR(L^-1 * R)");
 
     // s = (L^-1)' * w
     g_timer.start("s = (L^-1)' * w");
@@ -213,7 +213,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         // ------------------------------------------------------------------
         // Convergence check: rrn = ||B(:,1) - A*X(:,1)|| / ||B(:,1)||
         // ------------------------------------------------------------------
-        g_timer.start("norm(B(:,1) - A * X(:,1)) / norm(B(:,1))");
+        g_timer.start("norm(B1 - A * X1) / norm(B1)");
         DenseMatrix X_col1 = alloc_dense(n, 1);
         std::copy(X.data.begin(), X.data.begin() + n, X_col1.data.begin());
 
@@ -223,7 +223,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
 
         double residual_norm = cblas_dnrm2(n, r1.data.data(), 1);
         LOG_TRACE(residual_norm / b_norm);
-        g_timer.stop("norm(B(:,1) - A * X(:,1)) / norm(B(:,1))");
+        g_timer.stop("norm(B1 - A * X1) / norm(B1)");
 
         if (residual_norm / b_norm < tolerance) {
             g_timer.stop("iteration");
@@ -235,7 +235,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         // ------------------------------------------------------------------
         // tmp = L^{-1} * A * s * xi   (n x nrhs)
         //     = L^{-1} * As * xi
-        g_timer.start("[w, zeta] = QR(w - L^{-1} * A * s * xi)");
+        g_timer.start("[w zeta] = QR(w - L^{-1} * A * s * xi)");
         // Step 1: As_xi = As * xi  (n x nrhs)
         DenseMatrix As_xi = alloc_dense(n, nrhs);
         dense_mm('N', 'N', n, nrhs, nrhs, 1.0, As.data.data(), n,
@@ -252,7 +252,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         // [w, zeta] = QR(w_new_input)
         DenseMatrix zeta;
         thin_qr(w_new_input, w, zeta); // w: n x nrhs, zeta: nrhs x nrhs
-        g_timer.stop("[w, zeta] = QR(w - L^{-1} * A * s * xi)");
+        g_timer.stop("[w zeta] = QR(w - L^{-1} * A * s * xi)");
 
         // s = (L^-1)' * w + s * zeta'
         g_timer.start("s = (L^-1)' * w + s * zeta'");

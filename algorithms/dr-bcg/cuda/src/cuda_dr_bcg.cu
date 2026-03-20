@@ -394,7 +394,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     }
 
     {
-        nvtx3::scoped_range w_sigma_initial_range{"[w, sigma] = QR(L^-1 * R)"};
+        nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(L^-1 * R)"};
 
         // [w, sigma] = qr(L^-1 * R, 'econ')
         sptri_left_multiply<double>(handles.cusparse, temp,
@@ -480,8 +480,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         double relative_residual_norm = 0;
         {
-            nvtx3::scoped_range rrn_range{
-                "norm(B(:,1) - A * X(:,1)) / norm(B(:,1))"};
+            nvtx3::scoped_range rrn_range{"norm(B1 - A * X1) / norm(B1)"};
 
             // norm(B(:,1) - A * X(:,1)) / norm(B(:,1))
             constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
@@ -527,7 +526,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         {
             nvtx3::scoped_range w_zeta_range{
-                "[w, zeta] = QR(w - L^{-1} * A * s * xi)"};
+                "[w zeta] = QR(w - L^{-1} * A * s * xi)"};
 
             // [w, zeta] = qr(w - L^-1 * A * s * xi, 'econ')
 

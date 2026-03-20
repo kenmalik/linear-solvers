@@ -17,12 +17,12 @@ cg_ranges = (
 
 dr_bcg_ranges = (
     "R = B - A * X",
-    "[w, sigma] = QR(L^-1 * R)",
+    "[w sigma] = QR(L^-1 * R)",
     "s = (L^-1)' * w",
     "xi = (s' * As)^-1",
     "X = X + s * xi * sigma",
-    "norm(B(:,1) - A * X(:,1)) / norm(B(:,1))",
-    "[w, zeta] = QR(w - L^{-1} * A * s * xi)",
+    "norm(B1 - A * X1) / norm(B1)",
+    "[w zeta] = QR(w - L^{-1} * A * s * xi)",
     "s = (L^-1)' * w + s * zeta'",
     "sigma = zeta * sigma",
 )
