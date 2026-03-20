@@ -32,13 +32,12 @@ template <bool Enabled> class SectionTimer {
 
     void report(std::ostream &out = std::cout) const {
         if constexpr (Enabled) {
-            out << "\n--- Timing Report ---\n";
+            out << "Range,Total (ms),Avg (ms),Instances\n";
             for (const auto &[name, total] : totals_) {
                 int n = counts_.at(name);
-                out << name << ": " << total << " ms total, " << total / n
-                    << " ms avg (" << n << " calls)\n";
+                out << name << ',' << total << "," << total / n << ',' << n
+                    << '\n';
             }
-            out << "---------------------\n";
         }
     }
 
