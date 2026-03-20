@@ -76,7 +76,9 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
                         d.data(), 0.0, q.data());
         g_timer.stop("q = A * d");
 
+        g_timer.start("alpha = delta / d'q");
         double alpha = delta_new / cblas_ddot(n, d.data(), 1, q.data(), 1);
+        g_timer.stop("alpha = delta / d'q");
 
         // x = x + alpha * d
         g_timer.start("x = x + alpha * d");
@@ -97,16 +99,20 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
             g_timer.stop("r = r - alpha * q");
         }
 
+        g_timer.start("residual_sq = r'r");
         residual_sq = cblas_ddot(n, r.data(), 1, r.data(), 1);
+        g_timer.stop("residual_sq = r'r");
 
         // s = M^{-1} * r
         g_timer.start("s = M^{-1} * r");
         apply_precond(r, s);
         g_timer.stop("s = M^{-1} * r");
 
+        g_timer.start("beta = delta_new / delta_old");
         double delta_old = delta_new;
         delta_new = cblas_ddot(n, r.data(), 1, s.data(), 1);
         double beta = delta_new / delta_old;
+        g_timer.stop("beta = delta_new / delta_old");
 
         // d = s + beta * d
         g_timer.start("d = s + beta * d");
