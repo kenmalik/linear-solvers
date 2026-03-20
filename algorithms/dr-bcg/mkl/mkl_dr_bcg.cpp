@@ -149,23 +149,22 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
     sparse_mm(A, 'N', -1.0, X, 1.0, R); // R = B - A*X
     g_timer.stop("R = B - A * X");
 
-    // tmp = L^{-1} * R   (forward triangular solve: L * tmp = R)
-    g_timer.start("tmp = L^{-1} * R");
-    DenseMatrix tmp = R;      // copy R
-    sparse_trsm(L, 'N', tmp); // tmp = L^{-1} * R
-    g_timer.stop("tmp = L^{-1} * R");
+    // [w, sigma] = [w, sigma] = qr(L^-1 * R, 'econ')
+    g_timer.start("[w, sigma] = QR(L^-1 * R)");
 
-    // [w, sigma] = thin QR of tmp
-    g_timer.start("thin QR(tmp)");
+    // tmp = L^{-1} * R
+    DenseMatrix tmp = R;
+    sparse_trsm(L, 'N', tmp);
+
     DenseMatrix w, sigma;
-    thin_qr(tmp, w, sigma); // w: n x nrhs, sigma: nrhs x nrhs
-    g_timer.stop("thin QR(tmp)");
+    thin_qr(tmp, w, sigma);
+    g_timer.stop("[w, sigma] = QR(L^-1 * R)");
 
-    // s = (L^{-1})^T * w   (backward triangular solve: L^T * s = w)
-    g_timer.start("s = L^{-T} * w");
-    DenseMatrix s = w;      // copy w
-    sparse_trsm(L, 'T', s); // s = L^{-T} * w
-    g_timer.stop("s = L^{-T} * w");
+    // s = (L^-1)' * w
+    g_timer.start("s = (L^-1)' * w");
+    DenseMatrix s = w;
+    sparse_trsm(L, 'T', s);
+    g_timer.stop("s = (L^-1)' * w");
 
     // ------------------------------------------------------------------
     // Precompute norm of first column of B for convergence check
@@ -184,22 +183,20 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         g_timer.start("iteration");
 
         // xi = (s' * A * s)^{-1}   (nrhs x nrhs matrix)
+        g_timer.start("xi = (s' * As)^-1");
         // Step 1: As = A * s  (n x nrhs)
-        g_timer.start("As = A * s");
         DenseMatrix As = alloc_dense(n, nrhs);
         As.data.assign(As.data.size(), 0.0);
         sparse_mm(A, 'N', 1.0, s, 0.0, As);
-        g_timer.stop("As = A * s");
 
         // Step 2: xi_inv = s' * As  (nrhs x nrhs)
-        g_timer.start("xi = (s' * As)^{-1}");
         DenseMatrix xi(alloc_dense(nrhs, nrhs));
         dense_mm('T', 'N', nrhs, nrhs, n, 1.0, s.data.data(), n, As.data.data(),
                  n, 0.0, xi.data.data(), nrhs);
 
         // Step 3: xi = xi_inv^{-1}
         invert_square(xi.data, nrhs);
-        g_timer.stop("xi = (s' * As)^{-1}");
+        g_timer.stop("xi = (s' * As)^-1");
 
         // X = X + s * xi * sigma
         g_timer.start("X = X + s * xi * sigma");
@@ -216,7 +213,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         // ------------------------------------------------------------------
         // Convergence check: rrn = ||B(:,1) - A*X(:,1)|| / ||B(:,1)||
         // ------------------------------------------------------------------
-        g_timer.start("convergence check");
+        g_timer.start("norm(B(:,1) - A * X(:,1)) / norm(B(:,1))");
         DenseMatrix X_col1 = alloc_dense(n, 1);
         std::copy(X.data.begin(), X.data.begin() + n, X_col1.data.begin());
 
@@ -226,7 +223,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
 
         double residual_norm = cblas_dnrm2(n, r1.data.data(), 1);
         LOG_TRACE(residual_norm / b_norm);
-        g_timer.stop("convergence check");
+        g_timer.stop("norm(B(:,1) - A * X(:,1)) / norm(B(:,1))");
 
         if (residual_norm / b_norm < tolerance) {
             g_timer.stop("iteration");
@@ -238,29 +235,27 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         // ------------------------------------------------------------------
         // tmp = L^{-1} * A * s * xi   (n x nrhs)
         //     = L^{-1} * As * xi
+        g_timer.start("[w, zeta] = QR(w - L^{-1} * A * s * xi)");
         // Step 1: As_xi = As * xi  (n x nrhs)
-        g_timer.start("As_xi = L^{-1} * As * xi");
         DenseMatrix As_xi = alloc_dense(n, nrhs);
         dense_mm('N', 'N', n, nrhs, nrhs, 1.0, As.data.data(), n,
                  xi.data.data(), nrhs, 0.0, As_xi.data.data(), n);
 
         // Step 2: L^{-1} * As_xi  (forward solve)
         sparse_trsm(L, 'N', As_xi); // As_xi = L^{-1} * A * s * xi
-        g_timer.stop("As_xi = L^{-1} * As * xi");
 
         // w_new_input = w - L^{-1} * A * s * xi
         DenseMatrix w_new_input = alloc_dense(n, nrhs);
         for (size_t i = 0; i < w_new_input.data.size(); ++i)
             w_new_input.data[i] = w.data[i] - As_xi.data[i];
 
-        // [w, zeta] = thin QR(w_new_input)
-        g_timer.start("thin QR(w_new_input)");
+        // [w, zeta] = QR(w_new_input)
         DenseMatrix zeta;
         thin_qr(w_new_input, w, zeta); // w: n x nrhs, zeta: nrhs x nrhs
-        g_timer.stop("thin QR(w_new_input)");
+        g_timer.stop("[w, zeta] = QR(w - L^{-1} * A * s * xi)");
 
-        // s = L^{-T} * w + s * zeta'
-        g_timer.start("s = L^{-T} * w + s * zeta'");
+        // s = (L^-1)' * w + s * zeta'
+        g_timer.start("s = (L^-1)' * w + s * zeta'");
         DenseMatrix Linv_T_w = w;
         sparse_trsm(L, 'T', Linv_T_w); // Linv_T_w = L^{-T} * w
 
@@ -273,7 +268,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         for (size_t i = 0; i < s_new.data.size(); ++i)
             s_new.data[i] += Linv_T_w.data[i];
         s = std::move(s_new);
-        g_timer.stop("s = L^{-T} * w + s * zeta'");
+        g_timer.stop("s = (L^-1)' * w + s * zeta'");
 
         // sigma = zeta * sigma
         g_timer.start("sigma = zeta * sigma");
