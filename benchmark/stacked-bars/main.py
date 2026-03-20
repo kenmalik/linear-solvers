@@ -2,6 +2,7 @@ import argparse
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib import colormaps
 
 cg_ranges = (
     "s = M^{-1} * r",
@@ -27,6 +28,15 @@ dr_bcg_ranges = (
     "sigma = zeta * sigma",
 )
 
+_pastel = [colormaps["Set1"](i) for i in range(9)]
+cg_colors = {name: _pastel[i] for i, name in enumerate(cg_ranges)}
+dr_bcg_colors = {name: _pastel[i] for i, name in enumerate(dr_bcg_ranges)}
+
+colors_by_algo = {
+    "cg": cg_colors,
+    "dr-bcg": dr_bcg_colors,
+}
+
 ranges_by_impl_algo = {
     "mkl": {
         "cg": cg_ranges,
@@ -48,6 +58,7 @@ def main():
     args = parser.parse_args()
 
     ranges = ranges_by_impl_algo[args.impl][args.algo]
+    colors = colors_by_algo[args.algo]
 
     data = pd.read_csv(args.file)
     if args.impl == "cuda":
@@ -61,7 +72,7 @@ def main():
     bottom = 0
     for _, row in data[["Range", "Avg (ms)"]].iloc[::-1].iterrows():  # type: ignore
         label = row["Range"]
-        ax.bar("Runtime", row["Avg (ms)"], 0.5, bottom=bottom, label=label)
+        ax.bar("Runtime", row["Avg (ms)"], 0.5, bottom=bottom, label=label, color=colors[label])
         bottom += row["Avg (ms)"]
 
     handles, labels = ax.get_legend_handles_labels()
