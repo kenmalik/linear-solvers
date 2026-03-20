@@ -15,7 +15,7 @@ cg_ranges = (
     "beta = delta_new / delta_old",
 )
 
-dr_bcg_ranges = (
+dr_bcg_mkl_ranges = (
     "s = L^{-T} * w + s * zeta'",
     "As_xi = L^{-1} * As * xi",
     "convergence check",
@@ -26,9 +26,24 @@ dr_bcg_ranges = (
     "sigma = zeta * sigma",
 )
 
-ranges_by_algo = {
-    "cg": cg_ranges,
-    "dr-bcg": dr_bcg_ranges,
+dr_bcg_cuda_ranges = (
+    ":xi",
+    ":X",
+    ":rrn",
+    ":w_zeta",
+    ":s",
+    ":sigma",
+)
+
+ranges_by_impl_algo = {
+    "mkl": {
+        "cg": cg_ranges,
+        "dr-bcg": dr_bcg_mkl_ranges,
+    },
+    "cuda": {
+        "cg": cg_ranges,
+        "dr-bcg": dr_bcg_cuda_ranges,
+    },
 }
 
 
@@ -36,24 +51,29 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("file")
     parser.add_argument("--algo", choices=["cg", "dr-bcg"], required=True)
+    parser.add_argument("--impl", choices=["mkl", "cuda"], required=True)
 
     args = parser.parse_args()
 
-    ranges = ranges_by_algo[args.algo]
+    ranges = ranges_by_impl_algo[args.impl][args.algo]
 
     data = pd.read_csv(args.file)
+    print(data)
     data = data[data["Range"].isin(ranges)]
 
     fig, ax = plt.subplots()
 
     bottom = 0
     for _, row in data[["Range", "Avg (ms)"]].iterrows():  # type: ignore
-        ax.bar("Runtime", row["Avg (ms)"], 0.5, bottom=bottom, label=row["Range"])
+        label = row["Range"]
+        if args.impl == "cuda":
+            label = label[1:]
+        ax.bar("Runtime", row["Avg (ms)"], 0.5, bottom=bottom, label=label)
         bottom += row["Avg (ms)"]
 
     ax.set_ylabel("Avg (ms) per iteration")
     ax.legend(loc="upper right", fontsize="small")
-    fig.suptitle(f"MKL {args.algo.upper()} Runtime Breakdown")
+    fig.suptitle(f"{args.impl.upper()} {args.algo.upper()} Runtime Breakdown")
 
     plt.tight_layout()
     plt.show()
