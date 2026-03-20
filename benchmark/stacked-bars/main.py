@@ -54,6 +54,7 @@ def main():
     parser.add_argument("file")
     parser.add_argument("--algo", choices=["cg", "dr-bcg"], required=True)
     parser.add_argument("--impl", choices=["mkl", "cuda"], required=True)
+    parser.add_argument("-o", "--output")
 
     args = parser.parse_args()
 
@@ -72,7 +73,14 @@ def main():
     bottom = 0
     for _, row in data[["Range", "Avg (ms)"]].iloc[::-1].iterrows():  # type: ignore
         label = row["Range"]
-        ax.bar("Runtime", row["Avg (ms)"], 0.5, bottom=bottom, label=label, color=colors[label])
+        ax.bar(
+            "Runtime",
+            row["Avg (ms)"],
+            0.5,
+            bottom=bottom,
+            label=label,
+            color=colors[label],
+        )
         bottom += row["Avg (ms)"]
 
     handles, labels = ax.get_legend_handles_labels()
@@ -81,7 +89,11 @@ def main():
     fig.suptitle(f"{args.impl.upper()} {args.algo.upper()} Runtime Breakdown")
 
     plt.tight_layout()
-    plt.show()
+
+    if args.output:
+        plt.savefig(args.output)
+    else:
+        plt.show()
 
 
 if __name__ == "__main__":
