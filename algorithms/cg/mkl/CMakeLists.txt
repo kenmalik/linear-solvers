@@ -11,7 +11,9 @@ add_library(cg::mkl ALIAS mkl_cg)
 target_include_directories(mkl_cg PUBLIC include ${COMMON_HEADERS})
 target_compile_features(mkl_cg PRIVATE cxx_std_17)
 
-target_compile_definitions(mkl_cg PRIVATE $<$<BOOL:${SOLVERS_VERBOSE}>:SOLVERS_VERBOSE>)
+target_compile_definitions(mkl_cg PRIVATE
+    $<$<BOOL:${SOLVERS_VERBOSE}>:SOLVERS_VERBOSE>
+    $<$<BOOL:${SOLVERS_ENABLE_TIMER}>:ENABLE_TIMER>)
 
 target_compile_options(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
 target_include_directories(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)

@@ -9,6 +9,8 @@
 #include <cmath>
 #endif
 
+#include "common/timer.h"
+
 namespace cg::mkl {
 int solve(const CSRMatrix &A, const std::vector<double> &b,
           std::vector<double> &x, const CSRMatrix &L, double tolerance,
@@ -44,12 +46,16 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
     };
 
     // r = b - A * x
+    g_timer.start("r = b - A * x");
     cblas_dcopy(n, b.data(), 1, r.data(), 1);
     mkl_sparse_d_mv(SPARSE_OPERATION_NON_TRANSPOSE, -1.0, A.mat, A.descr,
                     x.data(), 1.0, r.data());
+    g_timer.stop("r = b - A * x");
 
     // d = M^{-1} * r
+    g_timer.start("d = M^{-1} * r");
     apply_precond(r, d);
+    g_timer.stop("d = M^{-1} * r");
 
     double delta_new = cblas_ddot(n, r.data(), 1, d.data(), 1);
     double residual_sq = cblas_ddot(n, r.data(), 1, r.data(), 1);
@@ -62,38 +68,62 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
             break;
         }
 
+        g_timer.start("iteration");
+
         // q = A * d
+        g_timer.start("q = A * d");
         mkl_sparse_d_mv(SPARSE_OPERATION_NON_TRANSPOSE, 1.0, A.mat, A.descr,
                         d.data(), 0.0, q.data());
+        g_timer.stop("q = A * d");
 
+        g_timer.start("alpha = delta / d'q");
         double alpha = delta_new / cblas_ddot(n, d.data(), 1, q.data(), 1);
+        g_timer.stop("alpha = delta / d'q");
 
         // x = x + alpha * d
+        g_timer.start("x = x + alpha * d");
         cblas_daxpy(n, alpha, d.data(), 1, x.data(), 1);
+        g_timer.stop("x = x + alpha * d");
 
         if (real_residual) {
-            // r = b - A * x  (exact recomputation avoids accumulated error)
+            // r = b - A * x
+            g_timer.start("r = b - A * x");
             cblas_dcopy(n, b.data(), 1, r.data(), 1);
             mkl_sparse_d_mv(SPARSE_OPERATION_NON_TRANSPOSE, -1.0, A.mat,
                             A.descr, x.data(), 1.0, r.data());
+            g_timer.stop("r = b - A * x");
         } else {
             // r = r - alpha * q
+            g_timer.start("r = r - alpha * q");
             cblas_daxpy(n, -alpha, q.data(), 1, r.data(), 1);
+            g_timer.stop("r = r - alpha * q");
         }
 
+        g_timer.start("residual_sq = r'r");
         residual_sq = cblas_ddot(n, r.data(), 1, r.data(), 1);
+        g_timer.stop("residual_sq = r'r");
 
         // s = M^{-1} * r
+        g_timer.start("s = M^{-1} * r");
         apply_precond(r, s);
+        g_timer.stop("s = M^{-1} * r");
 
+        g_timer.start("beta = delta_new / delta_old");
         double delta_old = delta_new;
         delta_new = cblas_ddot(n, r.data(), 1, s.data(), 1);
         double beta = delta_new / delta_old;
+        g_timer.stop("beta = delta_new / delta_old");
 
         // d = s + beta * d
+        g_timer.start("d = s + beta * d");
         cblas_dscal(n, beta, d.data(), 1);
         cblas_daxpy(n, 1.0, s.data(), 1, d.data(), 1);
+        g_timer.stop("d = s + beta * d");
+
+        g_timer.stop("iteration");
     }
+
+    g_timer.report();
 
     return iter;
 }
