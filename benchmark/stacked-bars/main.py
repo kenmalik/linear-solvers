@@ -15,34 +15,26 @@ cg_ranges = (
     "beta = delta_new / delta_old",
 )
 
-dr_bcg_mkl_ranges = (
-    "s = L^{-T} * w + s * zeta'",
-    "As_xi = L^{-1} * As * xi",
-    "convergence check",
-    "As = A * s",
-    "thin QR(w_new_input)",
+dr_bcg_ranges = (
+    "R = B - A * X",
+    "[w, sigma] = QR(L^-1 * R)",
+    "s = (L^-1)' * w",
+    "xi = (s' * As)^-1",
     "X = X + s * xi * sigma",
-    "xi = (s' * As)^{-1}",
+    "norm(B(:,1) - A * X(:,1)) / norm(B(:,1))",
+    "[w, zeta] = QR(w - L^{-1} * A * s * xi)",
+    "s = (L^-1)' * w + s * zeta'",
     "sigma = zeta * sigma",
-)
-
-dr_bcg_cuda_ranges = (
-    ":xi",
-    ":X",
-    ":rrn",
-    ":w_zeta",
-    ":s",
-    ":sigma",
 )
 
 ranges_by_impl_algo = {
     "mkl": {
         "cg": cg_ranges,
-        "dr-bcg": dr_bcg_mkl_ranges,
+        "dr-bcg": dr_bcg_ranges,
     },
     "cuda": {
         "cg": cg_ranges,
-        "dr-bcg": dr_bcg_cuda_ranges,
+        "dr-bcg": dr_bcg_ranges,
     },
 }
 
@@ -58,7 +50,8 @@ def main():
     ranges = ranges_by_impl_algo[args.impl][args.algo]
 
     data = pd.read_csv(args.file)
-    print(data)
+    if args.impl == "cuda":
+        data["Range"] = data["Range"].str.slice(start=1)
     data = data[data["Range"].isin(ranges)]
 
     fig, ax = plt.subplots()
@@ -66,8 +59,6 @@ def main():
     bottom = 0
     for _, row in data[["Range", "Avg (ms)"]].iterrows():  # type: ignore
         label = row["Range"]
-        if args.impl == "cuda":
-            label = label[1:]
         ax.bar("Runtime", row["Avg (ms)"], 0.5, bottom=bottom, label=label)
         bottom += row["Avg (ms)"]
 
