@@ -81,9 +81,17 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     double *d_B = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(B, reinterpret_cast<void **>(&d_B)));
 
+    double *d_norm = nullptr;
+    CUDA_CHECK(cudaMallocAsync(&d_norm, sizeof(double), stream));
+    CUBLAS_CHECK(
+        cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
+
     constexpr int incx = 1;
+    CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d_B, incx, d_norm));
     double B1_norm = 0;
-    cublasDnrm2_v2(handles.cublas, n, d_B, incx, &B1_norm);
+    CUDA_CHECK(cudaMemcpyAsync(&B1_norm, d_norm, sizeof(double),
+                               cudaMemcpyDeviceToHost, stream));
+    CUDA_CHECK(cudaStreamSynchronize(stream));
 
     double *d_R = nullptr;
     CUDA_CHECK(cudaMallocAsync(&d_R, sizeof(double) * n * s, stream));
@@ -161,15 +169,15 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         std::size_t buf_xi = 0;
         std::size_t buf_rrn = 0;
         std::size_t buf_w_zeta = 0;
-        CUSPARSE_CHECK(cusparseSpMM_bufferSize(handles.cusparse, op_nt, op_nt,
-            &alpha_pos, A, s_desc, &beta_zero, temp, CUDA_R_64F,
-            CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
-        CUSPARSE_CHECK(cusparseSpMV_bufferSize(handles.cusparse, op_nt,
-            &alpha_neg, A, X1, &beta_pos, temp1, CUDA_R_64F,
-            CUSPARSE_SPMV_ALG_DEFAULT, &buf_rrn));
-        CUSPARSE_CHECK(cusparseSpMM_bufferSize(handles.cusparse, op_nt, op_nt,
-            &alpha_neg, A, temp, &beta_pos, w_desc, CUDA_R_64F,
-            CUSPARSE_SPMM_ALG_DEFAULT, &buf_w_zeta));
+        CUSPARSE_CHECK(cusparseSpMM_bufferSize(
+            handles.cusparse, op_nt, op_nt, &alpha_pos, A, s_desc, &beta_zero,
+            temp, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
+        CUSPARSE_CHECK(cusparseSpMV_bufferSize(
+            handles.cusparse, op_nt, &alpha_neg, A, X1, &beta_pos, temp1,
+            CUDA_R_64F, CUSPARSE_SPMV_ALG_DEFAULT, &buf_rrn));
+        CUSPARSE_CHECK(cusparseSpMM_bufferSize(
+            handles.cusparse, op_nt, op_nt, &alpha_neg, A, temp, &beta_pos,
+            w_desc, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT, &buf_w_zeta));
         std::size_t scratch_size = std::max({buf_xi, buf_rrn, buf_w_zeta});
         if (scratch_size > 0) {
             CUDA_CHECK(cudaMallocAsync(&scratch_d, scratch_size, stream));
@@ -241,10 +249,12 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         &beta, temp1, compute_type, alg,
                                         scratch_d));
 
-            constexpr int incx = 1;
+            CUBLAS_CHECK(
+                cublasDnrm2_v2(handles.cublas, n, d.temp, incx, d_norm));
             double residual_norm = 0;
-            CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d.temp, incx,
-                                        &residual_norm));
+            CUDA_CHECK(cudaMemcpyAsync(&residual_norm, d_norm, sizeof(double),
+                                       cudaMemcpyDeviceToHost, stream));
+            CUDA_CHECK(cudaStreamSynchronize(stream));
 
             relative_residual_norm = residual_norm / B1_norm;
         }
@@ -272,8 +282,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, spmm_op, spmm_op,
-                                        &spmm_alpha, A, temp, &spmm_beta, w_desc,
-                                        compute_type, alg, scratch_d));
+                                        &spmm_alpha, A, temp, &spmm_beta,
+                                        w_desc, compute_type, alg, scratch_d));
 
             qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
                              d.zeta, n, s, d.w);
@@ -317,6 +327,9 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
+    CUBLAS_CHECK(
+        cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_HOST));
+    CUDA_CHECK(cudaFreeAsync(d_norm, stream));
     CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     CUSPARSE_CHECK(cusparseDestroyDnMat(s_desc));
     CUSPARSE_CHECK(cusparseDestroyDnMat(w_desc));
@@ -367,9 +380,17 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     double *d_B = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(B, reinterpret_cast<void **>(&d_B)));
 
+    double *d_norm = nullptr;
+    CUDA_CHECK(cudaMallocAsync(&d_norm, sizeof(double), stream));
+    CUBLAS_CHECK(
+        cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
+
     constexpr int incx = 1;
+    CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d_B, incx, d_norm));
     double B1_norm = 0;
-    cublasDnrm2_v2(handles.cublas, n, d_B, incx, &B1_norm);
+    CUDA_CHECK(cudaMemcpyAsync(&B1_norm, d_norm, sizeof(double),
+                               cudaMemcpyDeviceToHost, stream));
+    CUDA_CHECK(cudaStreamSynchronize(stream));
 
     double *d_R = nullptr;
     CUDA_CHECK(cudaMallocAsync(&d_R, sizeof(double) * n * s, stream));
@@ -444,12 +465,12 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         constexpr cusparseOperation_t op_nt = CUSPARSE_OPERATION_NON_TRANSPOSE;
         std::size_t buf_xi = 0;
         std::size_t buf_rrn = 0;
-        CUSPARSE_CHECK(cusparseSpMM_bufferSize(handles.cusparse, op_nt, op_nt,
-            &alpha_pos, A, s_desc, &beta_zero, temp, CUDA_R_64F,
-            CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
-        CUSPARSE_CHECK(cusparseSpMV_bufferSize(handles.cusparse, op_nt,
-            &alpha_neg, A, X1, &beta_pos, temp1, CUDA_R_64F,
-            CUSPARSE_SPMV_ALG_DEFAULT, &buf_rrn));
+        CUSPARSE_CHECK(cusparseSpMM_bufferSize(
+            handles.cusparse, op_nt, op_nt, &alpha_pos, A, s_desc, &beta_zero,
+            temp, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
+        CUSPARSE_CHECK(cusparseSpMV_bufferSize(
+            handles.cusparse, op_nt, &alpha_neg, A, X1, &beta_pos, temp1,
+            CUDA_R_64F, CUSPARSE_SPMV_ALG_DEFAULT, &buf_rrn));
         std::size_t scratch_size = std::max(buf_xi, buf_rrn);
         if (scratch_size > 0) {
             CUDA_CHECK(cudaMallocAsync(&scratch_d, scratch_size, stream));
@@ -521,10 +542,12 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         &beta, temp1, compute_type, alg,
                                         scratch_d));
 
-            constexpr int incx = 1;
+            CUBLAS_CHECK(
+                cublasDnrm2_v2(handles.cublas, n, d.temp, incx, d_norm));
             double residual_norm = 0;
-            CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d.temp, incx,
-                                        &residual_norm));
+            CUDA_CHECK(cudaMemcpyAsync(&residual_norm, d_norm, sizeof(double),
+                                       cudaMemcpyDeviceToHost, stream));
+            CUDA_CHECK(cudaStreamSynchronize(stream));
 
             LOG_TRACE(residual_norm / B1_norm);
             relative_residual_norm = residual_norm / B1_norm;
@@ -582,8 +605,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         d.zeta, s, d.s, n, d.s, n));
 
             sptri_solve<double>(handles.cusparse, temp,
-                               CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
-                               spsm_t);
+                                CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
+                                spsm_t);
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
             constexpr double sgeam_alpha = 1.0;
@@ -609,6 +632,9 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
+    CUBLAS_CHECK(
+        cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_HOST));
+    CUDA_CHECK(cudaFreeAsync(d_norm, stream));
     CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
     CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
