@@ -9,6 +9,7 @@ option(SOLVERS_BUILD_DR_BCG "Build DR-BCG implementations" OFF)
 
 option(SOLVERS_BUILD_TESTS "Build tests" OFF)
 option(SOLVERS_BUILD_RUNNER "Build runner program" OFF)
+option(SOLVERS_BUILD_BENCHMARKS "Build benchmark programs" OFF)
 
 option(SOLVERS_VERBOSE "Enable verbose output" OFF)
 option(SOLVERS_ENABLE_TIMER "Enable timing output" OFF)
@@ -38,4 +39,8 @@ endif()
 
 if(SOLVERS_BUILD_TESTS)
     add_subdirectory(test)
+endif()
+
+if(SOLVERS_BUILD_BENCHMARKS)
+    add_subdirectory(benchmark)
 endif()
