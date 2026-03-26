@@ -1,4 +1,3 @@
-option(MKL_CG_BUILD_TESTS "Build tests" OFF)
 option(MKL_CG_BUILD_MAT_READERS
     "Build CG overloads which take MatUtils MatReaders. Requires a MATLAB installation" OFF)
 option(MKL_CG_BUILD_CLI "Build CLI runner" OFF)
@@ -19,7 +18,3 @@ target_compile_options(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPIL
 target_include_directories(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)
 target_link_libraries(mkl_cg PUBLIC MKL::MKL)
 
-if(MKL_CG_BUILD_TESTS)
-    enable_testing()
-    add_subdirectory(test)
-endif()

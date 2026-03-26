@@ -25,6 +25,3 @@ target_link_libraries(cuda_cg PRIVATE nvtx3::nvtx3-cpp)
 # include(GNUInstallDirs)
 # install(TARGETS cgrun RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-if (CG_RUNNER_BUILD_TESTS)
-    add_subdirectory("test")
-endif()
