@@ -352,6 +352,14 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, CUDA_R_64F,
                                        CUSPARSE_ORDER_COL));
 
+    SpsmCache<double> spsm_nt;
+    spsm_nt.analyze(handles.cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, L,
+                    w_desc, temp);
+
+    SpsmCache<double> spsm_t;
+    spsm_t.analyze(handles.cusparse, CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
+                   temp);
+
     double *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
 
@@ -401,8 +409,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(L^-1 * R)"};
 
         // [w, sigma] = qr(L^-1 * R, 'econ')
-        sptri_left_multiply<double>(handles.cusparse, temp,
-                                    CUSPARSE_OPERATION_NON_TRANSPOSE, L, R);
+        sptri_solve<double>(handles.cusparse, temp,
+                            CUSPARSE_OPERATION_NON_TRANSPOSE, L, R, spsm_nt);
 
         qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
                          d.sigma, n, s, d.temp);
@@ -418,8 +426,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(double) * n * s,
                                    cudaMemcpyDeviceToDevice, stream));
 
-        sptri_left_multiply<double>(handles.cusparse, s_desc,
-                                    CUSPARSE_OPERATION_TRANSPOSE, L, w_desc);
+        sptri_solve<double>(handles.cusparse, s_desc,
+                            CUSPARSE_OPERATION_TRANSPOSE, L, w_desc, spsm_t);
     }
 
     cusparseDnVecDescr_t temp1;
@@ -427,14 +435,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     cusparseDnVecDescr_t X1;
     CUSPARSE_CHECK(cusparseCreateDnVec(&X1, n, d_X, CUDA_R_64F));
-
-    SpsmCache<double> spsm_nt;
-    spsm_nt.analyze(handles.cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, L,
-                    w_desc, temp);
-
-    SpsmCache<double> spsm_t;
-    spsm_t.analyze(handles.cusparse, CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
-                   temp);
 
     {
         constexpr double alpha_pos = 1.0;
