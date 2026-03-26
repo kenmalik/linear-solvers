@@ -1,4 +1,3 @@
-option(DR_BCG_BUILD_TESTS "Enable tests" OFF)
 option(DR_BCG_BUILD_BENCHMARKS "Enable benchmarks" OFF)
 option(DR_BCG_BUILD_EXAMPLES "Enable examples" OFF)
 
@@ -18,10 +17,6 @@ option(DR_BCG_BUILD_EXAMPLES "Enable examples" OFF)
 # install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 add_subdirectory("src")
-
-if(DR_BCG_BUILD_TESTS)
-    add_subdirectory("test")
-endif()
 
 if(DR_BCG_BUILD_BENCHMARKS)
     add_subdirectory("benchmark")
