@@ -8,8 +8,8 @@
 #include <cusolverDn.h>
 
 #include "common/cuda_checks.h"
-#include "dr_bcg/internal/type_info.h"
 #include "dr_bcg/helper.h"
+#include "dr_bcg/internal/type_info.h"
 
 template <typename T>
 void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
@@ -143,6 +143,69 @@ void sptri_left_multiply(const cusparseHandle_t &cusparseH,
 
     CUDA_CHECK(cudaFree(buffer));
     CUSPARSE_CHECK(cusparseSpSM_destroyDescr(spsm));
+}
+
+template <typename T> struct SpsmCache {
+    cusparseSpSMDescr_t spsm = nullptr;
+    void *buffer = nullptr;
+
+    SpsmCache() = default;
+
+    SpsmCache(const SpsmCache &) = delete;
+    SpsmCache &operator=(const SpsmCache &) = delete;
+
+    void analyze(const cusparseHandle_t &cusparseH, cusparseOperation_t opA,
+                 const cusparseSpMatDescr_t &A, const cusparseDnMatDescr_t &B,
+                 cusparseDnMatDescr_t &C) {
+        constexpr cusparseOperation_t OP_B = CUSPARSE_OPERATION_NON_TRANSPOSE;
+        constexpr cudaDataType_t compute_type = Type_info<T>::cuda;
+        constexpr T alpha = 1;
+        constexpr cusparseSpSMAlg_t ALG_TYPE = CUSPARSE_SPSM_ALG_DEFAULT;
+
+        CUSPARSE_CHECK(cusparseSpSM_createDescr(&spsm));
+
+        size_t buffer_size = 0;
+        CUSPARSE_CHECK(cusparseSpSM_bufferSize(
+            cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B,
+            C, compute_type, ALG_TYPE, spsm, &buffer_size));
+
+        if (buffer_size > 0) {
+            CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
+        } else {
+            throw std::runtime_error("spsm cache: buffer not allocated");
+        }
+
+        CUSPARSE_CHECK(cusparseSpSM_analysis(
+            cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B,
+            C, compute_type, ALG_TYPE, spsm, buffer));
+    }
+
+    ~SpsmCache() {
+        if (buffer) {
+            CUDA_CHECK(cudaFree(buffer));
+            buffer = nullptr;
+        }
+        if (spsm) {
+            CUSPARSE_CHECK(cusparseSpSM_destroyDescr(spsm));
+            spsm = nullptr;
+        }
+    }
+};
+
+template <typename T>
+void sptri_solve(const cusparseHandle_t &cusparseH, cusparseDnMatDescr_t &C,
+                 cusparseOperation_t opA, const cusparseSpMatDescr_t &A,
+                 const cusparseDnMatDescr_t &B, const SpsmCache<T> &cache) {
+    NVTX3_FUNC_RANGE();
+
+    constexpr cusparseOperation_t OP_B = CUSPARSE_OPERATION_NON_TRANSPOSE;
+    constexpr cudaDataType_t compute_type = Type_info<T>::cuda;
+    constexpr T alpha = 1;
+    constexpr cusparseSpSMAlg_t ALG_TYPE = CUSPARSE_SPSM_ALG_DEFAULT;
+
+    CUSPARSE_CHECK(cusparseSpSM_solve(
+        cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B, C,
+        compute_type, ALG_TYPE, cache.spsm));
 }
 
 template <typename T>

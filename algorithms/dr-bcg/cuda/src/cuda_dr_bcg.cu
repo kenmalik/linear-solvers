@@ -428,6 +428,14 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     cusparseDnVecDescr_t X1;
     CUSPARSE_CHECK(cusparseCreateDnVec(&X1, n, d_X, CUDA_R_64F));
 
+    SpsmCache<double> spsm_nt;
+    spsm_nt.analyze(handles.cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, L,
+                    w_desc, temp);
+
+    SpsmCache<double> spsm_t;
+    spsm_t.analyze(handles.cusparse, CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
+                   temp);
+
     {
         constexpr double alpha_pos = 1.0;
         constexpr double beta_zero = 0.0;
@@ -544,7 +552,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         scratch_d));
 
             // temp = L^-1 * temp
-            sptri_left_multiply<double>(handles.cusparse, temp, op, L, temp);
+            sptri_solve<double>(handles.cusparse, temp, op, L, temp, spsm_nt);
 
             // w = w - temp * xi
             constexpr cublasOperation_t sgemm_op = CUBLAS_OP_N;
@@ -573,9 +581,9 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         op_zeta, diag_type, n, s, &alpha,
                                         d.zeta, s, d.s, n, d.s, n));
 
-            sptri_left_multiply<double>(handles.cusparse, temp,
-                                        CUSPARSE_OPERATION_TRANSPOSE, L,
-                                        w_desc);
+            sptri_solve<double>(handles.cusparse, temp,
+                               CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
+                               spsm_t);
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
             constexpr double sgeam_alpha = 1.0;
