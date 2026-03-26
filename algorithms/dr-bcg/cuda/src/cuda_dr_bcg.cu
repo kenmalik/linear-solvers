@@ -5,6 +5,7 @@
 #include "common/cuda_checks.h"
 #include "common/log.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <iostream>
@@ -151,6 +152,30 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     cusparseDnVecDescr_t X1;
     CUSPARSE_CHECK(cusparseCreateDnVec(&X1, n, d_X, CUDA_R_64F));
 
+    {
+        constexpr double alpha_pos = 1.0;
+        constexpr double beta_zero = 0.0;
+        constexpr double alpha_neg = -1.0;
+        constexpr double beta_pos = 1.0;
+        constexpr cusparseOperation_t op_nt = CUSPARSE_OPERATION_NON_TRANSPOSE;
+        std::size_t buf_xi = 0;
+        std::size_t buf_rrn = 0;
+        std::size_t buf_w_zeta = 0;
+        CUSPARSE_CHECK(cusparseSpMM_bufferSize(handles.cusparse, op_nt, op_nt,
+            &alpha_pos, A, s_desc, &beta_zero, temp, CUDA_R_64F,
+            CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
+        CUSPARSE_CHECK(cusparseSpMV_bufferSize(handles.cusparse, op_nt,
+            &alpha_neg, A, X1, &beta_pos, temp1, CUDA_R_64F,
+            CUSPARSE_SPMV_ALG_DEFAULT, &buf_rrn));
+        CUSPARSE_CHECK(cusparseSpMM_bufferSize(handles.cusparse, op_nt, op_nt,
+            &alpha_neg, A, temp, &beta_pos, w_desc, CUDA_R_64F,
+            CUSPARSE_SPMM_ALG_DEFAULT, &buf_w_zeta));
+        std::size_t scratch_size = std::max({buf_xi, buf_rrn, buf_w_zeta});
+        if (scratch_size > 0) {
+            CUDA_CHECK(cudaMallocAsync(&scratch_d, scratch_size, stream));
+        }
+    }
+
     int iterations = 0;
     while (iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
@@ -161,18 +186,11 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             nvtx3::scoped_range xi_range{"xi"};
 
             // xi = (s' * A * s)^-1
-            std::size_t buffer_size;
             constexpr double alpha = 1.0;
             constexpr double beta = 0.0;
             constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
             constexpr cudaDataType_t compute_type = CUDA_R_64F;
             constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
-
-            CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-                handles.cusparse, op, op, &alpha, A, s_desc, &beta, temp,
-                compute_type, alg, &buffer_size));
-
-            CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
                                         s_desc, &beta, temp, compute_type, alg,
@@ -186,8 +204,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
                                  d.xi, s);
-
-            CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
         }
 
         {
@@ -221,18 +237,9 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CUDA_CHECK(cudaMemcpyAsync(d.temp, d_B, sizeof(double) * n,
                                        cudaMemcpyDeviceToDevice, stream));
 
-            std::size_t buffer_size = 0;
-            CUSPARSE_CHECK(cusparseSpMV_bufferSize(
-                handles.cusparse, op, &alpha, A, X1, &beta, temp1, compute_type,
-                alg, &buffer_size));
-
-            CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
-
             CUSPARSE_CHECK(cusparseSpMV(handles.cusparse, op, &alpha, A, X1,
                                         &beta, temp1, compute_type, alg,
                                         scratch_d));
-
-            CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
 
             constexpr int incx = 1;
             double residual_norm = 0;
@@ -264,18 +271,9 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cudaDataType_t compute_type = CUDA_R_64F;
             constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
-            std::size_t buffer_size = 0;
-            CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-                handles.cusparse, spmm_op, spmm_op, &spmm_alpha, A, temp,
-                &spmm_beta, w_desc, compute_type, alg, &buffer_size));
-
-            CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
-
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, spmm_op, spmm_op,
                                         &spmm_alpha, A, temp, &spmm_beta, w_desc,
                                         compute_type, alg, scratch_d));
-
-            CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
 
             qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
                              d.zeta, n, s, d.w);
@@ -319,6 +317,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
+    CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     CUSPARSE_CHECK(cusparseDestroyDnMat(s_desc));
     CUSPARSE_CHECK(cusparseDestroyDnMat(w_desc));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
@@ -429,6 +428,26 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     cusparseDnVecDescr_t X1;
     CUSPARSE_CHECK(cusparseCreateDnVec(&X1, n, d_X, CUDA_R_64F));
 
+    {
+        constexpr double alpha_pos = 1.0;
+        constexpr double beta_zero = 0.0;
+        constexpr double alpha_neg = -1.0;
+        constexpr double beta_pos = 1.0;
+        constexpr cusparseOperation_t op_nt = CUSPARSE_OPERATION_NON_TRANSPOSE;
+        std::size_t buf_xi = 0;
+        std::size_t buf_rrn = 0;
+        CUSPARSE_CHECK(cusparseSpMM_bufferSize(handles.cusparse, op_nt, op_nt,
+            &alpha_pos, A, s_desc, &beta_zero, temp, CUDA_R_64F,
+            CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
+        CUSPARSE_CHECK(cusparseSpMV_bufferSize(handles.cusparse, op_nt,
+            &alpha_neg, A, X1, &beta_pos, temp1, CUDA_R_64F,
+            CUSPARSE_SPMV_ALG_DEFAULT, &buf_rrn));
+        std::size_t scratch_size = std::max(buf_xi, buf_rrn);
+        if (scratch_size > 0) {
+            CUDA_CHECK(cudaMallocAsync(&scratch_d, scratch_size, stream));
+        }
+    }
+
     int iterations = 0;
     while (iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
@@ -439,18 +458,11 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             nvtx3::scoped_range xi_range{"xi = (s' * As)^-1"};
 
             // xi = (s' * A * s)^-1
-            std::size_t buffer_size;
             constexpr double alpha = 1.0;
             constexpr double beta = 0.0;
             constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
             constexpr cudaDataType_t compute_type = CUDA_R_64F;
             constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
-
-            CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-                handles.cusparse, op, op, &alpha, A, s_desc, &beta, temp,
-                compute_type, alg, &buffer_size));
-
-            CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
                                         s_desc, &beta, temp, compute_type, alg,
@@ -464,8 +476,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
                                  d.xi, s);
-
-            CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
         }
 
         {
@@ -499,18 +509,9 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CUDA_CHECK(cudaMemcpyAsync(d.temp, d_B, sizeof(double) * n,
                                        cudaMemcpyDeviceToDevice, stream));
 
-            std::size_t buffer_size = 0;
-            CUSPARSE_CHECK(cusparseSpMV_bufferSize(
-                handles.cusparse, op, &alpha, A, X1, &beta, temp1, compute_type,
-                alg, &buffer_size));
-
-            CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
-
             CUSPARSE_CHECK(cusparseSpMV(handles.cusparse, op, &alpha, A, X1,
                                         &beta, temp1, compute_type, alg,
                                         scratch_d));
-
-            CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
 
             constexpr int incx = 1;
             double residual_norm = 0;
@@ -538,25 +539,9 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cudaDataType compute_type = CUDA_R_64F;
             constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
-            void *buffer = nullptr;
-            std::size_t buffer_size = 0;
-
-            CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-                handles.cusparse, op, op, &alpha, A, s_desc, &beta, temp,
-                compute_type, alg, &buffer_size));
-
-            if (buffer_size > 0) {
-                CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
-            }
-
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
                                         s_desc, &beta, temp, compute_type, alg,
-                                        buffer));
-
-            if (buffer) {
-                CUDA_CHECK(cudaFree(buffer));
-                buffer = nullptr;
-            }
+                                        scratch_d));
 
             // temp = L^-1 * temp
             sptri_left_multiply<double>(handles.cusparse, temp, op, L, temp);
@@ -616,6 +601,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
+    CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
     CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
 
