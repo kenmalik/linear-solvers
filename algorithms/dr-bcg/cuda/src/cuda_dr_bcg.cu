@@ -280,6 +280,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                          "-th parameter is wrong in LU\n");
 
             relative_residual_norm = residual_norm / B1_norm;
+            LOG_TRACE(relative_residual_norm);
         }
 
         if (relative_residual_norm < tolerance) {
@@ -602,8 +603,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                 throw std::runtime_error(std::to_string(-*lu_ws.h_info) +
                                          "-th parameter is wrong in LU\n");
 
-            LOG_TRACE(residual_norm / B1_norm);
             relative_residual_norm = residual_norm / B1_norm;
+            LOG_TRACE(relative_residual_norm);
         }
 
         if (relative_residual_norm < tolerance) {
