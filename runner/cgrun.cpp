@@ -109,8 +109,13 @@ int run_dr_bcg(const Args &args) {
 #ifdef CUDA_DR_BCG_ENABLED
     case Implementation::CUDA: {
         CUDA_CHECK(cudaDeviceSynchronize());
-        return run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
-                               max_iters, args.block_size);
+        if (args.L.has_value()) {
+            return run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
+                                   max_iters, args.block_size);
+        } else {
+            return run_cuda_dr_bcg(args.A, b, x, args.tolerance, max_iters,
+                                   args.block_size);
+        }
     }
 #endif
     default:

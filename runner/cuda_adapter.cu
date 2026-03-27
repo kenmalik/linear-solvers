@@ -85,3 +85,40 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     return iters;
 }
+
+int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
+                    const std::vector<double> &b, std::vector<double> &x,
+                    double tolerance, int max_iterations, int block_size) {
+    auto n = A.rows();
+
+    double *b_d = nullptr;
+    cudaMalloc(&b_d, sizeof(double) * b.size());
+    cudaMemcpy(b_d, b.data(), sizeof(double) * b.size(),
+               cudaMemcpyHostToDevice);
+
+    cusparseDnMatDescr_t b_descr;
+    cusparseCreateDnMat(&b_descr, n, block_size, n, b_d, CUDA_R_64F,
+                        CUSPARSE_ORDER_COL);
+
+    double *x_d = nullptr;
+    cudaMalloc(&x_d, sizeof(double) * x.size());
+    cudaMemcpy(x_d, x.data(), sizeof(double) * x.size(),
+               cudaMemcpyHostToDevice);
+
+    cusparseDnMatDescr_t x_descr;
+    cusparseCreateDnMat(&x_descr, n, block_size, n, x_d, CUDA_R_64F,
+                        CUSPARSE_ORDER_COL);
+
+    DeviceSparseMatrixDouble A_mat{A};
+
+    int iters = dr_bcg::cuda::solve(A_mat.get(), x_descr, b_descr, tolerance,
+                                    max_iterations);
+
+    cusparseDestroyDnMat(x_descr);
+    cudaFree(x_d);
+
+    cusparseDestroyDnMat(b_descr);
+    cudaFree(b_d);
+
+    return iters;
+}
