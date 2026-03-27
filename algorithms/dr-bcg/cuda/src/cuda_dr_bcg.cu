@@ -68,6 +68,13 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     Handles handles;
     handles.set_stream(stream);
 
+    QrWorkspace<double> qr_ws;
+    qr_ws.allocate(handles.cusolver, handles.cusolver_params,
+                   static_cast<int>(n), static_cast<int>(s));
+    LuWorkspace<double> lu_ws;
+    lu_ws.allocate(handles.cusolver, handles.cusolver_params,
+                   static_cast<int>(s));
+
     void *scratch_d = nullptr;
 
     cusparseDnMatDescr_t temp;
@@ -132,7 +139,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         // [w, sigma] = qr(R, 'econ')
         qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
-                         d.sigma, n, s, d_R);
+                         d.sigma, n, s, d_R, qr_ws, stream);
     }
 
     CUDA_CHECK(cudaFreeAsync(d_R, stream));
@@ -211,7 +218,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         s));
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
-                                 d.xi, s);
+                                 d.xi, s, lu_ws, stream);
         }
 
         {
@@ -256,6 +263,13 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                        cudaMemcpyDeviceToHost, stream));
             CUDA_CHECK(cudaStreamSynchronize(stream));
 
+            if (*qr_ws.h_info < 0)
+                throw std::runtime_error(std::to_string(-*qr_ws.h_info) +
+                                         "-th parameter is wrong in QR\n");
+            if (*lu_ws.h_info < 0)
+                throw std::runtime_error(std::to_string(-*lu_ws.h_info) +
+                                         "-th parameter is wrong in LU\n");
+
             relative_residual_norm = residual_norm / B1_norm;
         }
 
@@ -286,7 +300,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         w_desc, compute_type, alg, scratch_d));
 
             qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
-                             d.zeta, n, s, d.w);
+                             d.zeta, n, s, d.w, qr_ws, stream);
         }
 
         {
@@ -353,6 +367,13 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUDA_CHECK(cudaStreamCreate(&stream));
     Handles handles;
     handles.set_stream(stream);
+
+    QrWorkspace<double> qr_ws;
+    qr_ws.allocate(handles.cusolver, handles.cusolver_params,
+                   static_cast<int>(n), static_cast<int>(s));
+    LuWorkspace<double> lu_ws;
+    lu_ws.allocate(handles.cusolver, handles.cusolver_params,
+                   static_cast<int>(s));
 
     void *scratch_d = nullptr;
 
@@ -435,7 +456,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                             CUSPARSE_OPERATION_NON_TRANSPOSE, L, R, spsm_nt);
 
         qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
-                         d.sigma, n, s, d.temp);
+                         d.sigma, n, s, d.temp, qr_ws, stream);
     }
 
     CUDA_CHECK(cudaFreeAsync(d_R, stream));
@@ -505,7 +526,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         s));
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
-                                 d.xi, s);
+                                 d.xi, s, lu_ws, stream);
         }
 
         {
@@ -550,6 +571,13 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                        cudaMemcpyDeviceToHost, stream));
             CUDA_CHECK(cudaStreamSynchronize(stream));
 
+            if (*qr_ws.h_info < 0)
+                throw std::runtime_error(std::to_string(-*qr_ws.h_info) +
+                                         "-th parameter is wrong in QR\n");
+            if (*lu_ws.h_info < 0)
+                throw std::runtime_error(std::to_string(-*lu_ws.h_info) +
+                                         "-th parameter is wrong in LU\n");
+
             LOG_TRACE(residual_norm / B1_norm);
             relative_residual_norm = residual_norm / B1_norm;
         }
@@ -588,7 +616,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             // [w, zeta] = qr(w)
             qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
-                             d.zeta, n, s, d.w);
+                             d.zeta, n, s, d.w, qr_ws, stream);
         }
 
         {

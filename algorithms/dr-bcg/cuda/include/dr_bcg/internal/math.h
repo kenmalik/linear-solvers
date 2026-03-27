@@ -11,97 +11,180 @@
 #include "dr_bcg/helper.h"
 #include "dr_bcg/internal/type_info.h"
 
+template <typename T> struct QrWorkspace {
+    T *d_tau = nullptr;
+    void *d_work = nullptr;
+    int *d_info = nullptr;
+    int *h_info = nullptr;
+    void *h_work = nullptr;
+
+    std::size_t lwork_geqrf_d = 0;
+    std::size_t lwork_geqrf_h = 0;
+    int numfloats_orgqr_d = 0;
+
+    QrWorkspace() = default;
+    QrWorkspace(const QrWorkspace &) = delete;
+    QrWorkspace &operator=(const QrWorkspace &) = delete;
+
+    // m: rows of Q (problem size n), n: cols of Q (block size s)
+    void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                  int m, int n) {
+        constexpr cudaDataType_t data_type = Type_info<T>::cuda;
+
+        CUDA_CHECK(cudaMalloc(&d_tau, sizeof(T) * n));
+        CUDA_CHECK(cudaMalloc(&d_info, sizeof(int)));
+        CUDA_CHECK(
+            cudaMallocHost(reinterpret_cast<void **>(&h_info), sizeof(int)));
+
+        // Dummy m×n device buffer needed to query workspace sizes.
+        // Buffer size queries are dimension/type-driven; values are not read.
+        T *d_dummy = nullptr;
+        CUDA_CHECK(cudaMalloc(&d_dummy, sizeof(T) * m * n));
+
+        CUSOLVER_CHECK(cusolverDnXgeqrf_bufferSize(
+            cusolverH, params, m, n, data_type, d_dummy, m, data_type, d_tau,
+            data_type, &lwork_geqrf_d, &lwork_geqrf_h));
+
+        if constexpr (std::is_same_v<T, float>) {
+            CUSOLVER_CHECK(cusolverDnSorgqr_bufferSize(
+                cusolverH, m, n, n, d_dummy, m, d_tau, &numfloats_orgqr_d));
+        } else {
+            CUSOLVER_CHECK(cusolverDnDorgqr_bufferSize(
+                cusolverH, m, n, n, d_dummy, m, d_tau, &numfloats_orgqr_d));
+        }
+
+        CUDA_CHECK(cudaFree(d_dummy));
+
+        const std::size_t lwork_orgqr_d = numfloats_orgqr_d * sizeof(T);
+        CUDA_CHECK(cudaMalloc(&d_work, std::max(lwork_geqrf_d, lwork_orgqr_d)));
+
+        if (lwork_geqrf_h > 0) {
+            h_work = malloc(lwork_geqrf_h);
+            if (!h_work)
+                throw std::runtime_error(
+                    "Error: QrWorkspace h_work not allocated.");
+        }
+    }
+
+    ~QrWorkspace() {
+        if (d_tau)
+            CUDA_CHECK(cudaFree(d_tau));
+        if (d_work)
+            CUDA_CHECK(cudaFree(d_work));
+        if (d_info)
+            CUDA_CHECK(cudaFree(d_info));
+        if (h_info)
+            CUDA_CHECK(cudaFreeHost(h_info));
+        if (h_work)
+            free(h_work);
+    }
+};
+
+template <typename T> struct LuWorkspace {
+    int64_t *d_Ipiv = nullptr;
+    void *d_work = nullptr;
+    std::size_t d_work_size = 0;
+    void *h_work = nullptr;
+    std::size_t h_work_size = 0;
+    int *d_info = nullptr;
+    int *h_info = nullptr;
+    T *d_I = nullptr;
+    T *h_I = nullptr;
+
+    LuWorkspace() = default;
+    LuWorkspace(const LuWorkspace &) = delete;
+    LuWorkspace &operator=(const LuWorkspace &) = delete;
+
+    // n: matrix side length (block size s)
+    void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                  int n) {
+        constexpr cudaDataType_t data_type = Type_info<T>::cuda;
+
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Ipiv),
+                              sizeof(int64_t) * n));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int)));
+        CUDA_CHECK(
+            cudaMallocHost(reinterpret_cast<void **>(&h_info), sizeof(int)));
+
+        // Pre-build the identity matrix on pinned host memory.
+        // h_I is constant; d_I is restored from h_I on each call (async).
+        CUDA_CHECK(
+            cudaMallocHost(reinterpret_cast<void **>(&h_I), sizeof(T) * n * n));
+        std::fill(h_I, h_I + n * n, T{0});
+        for (int i = 0; i < n; ++i)
+            h_I[i * n + i] = T{1};
+        CUDA_CHECK(
+            cudaMalloc(reinterpret_cast<void **>(&d_I), sizeof(T) * n * n));
+
+        // Query LU workspace size with a dummy n×n buffer.
+        T *d_dummy = nullptr;
+        CUDA_CHECK(cudaMalloc(&d_dummy, sizeof(T) * n * n));
+        CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(
+            cusolverH, params, n, n, data_type, d_dummy, n, data_type,
+            &d_work_size, &h_work_size));
+        CUDA_CHECK(cudaFree(d_dummy));
+
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_work), d_work_size));
+        if (h_work_size > 0) {
+            h_work = malloc(h_work_size);
+            if (!h_work)
+                throw std::runtime_error(
+                    "Error: LuWorkspace h_work not allocated.");
+        }
+    }
+
+    ~LuWorkspace() {
+        if (d_Ipiv)
+            CUDA_CHECK(cudaFree(d_Ipiv));
+        if (d_work)
+            CUDA_CHECK(cudaFree(d_work));
+        if (d_info)
+            CUDA_CHECK(cudaFree(d_info));
+        if (h_info)
+            CUDA_CHECK(cudaFreeHost(h_info));
+        if (d_I)
+            CUDA_CHECK(cudaFree(d_I));
+        if (h_I)
+            CUDA_CHECK(cudaFreeHost(h_I));
+        if (h_work)
+            free(h_work);
+    }
+};
+
 template <typename T>
 void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-                      T *d_Q, T *d_R, const int m, const int n, const T *d_A) {
+                      T *d_Q, T *d_R, const int m, const int n, const T *d_A,
+                      QrWorkspace<T> &ws, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
 
     constexpr cudaDataType_t data_type = Type_info<T>::cuda;
 
     assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
-    int info = 0;
+    CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
+                               cudaMemcpyDeviceToDevice, stream));
 
-    T *d_tau = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_tau, sizeof(T) * n));
-
-    int *d_info = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_info, sizeof(int)));
-
-    void *d_work = nullptr;
-    std::size_t lwork_geqrf_d = 0;
-
-    void *h_work = nullptr;
-    std::size_t lwork_geqrf_h = 0;
-
-    CUDA_CHECK(
-        cudaMemcpy(d_Q, d_A, sizeof(T) * m * n, cudaMemcpyDeviceToDevice));
-
-    // Create device buffer
-    CUSOLVER_CHECK(cusolverDnXgeqrf_bufferSize(
-        cusolverH, params, m, n, data_type, d_Q, m, data_type, d_tau, data_type,
-        &lwork_geqrf_d, &lwork_geqrf_h));
-
-    int numfloats_orgqr_d = 0;
-    if constexpr (std::is_same_v<T, float>) {
-        CUSOLVER_CHECK(cusolverDnSorgqr_bufferSize(cusolverH, m, n, n, d_Q, m,
-                                                   d_tau, &numfloats_orgqr_d));
-    } else {
-        CUSOLVER_CHECK(cusolverDnDorgqr_bufferSize(cusolverH, m, n, n, d_Q, m,
-                                                   d_tau, &numfloats_orgqr_d));
-    }
-    const std::size_t lwork_orgqr_d = numfloats_orgqr_d * sizeof(T);
-
-    // Note: The legacy cuSOLVER API returns lwork number of array values
-    // while the generic API returns lwork in bytes.
-    // This is why we multiply lwork_orgqr by sizeof(T) to get a
-    // proper comparison in workspace sizes.
-    const std::size_t lwork_bytes_d = std::max(lwork_geqrf_d, lwork_orgqr_d);
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_work), lwork_bytes_d));
-
-    if (lwork_geqrf_h > 0) {
-        h_work = reinterpret_cast<void *>(malloc(lwork_geqrf_h));
-        if (h_work == nullptr) {
-            throw std::runtime_error("Error: h_work not allocated.");
-        }
-    }
-
-    CUSOLVER_CHECK(cusolverDnXgeqrf(
-        cusolverH, params, m, n, data_type, d_Q, m, data_type, d_tau, data_type,
-        d_work, lwork_geqrf_d, h_work, lwork_geqrf_h, d_info));
-
-    if (h_work) {
-        free(h_work); // No longer needed
-    }
-
-    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
-    if (0 > info) {
-        throw std::runtime_error(std::to_string(-info) +
-                                 "-th parameter is wrong \n");
-    }
+    CUSOLVER_CHECK(cusolverDnXgeqrf(cusolverH, params, m, n, data_type, d_Q, m,
+                                    data_type, ws.d_tau, data_type, ws.d_work,
+                                    ws.lwork_geqrf_d, ws.h_work,
+                                    ws.lwork_geqrf_h, ws.d_info));
 
     copy_upper_triangular(d_R, d_Q, m, n);
 
-    // Explicitly compute Q
     if constexpr (std::is_same_v<T, float>) {
-        CUSOLVER_CHECK(cusolverDnSorgqr(cusolverH, m, n, n, d_Q, m, d_tau,
-                                        reinterpret_cast<T *>(d_work),
-                                        numfloats_orgqr_d, d_info));
+        CUSOLVER_CHECK(cusolverDnSorgqr(cusolverH, m, n, n, d_Q, m, ws.d_tau,
+                                        reinterpret_cast<T *>(ws.d_work),
+                                        ws.numfloats_orgqr_d, ws.d_info));
     } else {
-        CUSOLVER_CHECK(cusolverDnDorgqr(cusolverH, m, n, n, d_Q, m, d_tau,
-                                        reinterpret_cast<T *>(d_work),
-                                        numfloats_orgqr_d, d_info));
+        CUSOLVER_CHECK(cusolverDnDorgqr(cusolverH, m, n, n, d_Q, m, ws.d_tau,
+                                        reinterpret_cast<T *>(ws.d_work),
+                                        ws.numfloats_orgqr_d, ws.d_info));
     }
 
-    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
-    if (0 > info) {
-        throw std::runtime_error(std::to_string(-info) +
-                                 "-th parameter is wrong \n");
-    }
-
-    CUDA_CHECK(cudaFree(d_info));
-    CUDA_CHECK(cudaFree(d_tau));
-    CUDA_CHECK(cudaFree(d_work));
+    // Async readback of final d_info; caller checks *ws.h_info after
+    // cudaStreamSynchronize.
+    CUDA_CHECK(cudaMemcpyAsync(ws.h_info, ws.d_info, sizeof(int),
+                               cudaMemcpyDeviceToHost, stream));
 }
 
 template <typename T> struct SpsmCache {
@@ -169,77 +252,30 @@ void sptri_solve(const cusparseHandle_t &cusparseH, cusparseDnMatDescr_t &C,
 
 template <typename T>
 void invert_square_matrix(cusolverDnHandle_t &cusolverH,
-                          cusolverDnParams_t &params, T *d_A, const int n) {
+                          cusolverDnParams_t &params, T *d_A, const int n,
+                          LuWorkspace<T> &ws, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
 
     constexpr cudaDataType_t data_type = Type_info<T>::cuda;
 
-    // LU Decomposition
-    size_t d_work_size = 0;
-    void *d_work = nullptr;
-    size_t h_work_size = 0;
-    void *h_work = nullptr;
+    // Restore identity into d_I from the pinned h_I template (async).
+    CUDA_CHECK(cudaMemcpyAsync(ws.d_I, ws.h_I, sizeof(T) * n * n,
+                               cudaMemcpyHostToDevice, stream));
 
-    int info = 0;
-    int *d_info = nullptr;
+    CUSOLVER_CHECK(cusolverDnXgetrf(
+        cusolverH, params, n, n, data_type, d_A, n, ws.d_Ipiv, data_type,
+        ws.d_work, ws.d_work_size, ws.h_work, ws.h_work_size, ws.d_info));
 
-    int64_t *d_Ipiv = nullptr;
-
-    CUDA_CHECK(
-        cudaMalloc(reinterpret_cast<void **>(&d_Ipiv), sizeof(int64_t) * n));
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int)));
-
-    CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(cusolverH, params, n, n,
-                                               data_type, d_A, n, data_type,
-                                               &d_work_size, &h_work_size));
-
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_work), d_work_size));
-    if (h_work_size > 0) {
-        h_work = reinterpret_cast<void *>(malloc(h_work_size));
-        if (h_work == nullptr) {
-            throw std::runtime_error("Error: h_work not allocated.");
-        }
-    }
-
-    CUSOLVER_CHECK(cusolverDnXgetrf(cusolverH, params, n, n, data_type, d_A, n,
-                                    d_Ipiv, data_type, d_work, d_work_size,
-                                    h_work, h_work_size, d_info));
-
-    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
-    if (0 > info) {
-        throw std::runtime_error(std::to_string(-info) +
-                                 "-th parameter is wrong \n");
-    }
-
-    CUDA_CHECK(cudaFree(d_work));
-    free(h_work);
-
-    // Solve A * X = I for inverse
-    std::vector<T> h_I(n * n, 0);
-    T *d_I = nullptr;
-
-    for (int i = 0; i < n; i++) {
-        h_I.at(i * n + i) = 1;
-    }
-    CUDA_CHECK(
-        cudaMalloc(reinterpret_cast<void **>(&d_I), sizeof(T) * h_I.size()));
-    CUDA_CHECK(cudaMemcpy(d_I, h_I.data(), sizeof(T) * h_I.size(),
-                          cudaMemcpyHostToDevice));
-
+    // Solve A * X = I; result (A^{-1}) lands in ws.d_I.
     CUSOLVER_CHECK(cusolverDnXgetrs(cusolverH, params, CUBLAS_OP_N, n, n,
-                                    data_type, d_A, n, d_Ipiv, data_type, d_I,
-                                    n, d_info));
+                                    data_type, d_A, n, ws.d_Ipiv, data_type,
+                                    ws.d_I, n, ws.d_info));
 
-    CUDA_CHECK(cudaMemcpy(&info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
-    if (0 > info) {
-        throw std::runtime_error(std::to_string(-info) +
-                                 "-th parameter is wrong \n");
-    }
+    CUDA_CHECK(cudaMemcpyAsync(d_A, ws.d_I, sizeof(T) * n * n,
+                               cudaMemcpyDeviceToDevice, stream));
 
-    CUDA_CHECK(
-        cudaMemcpy(d_A, d_I, sizeof(T) * h_I.size(), cudaMemcpyDeviceToDevice));
-
-    CUDA_CHECK(cudaFree(d_I));
-    CUDA_CHECK(cudaFree(d_Ipiv));
-    CUDA_CHECK(cudaFree(d_info));
+    // Async readback of final d_info; caller checks *ws.h_info after
+    // cudaStreamSynchronize.
+    CUDA_CHECK(cudaMemcpyAsync(ws.h_info, ws.d_info, sizeof(int),
+                               cudaMemcpyDeviceToHost, stream));
 }
