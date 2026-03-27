@@ -335,6 +335,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUSPARSE_CHECK(cusparseDestroyDnMat(w_desc));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
     CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
+    CUDA_CHECK(cudaStreamDestroy(stream));
 
     return iterations;
 }
@@ -638,6 +639,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
     CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
+    CUDA_CHECK(cudaStreamDestroy(stream));
 
     return iterations;
 }
