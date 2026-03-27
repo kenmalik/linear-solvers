@@ -11,4 +11,4 @@ plot-residuals:
 	@scripts/plot_residuals.sh
 
 run-all:
-	@scripts/run_all.sh
+	@scripts/run_all.sh $(ARGS)
