@@ -5,15 +5,16 @@ import pandas as pd
 from matplotlib import colormaps
 
 cg_ranges = (
-    "s = M^{-1} * r",
-    "r = r - alpha * q",
     "r = b - A * x",
-    "x = x + alpha * d",
+    "r = r - alpha * q",
+    "d = M^{-1} * r",
     "q = A * d",
-    "d = s + beta * d",
     "alpha = delta / d'q",
+    "x = x + alpha * d",
     "residual_sq = r'r",
+    "s = M^{-1} * r",
     "beta = delta_new / delta_old",
+    "d = s + beta * d",
 )
 
 dr_bcg_ranges = (
@@ -28,9 +29,8 @@ dr_bcg_ranges = (
     "sigma = zeta * sigma",
 )
 
-_pastel = [colormaps["Set1"](i) for i in range(9)]
-cg_colors = {name: _pastel[i] for i, name in enumerate(cg_ranges)}
-dr_bcg_colors = {name: _pastel[i] for i, name in enumerate(dr_bcg_ranges)}
+cg_colors = {name: colormaps["tab10"](i) for i, name in enumerate(cg_ranges)}
+dr_bcg_colors = {name: colormaps["Set1"](i) for i, name in enumerate(dr_bcg_ranges)}
 
 colors_by_algo = {
     "cg": cg_colors,

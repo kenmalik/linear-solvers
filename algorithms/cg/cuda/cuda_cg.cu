@@ -76,9 +76,6 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
     CUBLAS_CHECK(cublasDnrm2_v2_64(cublas, n, b_d, 1, &b_norm));
 
     // r = b - A * x
-    // Copy b into r
-    CUBLAS_CHECK(cublasDcopy_v2_64(cublas, n, b_d, 1, d.r_d, 1));
-
     std::size_t bufsize_residual_MV = 0;
     constexpr double alpha_residual_MV = -1.0;
     constexpr double beta_residual_MV = 1.0;
@@ -97,10 +94,15 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
             buffer_residual_MV));
     }
 
-    CUSPARSE_CHECK(cusparseSpMV(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                &alpha_residual_MV, A, x, &beta_residual_MV,
-                                d.r, cuda_type, CUSPARSE_SPMV_ALG_DEFAULT,
-                                buffer_residual_MV));
+    {
+        CudaEventRange er(g_event_timer, "r = b - A * x", stream);
+        // Copy b into r
+        CUBLAS_CHECK(cublasDcopy_v2_64(cublas, n, b_d, 1, d.r_d, 1));
+        CUSPARSE_CHECK(cusparseSpMV(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                                    &alpha_residual_MV, A, x, &beta_residual_MV,
+                                    d.r, cuda_type, CUSPARSE_SPMV_ALG_DEFAULT,
+                                    buffer_residual_MV));
+    }
 
     double residual_norm = 0;
     CUBLAS_CHECK(cublasDnrm2_v2_64(cublas, n, d.r_d, 1, &residual_norm));
@@ -156,13 +158,16 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.d, d.d,
         cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT, buffer_SpSV_LT));
 
-    // Solve
-    CUSPARSE_CHECK(cusparseSpSV_solve(
-        cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r, d.d,
-        cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L));
-    CUSPARSE_CHECK(cusparseSpSV_solve(cusparse, CUSPARSE_OPERATION_TRANSPOSE,
-                                      &alpha_SpSM, L, d.d, d.d, cuda_type,
-                                      CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT));
+    // d = M^{-1} * r
+    {
+        CudaEventRange er(g_event_timer, "d = M^{-1} * r", stream);
+        CUSPARSE_CHECK(cusparseSpSV_solve(
+            cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r,
+            d.d, cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L));
+        CUSPARSE_CHECK(cusparseSpSV_solve(
+            cusparse, CUSPARSE_OPERATION_TRANSPOSE, &alpha_SpSM, L, d.d, d.d,
+            cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_LT));
+    }
 
     // Analysis for s (reuse the dedicated buffers)
     CUSPARSE_CHECK(cusparseSpSV_analysis(
