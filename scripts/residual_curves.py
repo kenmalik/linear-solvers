@@ -13,15 +13,19 @@ impls = ["mkl", "cuda"]
 class Args(argparse.Namespace):
     dataset: str
     files: list[Path]
+    output: Path
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("files", nargs="+", type=valid_path)
     parser.add_argument("-d", "--dataset")
+    parser.add_argument("-o", "--output", type=Path)
     args = parser.parse_args(namespace=Args())
 
-    read_files(args)
+    data = read_files(args.files)
+
+    plot(data, args)
 
 
 def valid_path(arg: str):
@@ -31,19 +35,19 @@ def valid_path(arg: str):
     return p
 
 
-def read_files(args: Args):
+def read_files(files: list[Path]):
     data = {}
 
-    for file in args.files:
+    for file in files:
         _, alg, impl = file.stem.split("_")
 
         residuals = pd.read_csv(file).astype(float)
         data.setdefault(alg, []).append((impl, residuals))
 
-    plot(data, args.dataset)
+    return data
 
 
-def plot(data: dict[str, list], dataset: str | None):
+def plot(data: dict[str, list], args: Args):
     fig, ax = plt.subplots(len(data), 2, figsize=(8.5, 8.5))
 
     for i, [alg, info] in enumerate(data.items()):
@@ -64,11 +68,16 @@ def plot(data: dict[str, list], dataset: str | None):
         ax[i, 1].set_xlabel("Iteration")
 
     title = "Residual Error Curve Comparison"
-    if dataset:
-        title += f" ({dataset})"
+    if args.dataset:
+        title += f" ({args.dataset})"
+
     fig.suptitle(title, fontweight="bold")
     plt.tight_layout(h_pad=2, w_pad=4)
-    plt.show()
+
+    if args.output:
+        plt.savefig(args.output)
+    else:
+        plt.show()
 
 
 if __name__ == "__main__":
