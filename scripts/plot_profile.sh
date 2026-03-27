@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 dir="${1:-.}"
 
@@ -10,7 +13,7 @@ for csv in "$dir"/*.csv; do
     
     # Extract impl and algo from filename: <anything>_<impl>_<algo>[_<anything>]
     # Supported impls: mkl, cuda   Supported algos: cg, dr-bcg
-    if [[ "$base" =~ _(mkl|cuda)_(cg|dr-bcg)(_|$) ]]; then
+    if [[ "$base" =~ ^(mkl|cuda)_(cg|dr-bcg)(_|$) ]]; then
         impl="${BASH_REMATCH[1]}"
         algo="${BASH_REMATCH[2]}"
     else
@@ -20,5 +23,5 @@ for csv in "$dir"/*.csv; do
 
     output="$dir/${base}.png"
     echo "Plotting $csv (impl=$impl, algo=$algo) -> $output"
-    python "$(dirname "$0")/main.py" "$csv" --impl "$impl" --algo "$algo" -o "$output"
+    python "${SCRIPT_DIR}/stacked_bars.py" "$csv" --impl "$impl" --algo "$algo" -o "$output"
 done
