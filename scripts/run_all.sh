@@ -11,6 +11,7 @@ implementations=("mkl" "cuda")
 
 for alg in ${algorithms[@]}; do
     for impl in ${implementations[@]}; do
-        "${BUILD_DIR}/runner/cgrun" "$alg" "$impl" "${DATA_DIR}/G2_circuit.mat" "${DATA_DIR}/G2_circuit_ichol.mat"
+        "${BUILD_DIR}/runner/cgrun" "$alg" "$impl" "${DATA_DIR}/G2_circuit.mat" "${DATA_DIR}/G2_circuit_ichol.mat" \
+            2> "residuals_${impl}_${alg}.txt"
     done
 done
