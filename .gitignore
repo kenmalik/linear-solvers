@@ -49,3 +49,8 @@
 build/
 .claude/worktrees
 .cache
+
+# CUDA profiling
+*.nsys-rep
+*.csv
+*.sqlite
