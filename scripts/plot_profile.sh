@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 dir="${1:-.}"
 
@@ -20,5 +23,5 @@ for csv in "$dir"/*.csv; do
 
     output="$dir/${base}.png"
     echo "Plotting $csv (impl=$impl, algo=$algo) -> $output"
-    python "$(dirname "$0")/main.py" "$csv" --impl "$impl" --algo "$algo" -o "$output"
+    python "${SCRIPT_DIR}/stacked_bars.py" "$csv" --impl "$impl" --algo "$algo" -o "$output"
 done

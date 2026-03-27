@@ -10,11 +10,15 @@
 #endif
 
 #ifdef CUDA_CG_ENABLED
+#include "common/cuda_checks.h"
 #include "cuda_adapter.h"
+#include <cuda_runtime.h>
 #endif
 
 #ifdef CUDA_DR_BCG_ENABLED
+#include "common/cuda_checks.h"
 #include "cuda_adapter.h"
+#include <cuda_runtime.h>
 #endif
 
 #include "cgrun.h"
@@ -70,6 +74,7 @@ int run_cg(const Args &args) {
 #endif
 #ifdef CUDA_CG_ENABLED
     case Implementation::CUDA: {
+        CUDA_CHECK(cudaDeviceSynchronize());
         return run_cuda_cg(args.A, b, x, args.L.value(), args.tolerance,
                            max_iters);
     }
@@ -103,6 +108,7 @@ int run_dr_bcg(const Args &args) {
 #endif
 #ifdef CUDA_DR_BCG_ENABLED
     case Implementation::CUDA: {
+        CUDA_CHECK(cudaDeviceSynchronize());
         return run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
                                max_iters, args.block_size);
     }
@@ -113,4 +119,3 @@ int run_dr_bcg(const Args &args) {
         return -1;
     }
 }
-

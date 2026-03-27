@@ -62,8 +62,6 @@ def main():
     colors = colors_by_algo[args.algo]
 
     data = pd.read_csv(args.file)
-    if args.impl == "cuda":
-        data["Range"] = data["Range"].str.slice(start=1)
     data = data[data["Range"].isin(ranges)]
     data["Range"] = pd.Categorical(data["Range"], categories=ranges, ordered=True)
     data = data.sort_values("Range")

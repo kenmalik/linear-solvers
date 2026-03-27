@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <unordered_map>
@@ -30,8 +31,9 @@ template <bool Enabled> class SectionTimer {
         }
     }
 
-    void report(std::ostream &out = std::cout) const {
+    void report(const std::string &fname) const {
         if constexpr (Enabled) {
+            std::ofstream out{fname};
             out << "Range,Total (ms),Avg (ms),Instances\n";
             for (const auto &[name, total] : totals_) {
                 int n = counts_.at(name);
