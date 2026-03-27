@@ -6,3 +6,6 @@ clean-nsys-profile:
 
 plot-profile:
 	@scripts/plot_profile.sh
+
+profile:
+	@scripts/profile.sh
