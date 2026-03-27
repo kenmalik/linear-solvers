@@ -7,5 +7,8 @@ clean-nsys-profile:
 plot-profile:
 	@scripts/plot_profile.sh
 
+plot-residuals:
+	@scripts/plot_residuals.sh
+
 run-all:
 	@scripts/run_all.sh
