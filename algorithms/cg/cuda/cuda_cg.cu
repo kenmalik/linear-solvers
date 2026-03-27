@@ -299,7 +299,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         }
     }
 
-    g_event_timer.report();
+    g_event_timer.report("timings_cuda_cg.csv");
     g_event_timer.reset();
 
     CUDA_CHECK(cudaFree(buffer_MV_q));

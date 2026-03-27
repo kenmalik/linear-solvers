@@ -353,7 +353,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
-    g_event_timer.report();
+    g_event_timer.report("timings_cuda_dr-bcg.csv");
     g_event_timer.reset();
 
     CUBLAS_CHECK(
@@ -690,7 +690,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
-    g_event_timer.report();
+    g_event_timer.report("timings_cuda_dr-bcg.csv");
     g_event_timer.reset();
 
     CUBLAS_CHECK(

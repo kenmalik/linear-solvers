@@ -4,7 +4,7 @@
 #include "timer.h"
 
 #include <cuda_runtime.h>
-#include <iostream>
+#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -46,9 +46,11 @@ template <bool Enabled> class CudaEventTimer {
         }
     }
 
-    void report(std::ostream &out = std::cout) {
+    void report(const std::string &fname) {
         if constexpr (Enabled) {
             CUDA_CHECK(cudaDeviceSynchronize());
+            std::ofstream out{fname};
+
             for (auto &p : pairs_) {
                 float ms = 0;
                 CUDA_CHECK(cudaEventElapsedTime(&ms, p.start, p.stop));

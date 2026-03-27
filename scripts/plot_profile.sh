@@ -13,7 +13,7 @@ for csv in "$dir"/*.csv; do
     
     # Extract impl and algo from filename: <anything>_<impl>_<algo>[_<anything>]
     # Supported impls: mkl, cuda   Supported algos: cg, dr-bcg
-    if [[ "$base" =~ ^(mkl|cuda)_(cg|dr-bcg)(_|$) ]]; then
+    if [[ "$base" =~ _(mkl|cuda)_(cg|dr-bcg)(_|$) ]]; then
         impl="${BASH_REMATCH[1]}"
         algo="${BASH_REMATCH[2]}"
     else

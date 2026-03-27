@@ -123,7 +123,7 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
         g_timer.stop("iteration");
     }
 
-    g_timer.report();
+    g_timer.report("timings_mkl_cg.csv");
 
     return iter;
 }
