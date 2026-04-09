@@ -221,8 +221,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_t = CUBLAS_OP_T;
             constexpr cublasOperation_t op_n = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op_t, op_n, s, s, n,
-                                        &alpha, d.s, n, d.temp, n, &beta, d.xi,
-                                        s));
+                                        d.d_one, d.s, n, d.temp, n, d.d_zero,
+                                        d.xi, s));
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
                                  d.xi, s, lu_ws, stream);
@@ -233,17 +233,13 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CudaEventRange er(g_event_timer, "X = X + s * xi * sigma", stream);
 
             // X = X + s * xi * sigma
-            constexpr double alpha_1 = 1.0;
-            constexpr double beta_1 = 0.0;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, s, s, s, &alpha_1, d.xi, s,
-                                        d.sigma, s, &beta_1, d.temp, n));
+                                        CUBLAS_OP_N, s, s, s, d.d_one, d.xi, s,
+                                        d.sigma, s, d.d_zero, d.temp, n));
 
-            constexpr double alpha_2 = 1.0;
-            constexpr double beta_2 = 1.0;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, n, s, s, &alpha_2, d.s, n,
-                                        d.temp, n, &beta_2, d_X, n));
+                                        CUBLAS_OP_N, n, s, s, d.d_one, d.s, n,
+                                        d.temp, n, d.d_one, d_X, n));
         }
 
         double relative_residual_norm = 0;
@@ -296,11 +292,9 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             // [w, zeta] = qr(w - A * s * xi, 'econ')
             constexpr cublasOperation_t op = CUBLAS_OP_N;
-            constexpr double sgemm_alpha = 1.0;
-            constexpr double sgemm_beta = 0.0;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op, op, n, s, s,
-                                        &sgemm_alpha, d.s, n, d.xi, s,
-                                        &sgemm_beta, d.temp, n));
+                                        d.d_one, d.s, n, d.xi, s,
+                                        d.d_zero, d.temp, n));
 
             constexpr cusparseOperation_t spmm_op =
                 CUSPARSE_OPERATION_NON_TRANSPOSE;
@@ -323,21 +317,18 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                               stream);
 
             // s = w + s * zeta'
-            constexpr double alpha = 1.0;
             constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
             constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
             constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_T;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, n, s, &alpha,
+                                        op_zeta, diag_type, n, s, d.d_one,
                                         d.zeta, s, d.s, n, d.s, n));
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
-            constexpr double sgeam_alpha = 1.0;
-            constexpr double sgeam_beta = 1.0;
             CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
-                                     &sgeam_alpha, d.s, n, &sgeam_beta, d.w, n,
+                                     d.d_one, d.s, n, d.d_one, d.w, n,
                                      d.s, n));
         }
 
@@ -346,14 +337,13 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CudaEventRange er(g_event_timer, "sigma = zeta * sigma", stream);
 
             // sigma = zeta * sigma
-            constexpr double alpha = 1.0;
             constexpr cublasSideMode_t side = CUBLAS_SIDE_LEFT;
             constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
             constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_N;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, s, s, &alpha,
+                                        op_zeta, diag_type, s, s, d.d_one,
                                         d.zeta, s, d.sigma, s, d.sigma, s));
         }
     }
@@ -361,8 +351,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     g_event_timer.report("timings_cuda_dr-bcg.csv");
     g_event_timer.reset();
 
-    CUBLAS_CHECK(
-        cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_HOST));
     CUDA_CHECK(cudaFreeAsync(d_norm, stream));
     CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     CUSPARSE_CHECK(cusparseDestroyDnMat(s_desc));
@@ -548,8 +536,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_t = CUBLAS_OP_T;
             constexpr cublasOperation_t op_n = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op_t, op_n, s, s, n,
-                                        &alpha, d.s, n, d.temp, n, &beta, d.xi,
-                                        s));
+                                        d.d_one, d.s, n, d.temp, n, d.d_zero,
+                                        d.xi, s));
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
                                  d.xi, s, lu_ws, stream);
@@ -560,17 +548,13 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CudaEventRange er(g_event_timer, "X = X + s * xi * sigma", stream);
 
             // X = X + s * xi * sigma
-            constexpr double alpha_1 = 1.0;
-            constexpr double beta_1 = 0.0;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, s, s, s, &alpha_1, d.xi, s,
-                                        d.sigma, s, &beta_1, d.temp, n));
+                                        CUBLAS_OP_N, s, s, s, d.d_one, d.xi, s,
+                                        d.sigma, s, d.d_zero, d.temp, n));
 
-            constexpr double alpha_2 = 1.0;
-            constexpr double beta_2 = 1.0;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, n, s, s, &alpha_2, d.s, n,
-                                        d.temp, n, &beta_2, d_X, n));
+                                        CUBLAS_OP_N, n, s, s, d.d_one, d.s, n,
+                                        d.temp, n, d.d_one, d_X, n));
         }
 
         double relative_residual_norm = 0;
@@ -639,11 +623,9 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             // w = w - temp * xi
             constexpr cublasOperation_t sgemm_op = CUBLAS_OP_N;
-            constexpr double sgemm_alpha = -1.0;
-            constexpr double sgemm_beta = 1.0;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, sgemm_op, sgemm_op, n,
-                                        s, s, &sgemm_alpha, d.temp, n, d.xi, s,
-                                        &sgemm_beta, d.w, n));
+                                        s, s, d.d_neg_one, d.temp, n, d.xi, s,
+                                        d.d_one, d.w, n));
 
             // [w, zeta] = qr(w)
             qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
@@ -656,14 +638,13 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                               stream);
 
             // s = (L^-1)' * w + s * zeta'
-            constexpr double alpha = 1.0;
             constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
             constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
             constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_T;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, n, s, &alpha,
+                                        op_zeta, diag_type, n, s, d.d_one,
                                         d.zeta, s, d.s, n, d.s, n));
 
             sptri_solve<double>(handles.cusparse, temp,
@@ -671,10 +652,8 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                 spsm_t);
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
-            constexpr double sgeam_alpha = 1.0;
-            constexpr double sgeam_beta = 1.0;
             CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
-                                     &sgeam_alpha, d.s, n, &sgeam_beta, d.temp,
+                                     d.d_one, d.s, n, d.d_one, d.temp,
                                      n, d.s, n));
         }
 
@@ -683,14 +662,13 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CudaEventRange er(g_event_timer, "sigma = zeta * sigma", stream);
 
             // sigma = zeta * sigma
-            constexpr double alpha = 1.0;
             constexpr cublasSideMode_t side = CUBLAS_SIDE_LEFT;
             constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
             constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_N;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, s, s, &alpha,
+                                        op_zeta, diag_type, s, s, d.d_one,
                                         d.zeta, s, d.sigma, s, d.sigma, s));
         }
     }
@@ -698,8 +676,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     g_event_timer.report("timings_cuda_dr-bcg.csv");
     g_event_timer.reset();
 
-    CUBLAS_CHECK(
-        cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_HOST));
     CUDA_CHECK(cudaFreeAsync(d_norm, stream));
     CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));

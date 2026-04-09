@@ -21,6 +21,9 @@ template <typename T> struct Device_buffer {
     T *zeta = nullptr;     ///< Device pointer for matrix zeta (s x s)
     T *temp = nullptr;     ///< Device pointer for temporary matrix (n x s)
     T *residual = nullptr; ///< Device pointer for residual vector (n)
+    T *d_one = nullptr;     ///< Device scalar: 1.0
+    T *d_zero = nullptr;    ///< Device scalar: 0.0
+    T *d_neg_one = nullptr; ///< Device scalar: -1.0
 
     Device_buffer(int n, int s) { allocate(n, s); }
     ~Device_buffer() { deallocate(); }
@@ -40,6 +43,16 @@ template <typename T> struct Device_buffer {
             cudaMalloc(reinterpret_cast<void **>(&temp), sizeof(T) * n * s));
         CUDA_CHECK(
             cudaMalloc(reinterpret_cast<void **>(&residual), sizeof(T) * n));
+
+        const T h_one = 1;
+        const T h_zero = 0;
+        const T h_neg_one = -1;
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_one),     sizeof(T)));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_zero),    sizeof(T)));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_neg_one), sizeof(T)));
+        CUDA_CHECK(cudaMemcpy(d_one,     &h_one,     sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_zero,    &h_zero,    sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_neg_one, &h_neg_one, sizeof(T), cudaMemcpyHostToDevice));
     }
 
     void deallocate() {
@@ -57,8 +70,15 @@ template <typename T> struct Device_buffer {
             CUDA_CHECK(cudaFree(temp));
         if (residual)
             CUDA_CHECK(cudaFree(residual));
-
         w = sigma = s = xi = zeta = temp = residual = nullptr;
+
+        if (d_one)
+            CUDA_CHECK(cudaFree(d_one));
+        if (d_zero)
+            CUDA_CHECK(cudaFree(d_zero));
+        if (d_neg_one)
+            CUDA_CHECK(cudaFree(d_neg_one));
+        d_one = d_zero = d_neg_one = nullptr;
     }
 };
 
