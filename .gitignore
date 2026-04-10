@@ -266,3 +266,4 @@ __marimo__/
 *.sqlite
 *.png
 residuals_*.txt
+*.json
