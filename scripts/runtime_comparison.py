@@ -43,7 +43,7 @@ def main():
 
     groups = [g for g in GROUP_ORDER if g in mkl.index or g in cuda.index]
     x = np.arange(len(groups))
-    width = 0.35
+    width = 0.4
 
     _, ax = plt.subplots()
     ax.bar(x - width / 2, [mkl.get(g, 0) for g in groups], width, label="MKL")  # type: ignore
