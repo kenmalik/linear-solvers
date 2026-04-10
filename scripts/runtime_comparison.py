@@ -66,7 +66,7 @@ def main():
         figure=fig,
         width_ratios=[0.15, 0.85],
         height_ratios=[4, 1],
-        hspace=0.1,
+        hspace=0,
         wspace=0,
     )
     ax_side = fig.add_subplot(gs[0, 0])
@@ -79,7 +79,7 @@ def main():
 
     ax.bar(x - width / 2, [mkl.get(g, 0) for g in groups], width, label="MKL")  # type: ignore
     ax.bar(x + width / 2, [cuda.get(g, 0) for g in groups], width, label="CUDA")  # type: ignore
-    ax.set_title("Runtime Comparison of Solver Implementations")
+    ax.set_title("Runtimes of Solver Implementations by Block Size")
     ax.set_ylabel(unit)
     ax.set_xticks([])
     ax.set_xlim(-0.5, len(groups) - 0.5)
@@ -108,6 +108,11 @@ def main():
     )
     tbl.auto_set_font_size(False)
     tbl.set_fontsize(8)
+    for cell in tbl.get_celld().values():
+        cell.set_edgecolor(plt.rcParams["axes.edgecolor"])
+        cell.set_linewidth(plt.rcParams["axes.linewidth"])
+
+    fig.subplots_adjust(left=0, right=0.98, top=0.93, bottom=0.02)
 
     if args.output:
         plt.savefig(args.output)
