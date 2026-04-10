@@ -54,6 +54,7 @@ def main():
     ax.set_xlabel("Block Size")
     ax.set_xticks(x)
     ax.set_xticklabels(groups)
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
     ax.legend()
 
     plt.tight_layout()
