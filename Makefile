@@ -12,3 +12,7 @@ plot-residuals:
 
 run-all:
 	@scripts/run_all.sh $(ARGS)
+
+.PHONY: benchmark
+benchmark:
+	@scripts/benchmark.sh
