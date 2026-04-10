@@ -1,3 +1,4 @@
+import argparse
 from io import StringIO
 import re
 import sys
@@ -5,11 +6,6 @@ import sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
-json = sys.stdin.read().strip()
-data = pd.read_json(StringIO(json), orient="records")
-
-unit = str(data["time_unit"][0])
 
 GROUP_ORDER = ["CG", "1", "2", "4", "8", "16", "32", "64"]
 
@@ -28,26 +24,45 @@ def parse_name(name):
     return None, None
 
 
-data[["impl", "group"]] = data["name"].apply(lambda n: pd.Series(parse_name(n)))
-data = data.dropna(subset=["impl", "group"])
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-o", "--output")
 
-mkl = data[data["impl"] == "MKL"].set_index("group")["time"]
-cuda = data[data["impl"] == "CUDA"].set_index("group")["time"]
+    args = parser.parse_args()
 
-groups = [g for g in GROUP_ORDER if g in mkl.index or g in cuda.index]
-x = np.arange(len(groups))
-width = 0.35
+    json = sys.stdin.read().strip()
+    data = pd.read_json(StringIO(json), orient="records")
 
-fig, ax = plt.subplots()
-ax.bar(x - width / 2, [mkl.get(g, 0) for g in groups], width, label="MKL")  # type: ignore
-ax.bar(x + width / 2, [cuda.get(g, 0) for g in groups], width, label="CUDA")  # type: ignore
+    unit = str(data["time_unit"][0])
 
-ax.set_title("Runtime Comparison of Solver Implementations")
-ax.set_ylabel(unit)
-ax.set_xlabel("Block Size")
-ax.set_xticks(x)
-ax.set_xticklabels(groups)
-ax.legend()
+    data[["impl", "group"]] = data["name"].apply(lambda n: pd.Series(parse_name(n)))
+    data = data.dropna(subset=["impl", "group"])
 
-plt.tight_layout()
-plt.show()
+    mkl = data[data["impl"] == "MKL"].set_index("group")["time"]
+    cuda = data[data["impl"] == "CUDA"].set_index("group")["time"]
+
+    groups = [g for g in GROUP_ORDER if g in mkl.index or g in cuda.index]
+    x = np.arange(len(groups))
+    width = 0.35
+
+    _, ax = plt.subplots()
+    ax.bar(x - width / 2, [mkl.get(g, 0) for g in groups], width, label="MKL")  # type: ignore
+    ax.bar(x + width / 2, [cuda.get(g, 0) for g in groups], width, label="CUDA")  # type: ignore
+
+    ax.set_title("Runtime Comparison of Solver Implementations")
+    ax.set_ylabel(unit)
+    ax.set_xlabel("Block Size")
+    ax.set_xticks(x)
+    ax.set_xticklabels(groups)
+    ax.legend()
+
+    plt.tight_layout()
+
+    if args.output:
+        plt.savefig(args.output)
+    else:
+        plt.show()
+
+
+if __name__ == "__main__":
+    main()
