@@ -6,8 +6,8 @@
 #include <dr_bcg/cuda.h>
 
 int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
-             std::vector<double> &x, const mat_utils::SpMatReader &L,
-             double tolerance, int max_iterations) {
+                std::vector<double> &x, const mat_utils::SpMatReader &L,
+                double tolerance, int max_iterations) {
     cusparseHandle_t cusparse;
     cusparseCreate(&cusparse);
 
@@ -34,6 +34,9 @@ int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
     DeviceSparseMatrixDouble L_mat{L};
     int iters = cg::cuda::solve(cusparse, cublas, A_mat.get(), b_descr, x_descr,
                                 L_mat.get(), tolerance, max_iterations);
+
+    cudaMemcpy(x.data(), x_d, sizeof(double) * x.size(),
+               cudaMemcpyDeviceToHost);
 
     cusparseDestroyDnVec(x_descr);
     cudaFree(x_d);
@@ -77,6 +80,9 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
     int iters = dr_bcg::cuda::solve(A_mat.get(), x_descr, b_descr, L_mat.get(),
                                     tolerance, max_iterations);
 
+    cudaMemcpy(x.data(), x_d, sizeof(double) * x.size(),
+               cudaMemcpyDeviceToHost);
+
     cusparseDestroyDnMat(x_descr);
     cudaFree(x_d);
 
@@ -113,6 +119,9 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     int iters = dr_bcg::cuda::solve(A_mat.get(), x_descr, b_descr, tolerance,
                                     max_iterations);
+
+    cudaMemcpy(x.data(), x_d, sizeof(double) * x.size(),
+               cudaMemcpyDeviceToHost);
 
     cusparseDestroyDnMat(x_descr);
     cudaFree(x_d);
