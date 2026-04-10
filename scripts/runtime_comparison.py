@@ -3,9 +3,11 @@ from io import StringIO
 import re
 import sys
 
+from matplotlib.transforms import Bbox
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 
 GROUP_ORDER = ["CG", "1", "2", "4", "8", "16", "32", "64"]
 
@@ -38,26 +40,74 @@ def main():
     data[["impl", "group"]] = data["name"].apply(lambda n: pd.Series(parse_name(n)))
     data = data.dropna(subset=["impl", "group"])
 
-    mkl = data[data["impl"] == "MKL"].set_index("group")["time"]
-    cuda = data[data["impl"] == "CUDA"].set_index("group")["time"]
+    mkl_data = data[data["impl"] == "MKL"].set_index("group")
+    cuda_data = data[data["impl"] == "CUDA"].set_index("group")
+    mkl = mkl_data["time"]
+    cuda = cuda_data["time"]
+    mkl_iters = mkl_data["iters"]
+    cuda_iters = cuda_data["iters"]
 
     groups = [g for g in GROUP_ORDER if g in mkl.index or g in cuda.index]
     x = np.arange(len(groups))
     width = 0.4
 
-    _, ax = plt.subplots()
+    row_labels = [f"MKL ({unit})", "MKL (iters)", f"CUDA ({unit})", "CUDA (iters)"]
+    table_data = [
+        [f"{mkl.get(g, 0):.0f}" for g in groups],
+        [f"{mkl_iters.get(g, 0):.0f}" for g in groups],
+        [f"{cuda.get(g, 0):.0f}" for g in groups],
+        [f"{cuda_iters.get(g, 0):.0f}" for g in groups],
+    ]
+
+    fig = plt.figure()
+    gs = GridSpec(
+        2,
+        2,
+        figure=fig,
+        width_ratios=[0.15, 0.85],
+        height_ratios=[4, 1],
+        hspace=0.1,
+        wspace=0,
+    )
+    ax_side = fig.add_subplot(gs[0, 0])
+    ax = fig.add_subplot(gs[0, 1])
+    ax_rlabels = fig.add_subplot(gs[1, 0])
+    ax_table = fig.add_subplot(gs[1, 1])
+    ax_side.axis("off")
+    ax_rlabels.axis("off")
+    ax_table.axis("off")
+
     ax.bar(x - width / 2, [mkl.get(g, 0) for g in groups], width, label="MKL")  # type: ignore
     ax.bar(x + width / 2, [cuda.get(g, 0) for g in groups], width, label="CUDA")  # type: ignore
-
     ax.set_title("Runtime Comparison of Solver Implementations")
     ax.set_ylabel(unit)
-    ax.set_xlabel("Block Size")
-    ax.set_xticks(x)
-    ax.set_xticklabels(groups)
+    ax.set_xticks([])
+    ax.set_xlim(-0.5, len(groups) - 0.5)
     ax.grid(axis="y", linestyle="--", alpha=0.4)
     ax.legend()
 
-    plt.tight_layout()
+    n_rows = len(row_labels) + 1  # +1 for header row
+    for i, label in enumerate(row_labels):
+        y = 1 - (i + 1.5) / n_rows
+        ax_rlabels.text(
+            0.95,
+            y,
+            label,
+            ha="right",
+            va="center",
+            transform=ax_rlabels.transAxes,
+            fontsize=8,
+        )
+
+    tbl = ax_table.table(
+        cellText=table_data,
+        colLabels=groups,
+        loc="center",
+        bbox=Bbox([[0, 0], [1, 1]]),
+        cellLoc="center",
+    )
+    tbl.auto_set_font_size(False)
+    tbl.set_fontsize(8)
 
     if args.output:
         plt.savefig(args.output)
