@@ -50,6 +50,7 @@ cgrun <A> <R> [options]
 |--------|-------------|---------|
 | `-h, --help` | Print help menu | |
 | `-b <path>` | Path to right-hand side vector file | Gaussian random values |
+| `-x <path>` | Path to initial guess file | Zero vector or matrix |
 | `--tolerance <value>` | Convergence tolerance | `1e-6` |
 | `--max-iterations <n>` | Maximum number of iterations | `n` (matrix dimension) |
 | `--real-residual` | Recalculate residual as `r = b - A * x` each iteration instead of using the update formula | Off |

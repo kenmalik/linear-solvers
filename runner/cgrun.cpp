@@ -57,12 +57,13 @@ int main(int argc, char *argv[]) {
 int run_cg(const Args &args) {
     int n = args.A.rows();
     std::vector<double> b;
-    std::vector<double> x(n, 0);
+    std::vector<double> x;
 
     try {
         b = prepare_rhs(args.b, n, 1);
+        x = prepare_initial_guess(args.x, n, 1);
     } catch (const std::exception &e) {
-        std::cerr << "Failed to prepare RHS: " << e.what() << std::endl;
+        std::cerr << "Failed to prepare dense inputs: " << e.what() << std::endl;
         return -1;
     }
 
@@ -98,12 +99,13 @@ int run_dr_bcg(const Args &args) {
     int n = args.A.rows();
     int s = args.block_size;
     std::vector<double> b;
-    std::vector<double> x(n * s, 0);
+    std::vector<double> x;
 
     try {
         b = prepare_rhs(args.b, n, s);
+        x = prepare_initial_guess(args.x, n, s);
     } catch (const std::exception &e) {
-        std::cerr << "Failed to prepare RHS: " << e.what() << std::endl;
+        std::cerr << "Failed to prepare dense inputs: " << e.what() << std::endl;
         return -1;
     }
 

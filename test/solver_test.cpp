@@ -72,6 +72,40 @@ TEST(Rhs, GeneratesRandomRhsWhenFileNotProvided) {
     EXPECT_EQ(b.size(), 6);
 }
 
+TEST(Rhs, LoadsCgInitialGuessFromMat) {
+    std::optional<mat_utils::DnMatReader> reader;
+    reader.emplace(TEST_DATA_DIR "/x_vec_test.mat", std::vector<std::string>{}, "x");
+
+    auto initial_guess = prepare_initial_guess(reader, 3, 1);
+
+    EXPECT_EQ(initial_guess, (std::vector<double>{1.0, 2.0, 3.0}));
+}
+
+TEST(Rhs, LoadsDrBcgInitialGuessFromMat) {
+    std::optional<mat_utils::DnMatReader> reader;
+    reader.emplace(TEST_DATA_DIR "/x_mat_test.mat", std::vector<std::string>{}, "x");
+
+    auto initial_guess = prepare_initial_guess(reader, 3, 2);
+
+    EXPECT_EQ(initial_guess, (std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}));
+}
+
+TEST(Rhs, RejectsInitialGuessDimensionMismatch) {
+    std::optional<mat_utils::DnMatReader> reader;
+    reader.emplace(TEST_DATA_DIR "/x_vec_test.mat", std::vector<std::string>{}, "x");
+
+    EXPECT_THROW(static_cast<void>(prepare_initial_guess(reader, 3, 2)),
+                 std::runtime_error);
+}
+
+TEST(Rhs, GeneratesZeroInitialGuessWhenFileNotProvided) {
+    auto initial_guess =
+        prepare_initial_guess(std::optional<mat_utils::DnMatReader>{}, 3, 2);
+
+    EXPECT_EQ(initial_guess,
+              (std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
+}
+
 #ifdef MKL_ENABLED
 
 TEST(CgMkl, ConvergesOn1138Bus) {

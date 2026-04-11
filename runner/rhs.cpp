@@ -17,22 +17,41 @@ std::vector<double> generate_random_rhs(std::size_t size) {
     return rhs;
 }
 
+std::vector<double> generate_zero_initial_guess(std::size_t size) {
+    return std::vector<double>(size, 0.0);
+}
+
+std::vector<double>
+prepare_dense_input(const std::optional<mat_utils::DnMatReader> &reader,
+                    std::size_t expected_rows, std::size_t expected_cols,
+                    const char *name, std::vector<double> (*fallback)(std::size_t)) {
+    if (!reader.has_value()) {
+        return fallback(expected_rows * expected_cols);
+    }
+
+    if (reader->rows() != expected_rows || reader->cols() != expected_cols) {
+        std::ostringstream oss;
+        oss << name << " has shape " << reader->rows() << "x" << reader->cols()
+            << ", expected " << expected_rows << "x" << expected_cols;
+        throw std::runtime_error(oss.str());
+    }
+
+    auto *data = reader->data();
+    return std::vector<double>(data, data + reader->size());
+}
+
 } // namespace
 
 std::vector<double>
 prepare_rhs(const std::optional<mat_utils::DnMatReader> &rhs_reader,
             std::size_t expected_rows, std::size_t expected_cols) {
-    if (!rhs_reader.has_value()) {
-        return generate_random_rhs(expected_rows * expected_cols);
-    }
+    return prepare_dense_input(rhs_reader, expected_rows, expected_cols, "RHS b",
+                               generate_random_rhs);
+}
 
-    if (rhs_reader->rows() != expected_rows || rhs_reader->cols() != expected_cols) {
-        std::ostringstream oss;
-        oss << "RHS b has shape " << rhs_reader->rows() << "x" << rhs_reader->cols()
-            << ", expected " << expected_rows << "x" << expected_cols;
-        throw std::runtime_error(oss.str());
-    }
-
-    auto *data = rhs_reader->data();
-    return std::vector<double>(data, data + rhs_reader->size());
+std::vector<double>
+prepare_initial_guess(const std::optional<mat_utils::DnMatReader> &x_reader,
+                      std::size_t expected_rows, std::size_t expected_cols) {
+    return prepare_dense_input(x_reader, expected_rows, expected_cols,
+                               "Initial guess x", generate_zero_initial_guess);
 }

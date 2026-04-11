@@ -9,3 +9,7 @@
 std::vector<double>
 prepare_rhs(const std::optional<mat_utils::DnMatReader> &rhs_reader,
             std::size_t expected_rows, std::size_t expected_cols);
+
+std::vector<double>
+prepare_initial_guess(const std::optional<mat_utils::DnMatReader> &x_reader,
+                      std::size_t expected_rows, std::size_t expected_cols);
