@@ -1,10 +1,21 @@
 #include <gtest/gtest.h>
 
 #include <mat_utils/mat_reader.h>
+#include <mat_utils/mat_writer.h>
+
+#include <filesystem>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <unistd.h>
+#include <vector>
 
 #ifndef TEST_DATA_DIR
 #define TEST_DATA_DIR "."
 #endif
+
+#include "parser.h"
+#include "rhs.h"
 
 #ifdef MKL_ENABLED
 #include "mkl_adapter.h"
@@ -16,6 +27,50 @@
 
 static constexpr double tolerance = 1e-6;
 static constexpr int block_size = 4;
+
+namespace {
+
+std::vector<char *> argv_from(std::vector<std::string> &args) {
+    std::vector<char *> argv;
+    argv.reserve(args.size());
+    for (auto &arg : args) {
+        argv.push_back(arg.data());
+    }
+    return argv;
+}
+
+} // namespace
+
+TEST(Rhs, LoadsCgRhsFromMat) {
+    std::optional<mat_utils::DnMatReader> reader;
+    reader.emplace(TEST_DATA_DIR "/b_vec_test.mat", std::vector<std::string>{}, "b");
+
+    auto b = prepare_rhs(reader, 3, 1);
+
+    EXPECT_EQ(b, (std::vector<double>{1.0, 2.0, 3.0}));
+}
+
+TEST(Rhs, LoadsDrBcgRhsFromMat) {
+    std::optional<mat_utils::DnMatReader> reader;
+    reader.emplace(TEST_DATA_DIR "/b_mat_test.mat", std::vector<std::string>{}, "b");
+
+    auto b = prepare_rhs(reader, 3, 2);
+
+    EXPECT_EQ(b, (std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}));
+}
+
+TEST(Rhs, RejectsDimensionMismatch) {
+    std::optional<mat_utils::DnMatReader> reader;
+    reader.emplace(TEST_DATA_DIR "/b_vec_test.mat", std::vector<std::string>{}, "b");
+
+    EXPECT_THROW(static_cast<void>(prepare_rhs(reader, 3, 2)), std::runtime_error);
+}
+
+TEST(Rhs, GeneratesRandomRhsWhenFileNotProvided) {
+    auto b = prepare_rhs(std::optional<mat_utils::DnMatReader>{}, 3, 2);
+
+    EXPECT_EQ(b.size(), 6);
+}
 
 #ifdef MKL_ENABLED
 

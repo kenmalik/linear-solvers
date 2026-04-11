@@ -49,7 +49,7 @@ cgrun <A> <R> [options]
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-h, --help` | Print help menu | |
-| `--B <path>` | Path to right-hand side vector file | Vector of ones |
+| `-b <path>` | Path to right-hand side vector file | Gaussian random values |
 | `--tolerance <value>` | Convergence tolerance | `1e-6` |
 | `--max-iterations <n>` | Maximum number of iterations | `n` (matrix dimension) |
 | `--real-residual` | Recalculate residual as `r = b - A * x` each iteration instead of using the update formula | Off |
