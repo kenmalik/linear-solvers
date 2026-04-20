@@ -4,6 +4,7 @@
 #include <mat_utils/mat_writer.h>
 
 #include <filesystem>
+#include <fstream>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -14,6 +15,7 @@
 #define TEST_DATA_DIR "."
 #endif
 
+#include "common/timer.h"
 #include "parser.h"
 #include "rhs.h"
 
@@ -39,7 +41,67 @@ std::vector<char *> argv_from(std::vector<std::string> &args) {
     return argv;
 }
 
+std::vector<std::string> read_csv_ranges(const std::filesystem::path &path) {
+    std::ifstream in(path);
+    std::string line;
+    std::vector<std::string> ranges;
+
+    std::getline(in, line); // header
+    while (std::getline(in, line)) {
+        auto comma = line.find(',');
+        ranges.push_back(line.substr(0, comma));
+    }
+
+    return ranges;
+}
+
 } // namespace
+
+TEST(Timer, ReportsSectionsInFirstOccurrenceOrder) {
+    SectionTimer<true> timer;
+
+    timer.start("iteration");
+    timer.stop("iteration");
+    timer.start("setup");
+    timer.stop("setup");
+    timer.start("iteration");
+    timer.stop("iteration");
+    timer.start("solve");
+    timer.stop("solve");
+
+    auto path = std::filesystem::temp_directory_path() /
+                ("timer-order-" + std::to_string(getpid()) + ".csv");
+    timer.report(path.string());
+
+    EXPECT_EQ(read_csv_ranges(path),
+              (std::vector<std::string>{"iteration", "setup", "solve"}));
+
+    std::filesystem::remove(path);
+}
+
+TEST(Timer, SuppressesDuplicateRowsBeforeReportAggregation) {
+    SectionTimer<true> timer;
+
+    timer.start("iteration");
+    timer.stop("iteration");
+    timer.start("inner");
+    timer.stop("inner");
+    timer.start("iteration");
+    timer.stop("iteration");
+    timer.start("inner");
+    timer.stop("inner");
+    timer.start("finalize");
+    timer.stop("finalize");
+
+    auto path = std::filesystem::temp_directory_path() /
+                ("timer-dedup-" + std::to_string(getpid()) + ".csv");
+    timer.report(path.string());
+
+    EXPECT_EQ(read_csv_ranges(path),
+              (std::vector<std::string>{"iteration", "inner", "finalize"}));
+
+    std::filesystem::remove(path);
+}
 
 TEST(Rhs, LoadsCgRhsFromMat) {
     std::optional<mat_utils::DnMatReader> reader;

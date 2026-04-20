@@ -7,6 +7,7 @@
 #include <fstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 template <bool Enabled> class CudaEventTimer {
@@ -16,6 +17,7 @@ template <bool Enabled> class CudaEventTimer {
                     cudaStream_t stream)
             : timer_(timer), name_(name), stream_(stream) {
             if constexpr (Enabled) {
+                timer_.register_name(name_);
                 CUDA_CHECK(cudaEventCreate(&start_));
                 CUDA_CHECK(cudaEventCreate(&stop_));
                 CUDA_CHECK(cudaEventRecord(start_, stream_));
@@ -61,7 +63,8 @@ template <bool Enabled> class CudaEventTimer {
             }
             pairs_.clear();
             out << "Range,Total (ms),Avg (ms),Instances\n";
-            for (const auto &[name, total] : totals_) {
+            for (const auto &name : order_) {
+                double total = totals_.at(name);
                 int n = counts_.at(name);
                 out << name << ',' << total << ',' << total / n << ',' << n
                     << '\n';
@@ -78,10 +81,18 @@ template <bool Enabled> class CudaEventTimer {
             pairs_.clear();
             totals_.clear();
             counts_.clear();
+            order_.clear();
+            seen_.clear();
         }
     }
 
   private:
+    void register_name(const std::string &name) {
+        if (seen_.insert(name).second) {
+            order_.push_back(name);
+        }
+    }
+
     struct EventPair {
         cudaEvent_t start;
         cudaEvent_t stop;
@@ -91,6 +102,8 @@ template <bool Enabled> class CudaEventTimer {
     std::vector<EventPair> pairs_;
     std::unordered_map<std::string, double> totals_;
     std::unordered_map<std::string, int> counts_;
+    std::vector<std::string> order_;
+    std::unordered_set<std::string> seen_;
 };
 
 inline CudaEventTimer<timer_enabled> g_event_timer;
