@@ -386,8 +386,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     void *scratch_d = nullptr;
 
     cusparseDnMatDescr_t temp;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, CUDA_R_64F,
-                                       CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, CUDA_R_64F, CUSPARSE_ORDER_COL));
     cusparseDnMatDescr_t s_desc;
     CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, CUDA_R_64F,
                                        CUSPARSE_ORDER_COL));
@@ -457,13 +456,20 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     }
 
+    // We break [w sigma] = QR(L^-1 * R) into two steps for timing purposes:
+    // 1. temp = L^-1 * R
+    // 2. [w sigma] = QR(temp)
     {
-        nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(L^-1 * R)"};
-        CudaEventRange er(g_event_timer, "[w sigma] = QR(L^-1 * R)", stream);
+        nvtx3::scoped_range w_sigma_initial_range{"temp = L^-1 * R"};
+        CudaEventRange er(g_event_timer, "temp = L^-1 * R", stream);
 
-        // [w, sigma] = qr(L^-1 * R, 'econ')
         sptri_solve<double>(handles.cusparse, temp,
                             CUSPARSE_OPERATION_NON_TRANSPOSE, L, R, spsm_nt);
+    }
+
+    {
+        nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(temp)"};
+        CudaEventRange er(g_event_timer, "[w sigma] = QR(temp)", stream);
 
         qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
                          d.sigma, n, s, d.temp, qr_ws, stream);
@@ -599,13 +605,12 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             break;
         }
 
+        // We break [w zeta] = QR(w - L^-1 * A * s * xi) into two steps for timing purposes:
+        // 1. w = w - L^-1 * A * s * xi
+        // 2. [w zeta] = QR(w)
         {
-            nvtx3::scoped_range w_zeta_range{
-                "[w zeta] = QR(w - L^{-1} * A * s * xi)"};
-            CudaEventRange er(g_event_timer,
-                              "[w zeta] = QR(w - L^{-1} * A * s * xi)", stream);
-
-            // [w, zeta] = qr(w - L^-1 * A * s * xi, 'econ')
+            nvtx3::scoped_range w_zeta_range{"w = w - L^-1 * A * s * xi"};
+            CudaEventRange er(g_event_timer, "w = w - L^-1 * A * s * xi", stream);
 
             // temp = A * s
             constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
@@ -626,6 +631,11 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, sgemm_op, sgemm_op, n,
                                         s, s, d.d_neg_one, d.temp, n, d.xi, s,
                                         d.d_one, d.w, n));
+        }
+
+        {
+            nvtx3::scoped_range w_zeta_range{"[w zeta] = QR(w)"};
+            CudaEventRange er(g_event_timer, "[w zeta] = QR(w)", stream);
 
             // [w, zeta] = qr(w)
             qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
