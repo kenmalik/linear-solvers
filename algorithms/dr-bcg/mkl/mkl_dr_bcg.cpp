@@ -149,15 +149,21 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         sparse_mm(A, 'N', -1.0, X, 1.0, R); // R = B - A*X
     }
 
+    // We break [w sigma] = QR(L^-1 * R) into two steps for timing purposes:
+    // 1. temp = L^-1 * R
+    // 2. [w sigma] = QR(temp)
     DenseMatrix w, sigma;
+    DenseMatrix temp = R;
     {
-        SectionRange w_sigma_range(g_timer, "[w sigma] = QR(L^-1 * R)");
+        SectionRange w_sigma_range(g_timer, "temp = L^-1 * R");
 
-        // tmp = L^{-1} * R
-        DenseMatrix tmp = R;
-        sparse_trsm(L, 'N', tmp);
+        sparse_trsm(L, 'N', temp);
+    }
 
-        thin_qr(tmp, w, sigma);
+    {
+        SectionRange w_sigma_range(g_timer, "[w sigma] = QR(temp)");
+
+        thin_qr(temp, w, sigma);
     }
 
     DenseMatrix s = w;
@@ -232,30 +238,28 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
             break;
         }
 
-        // ------------------------------------------------------------------
-        // Update w and s for next iteration
-        // ------------------------------------------------------------------
-        // tmp = L^{-1} * A * s * xi   (n x nrhs)
-        //     = L^{-1} * As * xi
-        DenseMatrix As_xi = alloc_dense(n, nrhs);
+        // We break [w zeta] = QR(w - L^-1 * A * s * xi) into two steps for timing purposes:
+        // 1. w = w - L^-1 * A * s * xi
+        // 2. [w zeta] = QR(w)
         DenseMatrix zeta;
         {
-            SectionRange w_zeta_range(
-                g_timer, "[w zeta] = QR(w - L^{-1} * A * s * xi)");
-            // Step 1: As_xi = As * xi  (n x nrhs)
+            SectionRange w_zeta_range(g_timer, "w = w - L^-1 * A * s * xi");
+
+            // temp = As * xi
             dense_mm('N', 'N', n, nrhs, nrhs, 1.0, As.data.data(), n,
-                     xi.data.data(), nrhs, 0.0, As_xi.data.data(), n);
+                     xi.data.data(), nrhs, 0.0, temp.data.data(), n);
 
-            // Step 2: L^{-1} * As_xi  (forward solve)
-            sparse_trsm(L, 'N', As_xi); // As_xi = L^{-1} * A * s * xi
+            // temp = L^-1 * As_xi
+            sparse_trsm(L, 'N', temp);
 
-            // w_new_input = w - L^{-1} * A * s * xi
-            DenseMatrix w_new_input = alloc_dense(n, nrhs);
-            for (size_t i = 0; i < w_new_input.data.size(); ++i)
-                w_new_input.data[i] = w.data[i] - As_xi.data[i];
+            // w = w - L^{-1} * A * s * xi
+            for (size_t i = 0; i < w.data.size(); ++i)
+                w.data[i] = w.data[i] - temp.data[i];
+        }
 
-            // [w, zeta] = QR(w_new_input)
-            thin_qr(w_new_input, w, zeta); // w: n x nrhs, zeta: nrhs x nrhs
+        {
+            SectionRange w_zeta_range(g_timer, "[w zeta] = QR(w)");
+            thin_qr(w, w, zeta);
         }
 
         {
