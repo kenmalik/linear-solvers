@@ -13,7 +13,9 @@ struct Args {
     mat_utils::SpMatReader A;
     std::optional<mat_utils::SpMatReader> L;
     std::optional<mat_utils::DnMatReader> b;
+    std::optional<mat_utils::DnMatReader> B;
     std::optional<mat_utils::DnMatReader> x;
+    std::optional<mat_utils::DnMatReader> X;
     double tolerance;
     std::optional<int> max_iterations;
     int block_size;

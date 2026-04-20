@@ -60,8 +60,8 @@ int run_cg(const Args &args) {
     std::vector<double> x;
 
     try {
-        b = prepare_rhs(args.b, n, 1);
-        x = prepare_initial_guess(args.x, n, 1);
+        b = prepare_rhs(args.b, args.B, n, 1);
+        x = prepare_initial_guess(args.x, args.X, n, 1);
     } catch (const std::exception &e) {
         std::cerr << "Failed to prepare dense inputs: " << e.what() << std::endl;
         return -1;
@@ -102,8 +102,8 @@ int run_dr_bcg(const Args &args) {
     std::vector<double> x;
 
     try {
-        b = prepare_rhs(args.b, n, s);
-        x = prepare_initial_guess(args.x, n, s);
+        b = prepare_rhs(args.b, args.B, n, s);
+        x = prepare_initial_guess(args.x, args.X, n, s);
     } catch (const std::exception &e) {
         std::cerr << "Failed to prepare dense inputs: " << e.what() << std::endl;
         return -1;

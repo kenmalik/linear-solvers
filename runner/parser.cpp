@@ -29,7 +29,9 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         ("A", "A matrix's .mat file", cxxopts::value<std::string>())
         ("L", "L matrix's .mat file", cxxopts::value<std::string>())
         ("b", "b matrix's .mat file containing top-level dense variable b", cxxopts::value<std::string>())
+        ("B", "B matrix's .mat file containing top-level dense variable B", cxxopts::value<std::string>())
         ("x", "x matrix's .mat file containing top-level dense variable x", cxxopts::value<std::string>())
+        ("X", "X matrix's .mat file containing top-level dense variable X", cxxopts::value<std::string>())
         ("t,tolerance", "Convergence tolerance", cxxopts::value<double>()->default_value("1e-6"))
         ("i,max-iterations", "Maximum number of iterations (default: n)", cxxopts::value<int>())
         ("s,block-size", "Block size (DR-BCG only)", cxxopts::value<int>()->default_value("1"));
@@ -87,21 +89,31 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         if (result.count("b")) {
             b_reader.emplace(result["b"].as<std::string>(), std::vector<std::string>{}, "b");
         }
+        std::optional<mat_utils::DnMatReader> B_reader;
+        if (result.count("B")) {
+            B_reader.emplace(result["B"].as<std::string>(), std::vector<std::string>{}, "B");
+        }
         std::optional<mat_utils::DnMatReader> x_reader;
         if (result.count("x")) {
             x_reader.emplace(result["x"].as<std::string>(), std::vector<std::string>{}, "x");
+        }
+        std::optional<mat_utils::DnMatReader> X_reader;
+        if (result.count("X")) {
+            X_reader.emplace(result["X"].as<std::string>(), std::vector<std::string>{}, "X");
         }
 
         if (result.count("L")) {
             mat_utils::SpMatReader L_reader{
                 result["L"].as<std::string>(), {}, "L"};
             return Args{*algorithm, *implementation, std::move(A_reader), std::move(L_reader),
-                        std::move(b_reader), std::move(x_reader), tolerance,
+                        std::move(b_reader), std::move(B_reader), std::move(x_reader),
+                        std::move(X_reader), tolerance,
                         max_iterations, block_size};
         }
 
         return Args{*algorithm, *implementation, std::move(A_reader), std::nullopt,
-                    std::move(b_reader), std::move(x_reader), tolerance,
+                    std::move(b_reader), std::move(B_reader), std::move(x_reader),
+                    std::move(X_reader), tolerance,
                     max_iterations, block_size};
     } catch (const cxxopts::exceptions::exception &e) {
         std::cerr << e.what() << '\n' << std::endl;
