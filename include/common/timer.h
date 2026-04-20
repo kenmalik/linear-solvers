@@ -16,6 +16,28 @@ inline constexpr bool timer_enabled = false;
 
 template <bool Enabled> class SectionTimer {
   public:
+    struct ScopedRange {
+        ScopedRange(SectionTimer &timer, const char *name)
+            : timer_(timer), name_(name) {
+            if constexpr (Enabled) {
+                timer_.start(name_);
+            }
+        }
+
+        ~ScopedRange() {
+            if constexpr (Enabled) {
+                timer_.stop(name_);
+            }
+        }
+
+        ScopedRange(const ScopedRange &) = delete;
+        ScopedRange &operator=(const ScopedRange &) = delete;
+
+      private:
+        SectionTimer &timer_;
+        const char *name_;
+    };
+
     void start(const std::string &name) {
         if constexpr (Enabled) {
             register_name(name);
@@ -74,3 +96,4 @@ template <bool Enabled> class SectionTimer {
 };
 
 inline SectionTimer<timer_enabled> g_timer;
+using SectionRange = SectionTimer<timer_enabled>::ScopedRange;

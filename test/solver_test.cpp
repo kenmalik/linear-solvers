@@ -103,6 +103,58 @@ TEST(Timer, SuppressesDuplicateRowsBeforeReportAggregation) {
     std::filesystem::remove(path);
 }
 
+TEST(Timer, ReportsRaiiSectionsInFirstOccurrenceOrder) {
+    SectionTimer<true> timer;
+
+    {
+        SectionTimer<true>::ScopedRange iteration(timer, "iteration");
+    }
+    {
+        SectionTimer<true>::ScopedRange setup(timer, "setup");
+    }
+    {
+        SectionTimer<true>::ScopedRange iteration(timer, "iteration");
+    }
+    {
+        SectionTimer<true>::ScopedRange solve(timer, "solve");
+    }
+
+    auto path = std::filesystem::temp_directory_path() /
+                ("timer-raii-order-" + std::to_string(getpid()) + ".csv");
+    timer.report(path.string());
+
+    EXPECT_EQ(read_csv_ranges(path),
+              (std::vector<std::string>{"iteration", "setup", "solve"}));
+
+    std::filesystem::remove(path);
+}
+
+TEST(Timer, ReportsNestedRaiiSectionsOnceInEntryOrder) {
+    SectionTimer<true> timer;
+
+    {
+        SectionTimer<true>::ScopedRange outer(timer, "outer");
+        {
+            SectionTimer<true>::ScopedRange inner(timer, "inner");
+        }
+    }
+    {
+        SectionTimer<true>::ScopedRange outer(timer, "outer");
+        {
+            SectionTimer<true>::ScopedRange inner(timer, "inner");
+        }
+    }
+
+    auto path = std::filesystem::temp_directory_path() /
+                ("timer-raii-nested-" + std::to_string(getpid()) + ".csv");
+    timer.report(path.string());
+
+    EXPECT_EQ(read_csv_ranges(path),
+              (std::vector<std::string>{"outer", "inner"}));
+
+    std::filesystem::remove(path);
+}
+
 TEST(Rhs, LoadsCgRhsFromMat) {
     std::optional<mat_utils::DnMatReader> reader;
     reader.emplace(TEST_DATA_DIR "/b_vec_test.mat", std::vector<std::string>{}, "b");
