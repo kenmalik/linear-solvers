@@ -19,18 +19,34 @@ cg_ranges = (
 
 dr_bcg_ranges = (
     "R = B - A * X",
-    "[w sigma] = QR(L^-1 * R)",
+    "temp = L^-1 * R",
+    "[w sigma] = QR(temp)",
     "s = (L^-1)' * w",
     "xi = (s' * As)^-1",
     "X = X + s * xi * sigma",
     "norm(B1 - A * X1) / norm(B1)",
-    "[w zeta] = QR(w - L^{-1} * A * s * xi)",
+    "w = w - L^-1 * A * s * xi",
+    "[w zeta] = QR(w)",
     "s = (L^-1)' * w + s * zeta'",
     "sigma = zeta * sigma",
 )
 
+custom_colors = (
+    "palevioletred",
+    "cornflowerblue",
+    "lightcoral",
+    "peru",
+    "gold",
+    "olivedrab",
+    "darkseagreen",
+    "lightseagreen",
+    "lightblue",
+    "tan",
+    "darksalmon",
+)
+
 cg_colors = {name: colormaps["tab10"](i) for i, name in enumerate(cg_ranges)}
-dr_bcg_colors = {name: colormaps["Set1"](i) for i, name in enumerate(dr_bcg_ranges)}
+dr_bcg_colors = {name: custom_colors[i] for i, name in enumerate(dr_bcg_ranges)}
 
 colors_by_algo = {
     "cg": cg_colors,
