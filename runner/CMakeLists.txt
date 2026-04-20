@@ -1,7 +1,7 @@
 find_package(MatUtils CONFIG REQUIRED)
 find_package(cxxopts CONFIG REQUIRED)
 
-add_executable(cgrun cgrun.cpp parser.cpp)
+add_executable(cgrun cgrun.cpp parser.cpp rhs.cpp)
 target_include_directories(cgrun PRIVATE ../include)
 target_link_libraries(cgrun PRIVATE MatUtils::mat_utils)
 

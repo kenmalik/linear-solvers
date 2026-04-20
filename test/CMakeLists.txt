@@ -1,4 +1,5 @@
 find_package(MatUtils CONFIG REQUIRED)
+find_package(cxxopts CONFIG REQUIRED)
 
 include(FetchContent)
 
@@ -13,12 +14,15 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-add_executable(solver_tests solver_test.cpp)
+add_executable(solver_tests solver_test.cpp
+    ${CMAKE_SOURCE_DIR}/runner/parser.cpp
+    ${CMAKE_SOURCE_DIR}/runner/rhs.cpp)
 target_compile_features(solver_tests PRIVATE cxx_std_20)
 target_include_directories(solver_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/runner
     ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(solver_tests PRIVATE GTest::gtest_main MatUtils::mat_utils)
+target_link_libraries(solver_tests PRIVATE GTest::gtest_main MatUtils::mat_utils
+    cxxopts::cxxopts)
 target_compile_definitions(solver_tests PRIVATE
     TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data")
 

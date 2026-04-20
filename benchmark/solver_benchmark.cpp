@@ -17,7 +17,6 @@
 #endif
 
 static constexpr double tolerance = 1e-6;
-static constexpr int block_size = 4;
 
 #ifdef MKL_ENABLED
 
@@ -36,6 +35,7 @@ static void BM_CgMkl(benchmark::State &state) {
 BENCHMARK(BM_CgMkl)->MinWarmUpTime(0.5);
 
 static void BM_DrBcgMkl(benchmark::State &state) {
+    int block_size = state.range(0);
     mat_utils::SpMatReader A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{BENCHMARK_DATA_DIR "/G2_circuit_ichol.mat", {}, "L"};
     int n = A.rows();
@@ -47,7 +47,7 @@ static void BM_DrBcgMkl(benchmark::State &state) {
         state.counters["iters"] = iters;
     }
 }
-BENCHMARK(BM_DrBcgMkl)->MinWarmUpTime(0.5);
+BENCHMARK(BM_DrBcgMkl)->ArgsProduct({{1, 2, 4, 8, 16, 32, 64}})->MinWarmUpTime(0.5);
 
 #endif // MKL_ENABLED
 
@@ -68,6 +68,7 @@ static void BM_CgCuda(benchmark::State &state) {
 BENCHMARK(BM_CgCuda)->MinWarmUpTime(0.5);
 
 static void BM_DrBcgCuda(benchmark::State &state) {
+    int block_size = state.range(0);
     mat_utils::SpMatReader A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{BENCHMARK_DATA_DIR "/G2_circuit_ichol.mat", {}, "L"};
     int n = A.rows();
@@ -79,6 +80,6 @@ static void BM_DrBcgCuda(benchmark::State &state) {
         state.counters["iters"] = iters;
     }
 }
-BENCHMARK(BM_DrBcgCuda)->MinWarmUpTime(0.5);
+BENCHMARK(BM_DrBcgCuda)->ArgsProduct({{1, 2, 4, 8, 16, 32, 64}})->MinWarmUpTime(0.5);
 
 #endif // CUDA_ENABLED

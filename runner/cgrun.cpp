@@ -23,6 +23,7 @@
 
 #include "cgrun.h"
 #include "parser.h"
+#include "rhs.h"
 
 int main(int argc, char *argv[]) {
     auto args = parse_args(argc, argv);
@@ -55,8 +56,16 @@ int main(int argc, char *argv[]) {
 
 int run_cg(const Args &args) {
     int n = args.A.rows();
-    std::vector<double> b(n, 1);
-    std::vector<double> x(n, 0);
+    std::vector<double> b;
+    std::vector<double> x;
+
+    try {
+        b = prepare_rhs(args.b, args.B, n, 1);
+        x = prepare_initial_guess(args.x, args.X, n, 1);
+    } catch (const std::exception &e) {
+        std::cerr << "Failed to prepare dense inputs: " << e.what() << std::endl;
+        return -1;
+    }
 
     int max_iters = args.max_iterations.value_or(n);
 
@@ -89,8 +98,16 @@ int run_cg(const Args &args) {
 int run_dr_bcg(const Args &args) {
     int n = args.A.rows();
     int s = args.block_size;
-    std::vector<double> b(n * s, 1);
-    std::vector<double> x(n * s, 0);
+    std::vector<double> b;
+    std::vector<double> x;
+
+    try {
+        b = prepare_rhs(args.b, args.B, n, s);
+        x = prepare_initial_guess(args.x, args.X, n, s);
+    } catch (const std::exception &e) {
+        std::cerr << "Failed to prepare dense inputs: " << e.what() << std::endl;
+        return -1;
+    }
 
     int max_iters = args.max_iterations.value_or(n);
 
