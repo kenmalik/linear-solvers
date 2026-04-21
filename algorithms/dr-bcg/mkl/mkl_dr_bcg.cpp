@@ -144,7 +144,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
 
     DenseMatrix R = alloc_dense(n, nrhs);
     {
-        SectionRange r_range(g_timer, "R = B - A * X");
+        CpuTimerRange r_range(g_timer, "R = B - A * X");
         R = B;
         sparse_mm(A, 'N', -1.0, X, 1.0, R); // R = B - A*X
     }
@@ -155,20 +155,20 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
     DenseMatrix w, sigma;
     DenseMatrix temp = R;
     {
-        SectionRange w_sigma_range(g_timer, "temp = L^-1 * R");
+        CpuTimerRange w_sigma_range(g_timer, "temp = L^-1 * R");
 
         sparse_trsm(L, 'N', temp);
     }
 
     {
-        SectionRange w_sigma_range(g_timer, "[w sigma] = QR(temp)");
+        CpuTimerRange w_sigma_range(g_timer, "[w sigma] = QR(temp)");
 
         thin_qr(temp, w, sigma);
     }
 
     DenseMatrix s = w;
     {
-        SectionRange s_initial_range(g_timer, "s = (L^-1)' * w");
+        CpuTimerRange s_initial_range(g_timer, "s = (L^-1)' * w");
         sparse_trsm(L, 'T', s);
     }
 
@@ -185,13 +185,13 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
     // Main iteration loop
     // ------------------------------------------------------------------
     for (int k = 0; k < max_iterations; ++k) {
-        SectionRange iteration_range(g_timer, "iteration");
+        CpuTimerRange iteration_range(g_timer, "iteration");
         ++iterations;
 
         DenseMatrix As = alloc_dense(n, nrhs);
         DenseMatrix xi(alloc_dense(nrhs, nrhs));
         {
-            SectionRange xi_range(g_timer, "xi = (s' * As)^-1");
+            CpuTimerRange xi_range(g_timer, "xi = (s' * As)^-1");
             // Step 1: As = A * s  (n x nrhs)
             As.data.assign(As.data.size(), 0.0);
             sparse_mm(A, 'N', 1.0, s, 0.0, As);
@@ -206,7 +206,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
 
         DenseMatrix xi_sigma = alloc_dense(nrhs, nrhs);
         {
-            SectionRange x_range(g_timer, "X = X + s * xi * sigma");
+            CpuTimerRange x_range(g_timer, "X = X + s * xi * sigma");
             // Step a: tmp2 = xi * sigma  (nrhs x nrhs)
             dense_mm('N', 'N', nrhs, nrhs, nrhs, 1.0, xi.data.data(), nrhs,
                      sigma.data.data(), nrhs, 0.0, xi_sigma.data.data(),
@@ -222,7 +222,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         // ------------------------------------------------------------------
         double residual_norm = 0.0;
         {
-            SectionRange rrn_range(g_timer, "norm(B1 - A * X1) / norm(B1)");
+            CpuTimerRange rrn_range(g_timer, "norm(B1 - A * X1) / norm(B1)");
             DenseMatrix X_col1 = alloc_dense(n, 1);
             std::copy(X.data.begin(), X.data.begin() + n, X_col1.data.begin());
 
@@ -243,7 +243,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         // 2. [w zeta] = QR(w)
         DenseMatrix zeta;
         {
-            SectionRange w_zeta_range(g_timer, "w = w - L^-1 * A * s * xi");
+            CpuTimerRange w_zeta_range(g_timer, "w = w - L^-1 * A * s * xi");
 
             // temp = As * xi
             dense_mm('N', 'N', n, nrhs, nrhs, 1.0, As.data.data(), n,
@@ -258,12 +258,12 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         }
 
         {
-            SectionRange w_zeta_range(g_timer, "[w zeta] = QR(w)");
+            CpuTimerRange w_zeta_range(g_timer, "[w zeta] = QR(w)");
             thin_qr(w, w, zeta);
         }
 
         {
-            SectionRange s_range(g_timer, "s = (L^-1)' * w + s * zeta'");
+            CpuTimerRange s_range(g_timer, "s = (L^-1)' * w + s * zeta'");
             DenseMatrix Linv_T_w = w;
             sparse_trsm(L, 'T', Linv_T_w); // Linv_T_w = L^{-T} * w
 
@@ -279,7 +279,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         }
 
         {
-            SectionRange sigma_range(g_timer, "sigma = zeta * sigma");
+            CpuTimerRange sigma_range(g_timer, "sigma = zeta * sigma");
             DenseMatrix sigma_new = alloc_dense(nrhs, nrhs);
             dense_mm('N', 'N', nrhs, nrhs, nrhs, 1.0, zeta.data.data(), nrhs,
                      sigma.data.data(), nrhs, 0.0, sigma_new.data.data(),

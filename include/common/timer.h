@@ -3,9 +3,9 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
-#include <unordered_set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #ifdef ENABLE_TIMER
@@ -14,69 +14,61 @@ inline constexpr bool timer_enabled = true;
 inline constexpr bool timer_enabled = false;
 #endif
 
-template <bool Enabled> class SectionTimer {
+template <bool Enabled>
+class CpuTimer;
+
+template <>
+class CpuTimer<true> {
   public:
     struct ScopedRange {
-        ScopedRange(SectionTimer &timer, const char *name)
+        ScopedRange(CpuTimer &timer, const char *name)
             : timer_(timer), name_(name) {
-            if constexpr (Enabled) {
-                timer_.start(name_);
-            }
+            timer_.start(name_);
         }
 
         ~ScopedRange() {
-            if constexpr (Enabled) {
-                timer_.stop(name_);
-            }
+            timer_.stop(name_);
         }
 
         ScopedRange(const ScopedRange &) = delete;
         ScopedRange &operator=(const ScopedRange &) = delete;
 
       private:
-        SectionTimer &timer_;
+        CpuTimer &timer_;
         const char *name_;
     };
 
     void start(const std::string &name) {
-        if constexpr (Enabled) {
-            register_name(name);
-            starts_[name] = clock_t::now();
-        }
+        register_name(name);
+        starts_[name] = clock_t::now();
     }
 
     void stop(const std::string &name) {
-        if constexpr (Enabled) {
-            auto end = clock_t::now();
-            auto ms = std::chrono::duration<double, std::milli>(
-                          end - starts_.at(name))
-                          .count();
-            totals_[name] += ms;
-            counts_[name]++;
-        }
+        auto end = clock_t::now();
+        auto ms = std::chrono::duration<double, std::milli>(
+                      end - starts_.at(name))
+                      .count();
+        totals_[name] += ms;
+        counts_[name]++;
     }
 
     void report(const std::string &fname) const {
-        if constexpr (Enabled) {
-            std::ofstream out{fname};
-            out << "Range,Total (ms),Avg (ms),Instances\n";
-            for (const auto &name : order_) {
-                double total = totals_.at(name);
-                int n = counts_.at(name);
-                out << name << ',' << total << "," << total / n << ',' << n
-                    << '\n';
-            }
+        std::ofstream out{fname};
+        out << "Range,Total (ms),Avg (ms),Instances\n";
+        for (const auto &name : order_) {
+            double total = totals_.at(name);
+            int n = counts_.at(name);
+            out << name << ',' << total << "," << total / n << ',' << n
+                << '\n';
         }
     }
 
     void reset() {
-        if constexpr (Enabled) {
-            starts_.clear();
-            totals_.clear();
-            counts_.clear();
-            order_.clear();
-            seen_.clear();
-        }
+        starts_.clear();
+        totals_.clear();
+        counts_.clear();
+        order_.clear();
+        seen_.clear();
     }
 
   private:
@@ -95,5 +87,23 @@ template <bool Enabled> class SectionTimer {
     std::unordered_set<std::string> seen_;
 };
 
-inline SectionTimer<timer_enabled> g_timer;
-using SectionRange = SectionTimer<timer_enabled>::ScopedRange;
+template <>
+class CpuTimer<false> {
+  public:
+    struct ScopedRange {
+        ScopedRange(CpuTimer &timer, const char *name) {}
+        ~ScopedRange() {}
+        ScopedRange(const ScopedRange &) = delete;
+        ScopedRange &operator=(const ScopedRange &) = delete;
+    };
+
+    void start(const std::string &fname) {}
+    void stop(const std::string &fname) {}
+    void report(const std::string &fname) const {}
+    void reset() {}
+};
+
+inline CpuTimer<timer_enabled> g_timer;
+using CpuTimerRange = CpuTimer<timer_enabled>::ScopedRange;
+
+static_assert(timer_enabled || sizeof(g_timer) == 1, "disabled CPU timer should have size of 1 byte");

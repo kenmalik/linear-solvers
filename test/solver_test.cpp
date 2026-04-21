@@ -58,7 +58,7 @@ std::vector<std::string> read_csv_ranges(const std::filesystem::path &path) {
 } // namespace
 
 TEST(Timer, ReportsSectionsInFirstOccurrenceOrder) {
-    SectionTimer<true> timer;
+    CpuTimer<true> timer;
 
     timer.start("iteration");
     timer.stop("iteration");
@@ -80,7 +80,7 @@ TEST(Timer, ReportsSectionsInFirstOccurrenceOrder) {
 }
 
 TEST(Timer, SuppressesDuplicateRowsBeforeReportAggregation) {
-    SectionTimer<true> timer;
+    CpuTimer<true> timer;
 
     timer.start("iteration");
     timer.stop("iteration");
@@ -104,19 +104,19 @@ TEST(Timer, SuppressesDuplicateRowsBeforeReportAggregation) {
 }
 
 TEST(Timer, ReportsRaiiSectionsInFirstOccurrenceOrder) {
-    SectionTimer<true> timer;
+    CpuTimer<true> timer;
 
     {
-        SectionTimer<true>::ScopedRange iteration(timer, "iteration");
+        CpuTimer<true>::ScopedRange iteration(timer, "iteration");
     }
     {
-        SectionTimer<true>::ScopedRange setup(timer, "setup");
+        CpuTimer<true>::ScopedRange setup(timer, "setup");
     }
     {
-        SectionTimer<true>::ScopedRange iteration(timer, "iteration");
+        CpuTimer<true>::ScopedRange iteration(timer, "iteration");
     }
     {
-        SectionTimer<true>::ScopedRange solve(timer, "solve");
+        CpuTimer<true>::ScopedRange solve(timer, "solve");
     }
 
     auto path = std::filesystem::temp_directory_path() /
@@ -130,18 +130,18 @@ TEST(Timer, ReportsRaiiSectionsInFirstOccurrenceOrder) {
 }
 
 TEST(Timer, ReportsNestedRaiiSectionsOnceInEntryOrder) {
-    SectionTimer<true> timer;
+    CpuTimer<true> timer;
 
     {
-        SectionTimer<true>::ScopedRange outer(timer, "outer");
+        CpuTimer<true>::ScopedRange outer(timer, "outer");
         {
-            SectionTimer<true>::ScopedRange inner(timer, "inner");
+            CpuTimer<true>::ScopedRange inner(timer, "inner");
         }
     }
     {
-        SectionTimer<true>::ScopedRange outer(timer, "outer");
+        CpuTimer<true>::ScopedRange outer(timer, "outer");
         {
-            SectionTimer<true>::ScopedRange inner(timer, "inner");
+            CpuTimer<true>::ScopedRange inner(timer, "inner");
         }
     }
 
