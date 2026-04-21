@@ -21,10 +21,8 @@
 #include <cuda_runtime.h>
 #endif
 
-#ifdef ENABLE_TIMER
 #include "common/cuda_event_timer.h"
 #include "common/timer.h"
-#endif
 
 #include "cgrun.h"
 #include "parser.h"
