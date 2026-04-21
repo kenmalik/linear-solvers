@@ -8,12 +8,12 @@ DATA_DIR="$(realpath "${SCRIPT_DIR}/../data")"
 
 algorithms=("cg" "dr-bcg")
 implementations=("mkl" "cuda")
-block_size=1
+block_sizes=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -s|--block-size)
-            block_size="$2"
+            IFS=',' read -r -a block_sizes <<< "$2"
             shift 2
             ;;
         *)
@@ -23,16 +23,23 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ ${#block_sizes[@]} == 0 ]]; then
+    block_sizes=(1 2 4 8 16 32 64)
+fi
+
 for alg in ${algorithms[@]}; do
     for impl in ${implementations[@]}; do
         if [[ "${alg}" == "dr-bcg" ]]; then
-            "${BUILD_DIR}/runner/cgrun" "$alg" "$impl" \
-                "${DATA_DIR}/G2_circuit.mat" "${DATA_DIR}/G2_circuit_ichol.mat" \
-                -s "$block_size" 2> "residuals_${impl}_${alg}.txt"
+            for block_size in "${block_sizes[@]}"; do
+                "${BUILD_DIR}/runner/cgrun" "$alg" "$impl" \
+                    "${DATA_DIR}/G2_circuit.mat" "${DATA_DIR}/G2_circuit_ichol.mat" \
+                    --timer-out "${impl}_${alg}_s${block_size}" \
+                    -s "$block_size" 2> "residuals_${impl}_${alg}.txt"
+            done
         else
             "${BUILD_DIR}/runner/cgrun" "$alg" "$impl" \
                 "${DATA_DIR}/G2_circuit.mat" "${DATA_DIR}/G2_circuit_ichol.mat" \
-                2> "residuals_${impl}_${alg}.txt"
+                --timer-out "${impl}_${alg}" 2> "residuals_${impl}_${alg}.txt"
         fi
     done
 done
