@@ -2,8 +2,12 @@ find_package(MatUtils CONFIG REQUIRED)
 find_package(cxxopts CONFIG REQUIRED)
 
 add_executable(cgrun cgrun.cpp parser.cpp rhs.cpp)
+target_compile_features(cgrun PRIVATE cxx_std_20)
 target_include_directories(cgrun PRIVATE ../include)
 target_link_libraries(cgrun PRIVATE MatUtils::mat_utils)
+target_compile_definitions(cgrun PRIVATE
+    $<$<BOOL:${SOLVERS_VERBOSE}>:SOLVERS_VERBOSE>
+    $<$<BOOL:${SOLVERS_ENABLE_TIMER}>:ENABLE_TIMER>)
 
 if(SOLVERS_BUILD_CUDA)
     target_sources(cgrun PRIVATE cuda_adapter.cu)

@@ -21,6 +21,11 @@
 #include <cuda_runtime.h>
 #endif
 
+#ifdef ENABLE_TIMER
+#include "common/cuda_event_timer.h"
+#include "common/timer.h"
+#endif
+
 #include "cgrun.h"
 #include "parser.h"
 #include "rhs.h"
@@ -51,6 +56,15 @@ int main(int argc, char *argv[]) {
     }
 
     std::cout << iters << std::endl;
+
+    if constexpr (timer_enabled) {
+        if (args->implementation == Implementation::CUDA) {
+            g_event_timer.report(args->timer_out);
+        } else {
+            g_timer.report(args->timer_out);
+        }
+    }
+
     return 0;
 }
 

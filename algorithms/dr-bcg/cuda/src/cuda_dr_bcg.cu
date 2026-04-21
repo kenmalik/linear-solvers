@@ -348,9 +348,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
-    g_event_timer.report("timings_cuda_dr-bcg.csv");
-    g_event_timer.reset();
-
     CUDA_CHECK(cudaFreeAsync(d_norm, stream));
     CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     CUSPARSE_CHECK(cusparseDestroyDnMat(s_desc));
@@ -682,9 +679,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         d.zeta, s, d.sigma, s, d.sigma, s));
         }
     }
-
-    g_event_timer.report("timings_cuda_dr-bcg.csv");
-    g_event_timer.reset();
 
     CUDA_CHECK(cudaFreeAsync(d_norm, stream));
     CUDA_CHECK(cudaFreeAsync(scratch_d, stream));

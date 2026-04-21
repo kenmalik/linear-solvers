@@ -288,8 +288,6 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         }
     }
 
-    g_timer.report("timings_mkl_dr-bcg.csv");
-
     return iterations;
 }
 } // namespace dr_bcg::mkl

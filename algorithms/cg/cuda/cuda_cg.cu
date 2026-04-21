@@ -304,9 +304,6 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         }
     }
 
-    g_event_timer.report("timings_cuda_cg.csv");
-    g_event_timer.reset();
-
     CUDA_CHECK(cudaFree(buffer_MV_q));
     CUSPARSE_CHECK(cusparseSpSV_destroyDescr(desc_SpSV_LT));
     CUSPARSE_CHECK(cusparseSpSV_destroyDescr(desc_SpSV_L));
