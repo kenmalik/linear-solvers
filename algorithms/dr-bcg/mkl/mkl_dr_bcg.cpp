@@ -130,6 +130,8 @@ void invert_square(std::vector<double> &A_data, MKL_INT n) {
 namespace dr_bcg::mkl {
 int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
           DenseMatrix &X, double tolerance, int max_iterations) noexcept {
+    CpuTimerRange solve_range{g_timer, "solve"};
+
     const MKL_INT n = A.rows;
     const MKL_INT nrhs = B.cols;
 

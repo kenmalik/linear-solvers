@@ -11,7 +11,8 @@
 #include <nvtx3/nvtx3.hpp>
 
 namespace {
-template <typename T> struct Device_buffers {
+template <typename T>
+struct Device_buffers {
     cudaDataType_t cuda_type =
         std::is_same_v<T, float> ? CUDA_R_32F : CUDA_R_64F;
 
@@ -52,13 +53,38 @@ template <typename T> struct Device_buffers {
 } // namespace
 
 namespace cg::cuda {
+namespace {
+struct HandleStreamGuard {
+    cusparseHandle_t cusparse;
+    cublasHandle_t cublas;
+    cudaStream_t cusparse_stream = nullptr;
+    cudaStream_t cublas_stream = nullptr;
+
+    HandleStreamGuard(cusparseHandle_t cusparse_handle,
+                      cublasHandle_t cublas_handle,
+                      cudaStream_t target_stream)
+        : cusparse(cusparse_handle), cublas(cublas_handle) {
+        CUSPARSE_CHECK(cusparseGetStream(cusparse, &cusparse_stream));
+        CUBLAS_CHECK(cublasGetStream_v2(cublas, &cublas_stream));
+        CUSPARSE_CHECK(cusparseSetStream(cusparse, target_stream));
+        CUBLAS_CHECK(cublasSetStream_v2(cublas, target_stream));
+    }
+
+    ~HandleStreamGuard() {
+        CUSPARSE_CHECK(cusparseSetStream(cusparse, cusparse_stream));
+        CUBLAS_CHECK(cublasSetStream_v2(cublas, cublas_stream));
+    }
+};
+} // namespace
+
 int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
           cusparseSpMatDescr_t A, cusparseDnVecDescr_t b,
           cusparseDnVecDescr_t x, cusparseSpMatDescr_t L, double tolerance,
-          int max_iterations, bool real_residual) {
+          int max_iterations, bool real_residual, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
 
-    cudaStream_t stream = nullptr;
+    HandleStreamGuard handle_stream_guard(cusparse, cublas, stream);
+    CudaTimerRange solve_range{g_event_timer, "solve", stream};
 
     std::int64_t n = 0;
     void *x_d = nullptr;

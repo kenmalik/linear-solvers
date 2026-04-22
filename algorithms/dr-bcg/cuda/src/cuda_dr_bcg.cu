@@ -58,14 +58,15 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
 
 namespace dr_bcg::cuda {
 int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-          cusparseDnMatDescr_t B, double tolerance, int max_iterations) {
+          cusparseDnMatDescr_t B, double tolerance, int max_iterations,
+          cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
     Device_buffer<double> d(n, s);
 
-    cudaStream_t stream;
-    CUDA_CHECK(cudaStreamCreate(&stream));
+    CudaTimerRange solve_range{g_event_timer, "solve", stream};
+
     Handles handles;
     handles.set_stream(stream);
 
@@ -354,7 +355,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUSPARSE_CHECK(cusparseDestroyDnMat(w_desc));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
     CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
-    CUDA_CHECK(cudaStreamDestroy(stream));
 
     return iterations;
 }
@@ -362,14 +362,14 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 // Preconditioned double-precision variant
 int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L, double tolerance,
-          int max_iterations) {
+          int max_iterations, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
     Device_buffer<double> d(n, s);
 
-    cudaStream_t stream;
-    CUDA_CHECK(cudaStreamCreate(&stream));
+    CudaTimerRange solve_range{g_event_timer, "solve", stream};
+
     Handles handles;
     handles.set_stream(stream);
 
@@ -684,7 +684,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
     CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
-    CUDA_CHECK(cudaStreamDestroy(stream));
 
     return iterations;
 }
