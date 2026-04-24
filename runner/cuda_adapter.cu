@@ -38,6 +38,9 @@ int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
 
     DeviceSparseMatrixDouble A_mat{A};
     DeviceSparseMatrixDouble L_mat{L};
+
+    CUDA_CHECK(cudaDeviceSynchronize());
+
     int iters = cg::cuda::solve(cusparse, cublas, A_mat.get(), b_descr, x_descr,
                                 L_mat.get(), tolerance, max_iterations, true,
                                 stream);
@@ -89,6 +92,8 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
     DeviceSparseMatrixDouble A_mat{A};
     DeviceSparseMatrixDouble L_mat{L};
 
+    CUDA_CHECK(cudaDeviceSynchronize());
+
     int iters = dr_bcg::cuda::solve(A_mat.get(), x_descr, b_descr, L_mat.get(),
                                     tolerance, max_iterations, stream);
 
@@ -133,6 +138,8 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                                        CUDA_R_64F, CUSPARSE_ORDER_COL));
 
     DeviceSparseMatrixDouble A_mat{A};
+
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     int iters = dr_bcg::cuda::solve(A_mat.get(), x_descr, b_descr, tolerance,
                                     max_iterations, stream);
