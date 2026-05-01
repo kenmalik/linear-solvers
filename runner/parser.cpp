@@ -35,7 +35,9 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         ("timer-out", "Output file for timings CSV", cxxopts::value<std::string>()->default_value("timings.csv"))
         ("t,tolerance", "Convergence tolerance", cxxopts::value<double>()->default_value("1e-6"))
         ("i,max-iterations", "Maximum number of iterations (default: n)", cxxopts::value<int>())
-        ("s,block-size", "Block size (DR-BCG only)", cxxopts::value<int>()->default_value("1"));
+        ("s,block-size", "Block size (DR-BCG only)", cxxopts::value<int>()->default_value("1"))
+        ("no-tensor-cores", "Disable tensor-core-eligible cuBLAS math for CUDA runs",
+         cxxopts::value<bool>()->default_value("false")->implicit_value("true"));
     // clang-format on
 
     options.parse_positional({"algorithm", "implementation", "A", "L"});
@@ -86,6 +88,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         if (result.count("max-iterations"))
             max_iterations = result["max-iterations"].as<int>();
         int block_size = result["block-size"].as<int>();
+        bool disable_tensor_cores = result["no-tensor-cores"].as<bool>();
         std::optional<mat_utils::DnMatReader> b_reader;
         if (result.count("b")) {
             b_reader.emplace(result["b"].as<std::string>(), std::vector<std::string>{}, "b");
@@ -113,13 +116,13 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
             return Args{*algorithm, *implementation, std::move(A_reader), std::move(L_reader),
                         std::move(b_reader), std::move(B_reader), std::move(x_reader),
                         std::move(X_reader), timer_out, tolerance,
-                        max_iterations, block_size};
+                        max_iterations, block_size, disable_tensor_cores};
         }
 
         return Args{*algorithm, *implementation, std::move(A_reader), std::nullopt,
                     std::move(b_reader), std::move(B_reader), std::move(x_reader),
                     std::move(X_reader), timer_out, tolerance,
-                    max_iterations, block_size};
+                    max_iterations, block_size, disable_tensor_cores};
     } catch (const cxxopts::exceptions::exception &e) {
         std::cerr << e.what() << '\n' << std::endl;
         std::cerr << options.help();

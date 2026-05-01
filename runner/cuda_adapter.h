@@ -6,13 +6,16 @@
 
 int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
                 std::vector<double> &x, const mat_utils::SpMatReader &L,
-                double tolerance, int max_iterations);
+                double tolerance, int max_iterations,
+                bool disable_tensor_cores = false);
 
 int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
                     const mat_utils::SpMatReader &L, double tolerance,
-                    int max_iterations, int block_size);
+                    int max_iterations, int block_size,
+                    bool disable_tensor_cores = false);
 
 int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
-                    double tolerance, int max_iterations, int block_size);
+                    double tolerance, int max_iterations, int block_size,
+                    bool disable_tensor_cores = false);

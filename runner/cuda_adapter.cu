@@ -6,14 +6,27 @@
 #include <cg/cuda.h>
 #include <dr_bcg/cuda.h>
 
+namespace {
+
+void configure_cublas_math_mode(cublasHandle_t cublas,
+                                bool disable_tensor_cores) {
+    if (disable_tensor_cores) {
+        CUBLAS_CHECK(cublasSetMathMode(cublas, CUBLAS_PEDANTIC_MATH));
+    }
+}
+
+} // namespace
+
 int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
                 std::vector<double> &x, const mat_utils::SpMatReader &L,
-                double tolerance, int max_iterations) {
+                double tolerance, int max_iterations,
+                bool disable_tensor_cores) {
     cusparseHandle_t cusparse;
     CUSPARSE_CHECK(cusparseCreate(&cusparse));
 
     cublasHandle_t cublas;
     CUBLAS_CHECK(cublasCreate_v2(&cublas));
+    configure_cublas_math_mode(cublas, disable_tensor_cores);
 
     cudaStream_t stream = nullptr;
     CUDA_CHECK(cudaStreamCreate(&stream));
@@ -65,10 +78,12 @@ int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
 int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
                     const mat_utils::SpMatReader &L, double tolerance,
-                    int max_iterations, int block_size) {
+                    int max_iterations, int block_size,
+                    bool disable_tensor_cores) {
     auto n = A.rows();
 
     dr_bcg::cuda::Handles handles;
+    configure_cublas_math_mode(handles.cublas, disable_tensor_cores);
 
     cudaStream_t stream = nullptr;
     CUDA_CHECK(cudaStreamCreate(&stream));
@@ -115,10 +130,12 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
 int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
-                    double tolerance, int max_iterations, int block_size) {
+                    double tolerance, int max_iterations, int block_size,
+                    bool disable_tensor_cores) {
     auto n = A.rows();
 
     dr_bcg::cuda::Handles handles;
+    configure_cublas_math_mode(handles.cublas, disable_tensor_cores);
 
     cudaStream_t stream = nullptr;
     CUDA_CHECK(cudaStreamCreate(&stream));

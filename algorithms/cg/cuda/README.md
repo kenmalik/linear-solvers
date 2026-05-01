@@ -53,6 +53,7 @@ cgrun <A> <R> [options]
 | `-x <path>` | Path to initial guess file | Zero vector or matrix |
 | `--tolerance <value>` | Convergence tolerance | `1e-6` |
 | `--max-iterations <n>` | Maximum number of iterations | `n` (matrix dimension) |
+| `--no-tensor-cores` | Disable tensor-core-eligible cuBLAS math for CUDA runs | Off |
 | `--real-residual` | Recalculate residual as `r = b - A * x` each iteration instead of using the update formula | Off |
 
 ### Example
