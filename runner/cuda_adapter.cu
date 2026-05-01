@@ -68,6 +68,8 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     int max_iterations, int block_size) {
     auto n = A.rows();
 
+    dr_bcg::cuda::Handles handles;
+
     cudaStream_t stream = nullptr;
     CUDA_CHECK(cudaStreamCreate(&stream));
 
@@ -94,7 +96,7 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    int iters = dr_bcg::cuda::solve(A_mat.get(), x_descr, b_descr, L_mat.get(),
+    int iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr, L_mat.get(),
                                     tolerance, max_iterations, stream);
 
     CUDA_CHECK(cudaMemcpyAsync(x.data(), x_d, sizeof(double) * x.size(),
@@ -115,6 +117,8 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
                     double tolerance, int max_iterations, int block_size) {
     auto n = A.rows();
+
+    dr_bcg::cuda::Handles handles;
 
     cudaStream_t stream = nullptr;
     CUDA_CHECK(cudaStreamCreate(&stream));
@@ -141,7 +145,7 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    int iters = dr_bcg::cuda::solve(A_mat.get(), x_descr, b_descr, tolerance,
+    int iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr, tolerance,
                                     max_iterations, stream);
 
     CUDA_CHECK(cudaMemcpyAsync(x.data(), x_d, sizeof(double) * x.size(),

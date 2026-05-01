@@ -18,11 +18,11 @@ struct Handles {
     void set_stream(cudaStream_t stream);
 };
 
-int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, double tolerance = 1e-6,
           int max_iterations = 100, cudaStream_t stream = nullptr);
 
-int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
           double tolerance = 1e-6, int max_iterations = 100,
           cudaStream_t stream = nullptr);

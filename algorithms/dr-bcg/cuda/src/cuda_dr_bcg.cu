@@ -53,7 +53,7 @@ void Handles::set_stream(cudaStream_t stream) {
     CUBLAS_CHECK(cublasSetStream_v2(cublas, stream));
 }
 
-int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, double tolerance, int max_iterations,
           cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
@@ -63,7 +63,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     CudaTimerRange solve_range{g_event_timer, "solve", stream};
 
-    Handles handles;
     handles.set_stream(stream);
 
     QrWorkspace<double> qr_ws;
@@ -356,7 +355,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 }
 
 // Preconditioned double-precision variant
-int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L, double tolerance,
           int max_iterations, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
@@ -366,7 +365,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     CudaTimerRange solve_range{g_event_timer, "solve", stream};
 
-    Handles handles;
     handles.set_stream(stream);
 
     QrWorkspace<double> qr_ws;
