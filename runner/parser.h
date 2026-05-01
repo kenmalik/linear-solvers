@@ -6,6 +6,7 @@
 
 enum class Algorithm { CG, DR_BCG };
 enum class Implementation { MKL, CUDA };
+enum class QrBackend { Householder, CholQR };
 
 struct Args {
     Algorithm algorithm;
@@ -21,6 +22,7 @@ struct Args {
     std::optional<int> max_iterations;
     int block_size;
     bool disable_tensor_cores;
+    QrBackend qr_backend;
 };
 
 std::optional<Args> parse_args(int argc, char *argv[]);

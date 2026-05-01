@@ -28,6 +28,23 @@
 #include "parser.h"
 #include "rhs.h"
 
+namespace {
+
+#ifdef CUDA_DR_BCG_ENABLED
+dr_bcg::cuda::QrBackend to_cuda_qr_backend(QrBackend backend) {
+    switch (backend) {
+    case QrBackend::Householder:
+        return dr_bcg::cuda::QrBackend::Householder;
+    case QrBackend::CholQR:
+        return dr_bcg::cuda::QrBackend::CholQR;
+    default:
+        throw std::runtime_error("Unknown QR backend");
+    }
+}
+#endif
+
+} // namespace
+
 int main(int argc, char *argv[]) {
     auto args = parse_args(argc, argv);
 
@@ -141,11 +158,13 @@ int run_dr_bcg(const Args &args) {
         if (args.L.has_value()) {
             return run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
                                    max_iters, args.block_size,
-                                   args.disable_tensor_cores);
+                                   args.disable_tensor_cores,
+                                   to_cuda_qr_backend(args.qr_backend));
         } else {
             return run_cuda_dr_bcg(args.A, b, x, args.tolerance, max_iters,
                                    args.block_size,
-                                   args.disable_tensor_cores);
+                                   args.disable_tensor_cores,
+                                   to_cuda_qr_backend(args.qr_backend));
         }
     }
 #endif

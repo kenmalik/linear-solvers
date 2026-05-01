@@ -8,10 +8,11 @@
 #include <cusolverDn.h>
 
 #include "common/cuda_checks.h"
+#include "dr_bcg/cuda.h"
 #include "dr_bcg/helper.h"
 #include "dr_bcg/internal/type_info.h"
 
-template <typename T> struct QrWorkspace {
+template <typename T> struct HouseholderQrWorkspace {
     T *d_tau = nullptr;
     void *d_work = nullptr;
     int *d_info = nullptr;
@@ -22,9 +23,9 @@ template <typename T> struct QrWorkspace {
     std::size_t lwork_geqrf_h = 0;
     int numfloats_orgqr_d = 0;
 
-    QrWorkspace() = default;
-    QrWorkspace(const QrWorkspace &) = delete;
-    QrWorkspace &operator=(const QrWorkspace &) = delete;
+    HouseholderQrWorkspace() = default;
+    HouseholderQrWorkspace(const HouseholderQrWorkspace &) = delete;
+    HouseholderQrWorkspace &operator=(const HouseholderQrWorkspace &) = delete;
 
     // m: rows of Q (problem size n), n: cols of Q (block size s)
     void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
@@ -66,7 +67,7 @@ template <typename T> struct QrWorkspace {
         }
     }
 
-    ~QrWorkspace() {
+    ~HouseholderQrWorkspace() {
         if (d_tau)
             CUDA_CHECK(cudaFree(d_tau));
         if (d_work)
@@ -75,6 +76,67 @@ template <typename T> struct QrWorkspace {
             CUDA_CHECK(cudaFree(d_info));
         if (h_info)
             CUDA_CHECK(cudaFreeHost(h_info));
+        if (h_work)
+            free(h_work);
+    }
+};
+
+template <typename T> struct CholQrWorkspace {
+    T *d_gram = nullptr;
+    int *d_info = nullptr;
+    int *h_info = nullptr;
+    void *d_work = nullptr;
+    std::size_t d_work_size = 0;
+    void *h_work = nullptr;
+    std::size_t h_work_size = 0;
+    T *h_factor = nullptr;
+
+    CholQrWorkspace() = default;
+    CholQrWorkspace(const CholQrWorkspace &) = delete;
+    CholQrWorkspace &operator=(const CholQrWorkspace &) = delete;
+
+    void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                  int n) {
+        constexpr cudaDataType_t data_type = Type_info<T>::cuda;
+
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_gram),
+                              sizeof(T) * n * n));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int)));
+        CUDA_CHECK(
+            cudaMallocHost(reinterpret_cast<void **>(&h_info), sizeof(int)));
+        CUDA_CHECK(cudaMallocHost(reinterpret_cast<void **>(&h_factor),
+                                  sizeof(T) * n * n));
+
+        T *d_dummy = nullptr;
+        CUDA_CHECK(cudaMalloc(&d_dummy, sizeof(T) * n * n));
+        CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(
+            cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, data_type, d_dummy,
+            n, data_type, &d_work_size, &h_work_size));
+        CUDA_CHECK(cudaFree(d_dummy));
+
+        if (d_work_size > 0) {
+            CUDA_CHECK(
+                cudaMalloc(reinterpret_cast<void **>(&d_work), d_work_size));
+        }
+        if (h_work_size > 0) {
+            h_work = malloc(h_work_size);
+            if (!h_work)
+                throw std::runtime_error(
+                    "Error: CholQrWorkspace h_work not allocated.");
+        }
+    }
+
+    ~CholQrWorkspace() {
+        if (d_gram)
+            CUDA_CHECK(cudaFree(d_gram));
+        if (d_info)
+            CUDA_CHECK(cudaFree(d_info));
+        if (h_info)
+            CUDA_CHECK(cudaFreeHost(h_info));
+        if (d_work)
+            CUDA_CHECK(cudaFree(d_work));
+        if (h_factor)
+            CUDA_CHECK(cudaFreeHost(h_factor));
         if (h_work)
             free(h_work);
     }
@@ -152,39 +214,97 @@ template <typename T> struct LuWorkspace {
 };
 
 template <typename T>
-void qr_factorization(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-                      T *d_Q, T *d_R, const int m, const int n, const T *d_A,
-                      QrWorkspace<T> &ws, cudaStream_t stream) {
+void orthonormalize_block(
+    cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH,
+    cusolverDnParams_t &params, T *d_Q, T *d_R, const int m, const int n,
+    const T *d_A, dr_bcg::cuda::QrBackend backend,
+    HouseholderQrWorkspace<T> &householder_ws, CholQrWorkspace<T> &cholqr_ws,
+    cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
 
     constexpr cudaDataType_t data_type = Type_info<T>::cuda;
 
     assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
-    CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
-                               cudaMemcpyDeviceToDevice, stream));
+    switch (backend) {
+    case dr_bcg::cuda::QrBackend::Householder: {
+        CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
+                                   cudaMemcpyDeviceToDevice, stream));
 
-    CUSOLVER_CHECK(cusolverDnXgeqrf(cusolverH, params, m, n, data_type, d_Q, m,
-                                    data_type, ws.d_tau, data_type, ws.d_work,
-                                    ws.lwork_geqrf_d, ws.h_work,
-                                    ws.lwork_geqrf_h, ws.d_info));
+        CUSOLVER_CHECK(cusolverDnXgeqrf(
+            cusolverH, params, m, n, data_type, d_Q, m, data_type,
+            householder_ws.d_tau, data_type, householder_ws.d_work,
+            householder_ws.lwork_geqrf_d, householder_ws.h_work,
+            householder_ws.lwork_geqrf_h, householder_ws.d_info));
 
-    copy_upper_triangular(d_R, d_Q, m, n);
+        copy_upper_triangular(d_R, d_Q, m, n, stream);
 
-    if constexpr (std::is_same_v<T, float>) {
-        CUSOLVER_CHECK(cusolverDnSorgqr(cusolverH, m, n, n, d_Q, m, ws.d_tau,
-                                        reinterpret_cast<T *>(ws.d_work),
-                                        ws.numfloats_orgqr_d, ws.d_info));
-    } else {
-        CUSOLVER_CHECK(cusolverDnDorgqr(cusolverH, m, n, n, d_Q, m, ws.d_tau,
-                                        reinterpret_cast<T *>(ws.d_work),
-                                        ws.numfloats_orgqr_d, ws.d_info));
+        if constexpr (std::is_same_v<T, float>) {
+            CUSOLVER_CHECK(cusolverDnSorgqr(
+                cusolverH, m, n, n, d_Q, m, householder_ws.d_tau,
+                reinterpret_cast<T *>(householder_ws.d_work),
+                householder_ws.numfloats_orgqr_d, householder_ws.d_info));
+        } else {
+            CUSOLVER_CHECK(cusolverDnDorgqr(
+                cusolverH, m, n, n, d_Q, m, householder_ws.d_tau,
+                reinterpret_cast<T *>(householder_ws.d_work),
+                householder_ws.numfloats_orgqr_d, householder_ws.d_info));
+        }
+
+        CUDA_CHECK(cudaMemcpyAsync(householder_ws.h_info,
+                                   householder_ws.d_info, sizeof(int),
+                                   cudaMemcpyDeviceToHost, stream));
+        break;
     }
+    case dr_bcg::cuda::QrBackend::CholQR: {
+        constexpr T alpha = 1;
+        constexpr T beta = 0;
+        CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
+                                   cudaMemcpyDeviceToDevice, stream));
+        CUBLAS_CHECK(cublasSetPointerMode(cublasH, CUBLAS_POINTER_MODE_HOST));
 
-    // Async readback of final d_info; caller checks *ws.h_info after
-    // cudaStreamSynchronize.
-    CUDA_CHECK(cudaMemcpyAsync(ws.h_info, ws.d_info, sizeof(int),
-                               cudaMemcpyDeviceToHost, stream));
+        if constexpr (std::is_same_v<T, float>) {
+            CUBLAS_CHECK(cublasSsyrk(cublasH, CUBLAS_FILL_MODE_UPPER,
+                                     CUBLAS_OP_T, n, m, &alpha, d_A, m, &beta,
+                                     cholqr_ws.d_gram, n));
+        } else {
+            CUBLAS_CHECK(cublasDsyrk(cublasH, CUBLAS_FILL_MODE_UPPER,
+                                     CUBLAS_OP_T, n, m, &alpha, d_A, m, &beta,
+                                     cholqr_ws.d_gram, n));
+        }
+
+        CUSOLVER_CHECK(cusolverDnXpotrf(
+            cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, data_type,
+            cholqr_ws.d_gram, n, data_type, cholqr_ws.d_work,
+            cholqr_ws.d_work_size, cholqr_ws.h_work, cholqr_ws.h_work_size,
+            cholqr_ws.d_info));
+
+        copy_upper_triangular(d_R, cholqr_ws.d_gram, n, n, stream);
+
+        if constexpr (std::is_same_v<T, float>) {
+            CUBLAS_CHECK(cublasStrsm_v2(
+                cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, m, n, &alpha,
+                cholqr_ws.d_gram, n, d_Q, m));
+        } else {
+            CUBLAS_CHECK(cublasDtrsm_v2(
+                cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, m, n, &alpha,
+                cholqr_ws.d_gram, n, d_Q, m));
+        }
+
+        CUDA_CHECK(cudaMemcpyAsync(cholqr_ws.h_info, cholqr_ws.d_info,
+                                   sizeof(int), cudaMemcpyDeviceToHost,
+                                   stream));
+        CUDA_CHECK(cudaMemcpyAsync(cholqr_ws.h_factor, cholqr_ws.d_gram,
+                                   sizeof(T) * n * n, cudaMemcpyDeviceToHost,
+                                   stream));
+        CUBLAS_CHECK(cublasSetPointerMode(cublasH, CUBLAS_POINTER_MODE_DEVICE));
+        break;
+    }
+    default:
+        throw std::runtime_error("Unknown QR backend");
+    }
 }
 
 template <typename T> struct SpsmCache {
