@@ -97,7 +97,7 @@ int run_cg(const Args &args) {
     case Implementation::CUDA: {
         CUDA_CHECK(cudaDeviceSynchronize());
         return run_cuda_cg(args.A, b, x, args.L.value(), args.tolerance,
-                           max_iters);
+                           max_iters, args.disable_tensor_cores);
     }
 #endif
     default:
@@ -140,10 +140,12 @@ int run_dr_bcg(const Args &args) {
         CUDA_CHECK(cudaDeviceSynchronize());
         if (args.L.has_value()) {
             return run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
-                                   max_iters, args.block_size);
+                                   max_iters, args.block_size,
+                                   args.disable_tensor_cores);
         } else {
             return run_cuda_dr_bcg(args.A, b, x, args.tolerance, max_iters,
-                                   args.block_size);
+                                   args.block_size,
+                                   args.disable_tensor_cores);
         }
     }
 #endif

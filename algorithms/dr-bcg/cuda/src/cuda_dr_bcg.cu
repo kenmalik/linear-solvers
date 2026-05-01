@@ -14,32 +14,6 @@
 #include <nvtx3/nvtx3.hpp>
 
 namespace {
-struct Handles {
-    cusparseHandle_t cusparse;
-    cusolverDnHandle_t cusolver;
-    cusolverDnParams_t cusolver_params;
-    cublasHandle_t cublas;
-
-    Handles() {
-        CUSPARSE_CHECK(cusparseCreate(&cusparse));
-        CUSOLVER_CHECK(cusolverDnCreate(&cusolver));
-        CUSOLVER_CHECK(cusolverDnCreateParams(&cusolver_params));
-        CUBLAS_CHECK(cublasCreate_v2(&cublas));
-    }
-
-    ~Handles() {
-        CUSPARSE_CHECK(cusparseDestroy(cusparse));
-        CUSOLVER_CHECK(cusolverDnDestroy(cusolver));
-        CUSOLVER_CHECK(cusolverDnDestroyParams(cusolver_params));
-        CUBLAS_CHECK(cublasDestroy_v2(cublas));
-    };
-
-    void set_stream(cudaStream_t stream) {
-        CUSPARSE_CHECK(cusparseSetStream(cusparse, stream));
-        CUSOLVER_CHECK(cusolverDnSetStream(cusolver, stream));
-        CUBLAS_CHECK(cublasSetStream_v2(cublas, stream));
-    }
-};
 
 std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
     std::int64_t n = 0;
@@ -54,10 +28,32 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
 
     return {n, s};
 }
+
 } // namespace
 
 namespace dr_bcg::cuda {
-int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+
+Handles::Handles() {
+    CUSPARSE_CHECK(cusparseCreate(&cusparse));
+    CUSOLVER_CHECK(cusolverDnCreate(&cusolver));
+    CUSOLVER_CHECK(cusolverDnCreateParams(&cusolver_params));
+    CUBLAS_CHECK(cublasCreate_v2(&cublas));
+}
+
+Handles::~Handles() {
+    CUSPARSE_CHECK(cusparseDestroy(cusparse));
+    CUSOLVER_CHECK(cusolverDnDestroy(cusolver));
+    CUSOLVER_CHECK(cusolverDnDestroyParams(cusolver_params));
+    CUBLAS_CHECK(cublasDestroy_v2(cublas));
+};
+
+void Handles::set_stream(cudaStream_t stream) {
+    CUSPARSE_CHECK(cusparseSetStream(cusparse, stream));
+    CUSOLVER_CHECK(cusolverDnSetStream(cusolver, stream));
+    CUBLAS_CHECK(cublasSetStream_v2(cublas, stream));
+}
+
+int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, double tolerance, int max_iterations,
           cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
@@ -67,7 +63,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     CudaTimerRange solve_range{g_event_timer, "solve", stream};
 
-    Handles handles;
     handles.set_stream(stream);
 
     QrWorkspace<double> qr_ws;
@@ -360,7 +355,7 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 }
 
 // Preconditioned double-precision variant
-int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L, double tolerance,
           int max_iterations, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
@@ -370,7 +365,6 @@ int solve(cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     CudaTimerRange solve_range{g_event_timer, "solve", stream};
 
-    Handles handles;
     handles.set_stream(stream);
 
     QrWorkspace<double> qr_ws;

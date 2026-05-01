@@ -20,6 +20,7 @@ struct Args {
     double tolerance;
     std::optional<int> max_iterations;
     int block_size;
+    bool disable_tensor_cores;
 };
 
 std::optional<Args> parse_args(int argc, char *argv[]);

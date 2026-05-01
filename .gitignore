@@ -267,3 +267,5 @@ __marimo__/
 *.png
 residuals_*.txt
 *.json
+
+!c_cpp_properties.json
