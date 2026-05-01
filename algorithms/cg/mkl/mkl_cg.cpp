@@ -15,6 +15,8 @@ namespace cg::mkl {
 int solve(const CSRMatrix &A, const std::vector<double> &b,
           std::vector<double> &x, const CSRMatrix &L, double tolerance,
           int max_iterations, bool real_residual) {
+    CpuTimerRange solve_range{g_timer, "solve"};
+
     assert(A.descr.type == SPARSE_MATRIX_TYPE_GENERAL);
     assert(L.descr.type == SPARSE_MATRIX_TYPE_TRIANGULAR);
     assert(L.descr.mode == SPARSE_FILL_MODE_LOWER);
@@ -122,8 +124,6 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
 
         g_timer.stop("iteration");
     }
-
-    g_timer.report("timings_mkl_cg.csv");
 
     return iter;
 }

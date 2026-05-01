@@ -130,6 +130,8 @@ void invert_square(std::vector<double> &A_data, MKL_INT n) {
 namespace dr_bcg::mkl {
 int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
           DenseMatrix &X, double tolerance, int max_iterations) noexcept {
+    CpuTimerRange solve_range{g_timer, "solve"};
+
     const MKL_INT n = A.rows;
     const MKL_INT nrhs = B.cols;
 
@@ -142,29 +144,35 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
     // Initialization
     // ------------------------------------------------------------------
 
-    // R = B - A * X
-    g_timer.start("R = B - A * X");
     DenseMatrix R = alloc_dense(n, nrhs);
-    R = B;
-    sparse_mm(A, 'N', -1.0, X, 1.0, R); // R = B - A*X
-    g_timer.stop("R = B - A * X");
+    {
+        CpuTimerRange r_range(g_timer, "R = B - A * X");
+        R = B;
+        sparse_mm(A, 'N', -1.0, X, 1.0, R); // R = B - A*X
+    }
 
-    // [w, sigma] = [w, sigma] = qr(L^-1 * R, 'econ')
-    g_timer.start("[w sigma] = QR(L^-1 * R)");
-
-    // tmp = L^{-1} * R
-    DenseMatrix tmp = R;
-    sparse_trsm(L, 'N', tmp);
-
+    // We break [w sigma] = QR(L^-1 * R) into two steps for timing purposes:
+    // 1. temp = L^-1 * R
+    // 2. [w sigma] = QR(temp)
     DenseMatrix w, sigma;
-    thin_qr(tmp, w, sigma);
-    g_timer.stop("[w sigma] = QR(L^-1 * R)");
+    DenseMatrix temp = R;
+    {
+        CpuTimerRange w_sigma_range(g_timer, "temp = L^-1 * R");
 
-    // s = (L^-1)' * w
-    g_timer.start("s = (L^-1)' * w");
+        sparse_trsm(L, 'N', temp);
+    }
+
+    {
+        CpuTimerRange w_sigma_range(g_timer, "[w sigma] = QR(temp)");
+
+        thin_qr(temp, w, sigma);
+    }
+
     DenseMatrix s = w;
-    sparse_trsm(L, 'T', s);
-    g_timer.stop("s = (L^-1)' * w");
+    {
+        CpuTimerRange s_initial_range(g_timer, "s = (L^-1)' * w");
+        sparse_trsm(L, 'T', s);
+    }
 
     // ------------------------------------------------------------------
     // Precompute norm of first column of B for convergence check
@@ -179,109 +187,108 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
     // Main iteration loop
     // ------------------------------------------------------------------
     for (int k = 0; k < max_iterations; ++k) {
+        CpuTimerRange iteration_range(g_timer, "iteration");
         ++iterations;
-        g_timer.start("iteration");
 
-        // xi = (s' * A * s)^{-1}   (nrhs x nrhs matrix)
-        g_timer.start("xi = (s' * As)^-1");
-        // Step 1: As = A * s  (n x nrhs)
         DenseMatrix As = alloc_dense(n, nrhs);
-        As.data.assign(As.data.size(), 0.0);
-        sparse_mm(A, 'N', 1.0, s, 0.0, As);
-
-        // Step 2: xi_inv = s' * As  (nrhs x nrhs)
         DenseMatrix xi(alloc_dense(nrhs, nrhs));
-        dense_mm('T', 'N', nrhs, nrhs, n, 1.0, s.data.data(), n, As.data.data(),
-                 n, 0.0, xi.data.data(), nrhs);
+        {
+            CpuTimerRange xi_range(g_timer, "xi = (s' * As)^-1");
+            // Step 1: As = A * s  (n x nrhs)
+            As.data.assign(As.data.size(), 0.0);
+            sparse_mm(A, 'N', 1.0, s, 0.0, As);
 
-        // Step 3: xi = xi_inv^{-1}
-        invert_square(xi.data, nrhs);
-        g_timer.stop("xi = (s' * As)^-1");
+            // Step 2: xi_inv = s' * As  (nrhs x nrhs)
+            dense_mm('T', 'N', nrhs, nrhs, n, 1.0, s.data.data(), n,
+                     As.data.data(), n, 0.0, xi.data.data(), nrhs);
 
-        // X = X + s * xi * sigma
-        g_timer.start("X = X + s * xi * sigma");
-        // Step a: tmp2 = xi * sigma  (nrhs x nrhs)
+            // Step 3: xi = xi_inv^{-1}
+            invert_square(xi.data, nrhs);
+        }
+
         DenseMatrix xi_sigma = alloc_dense(nrhs, nrhs);
-        dense_mm('N', 'N', nrhs, nrhs, nrhs, 1.0, xi.data.data(), nrhs,
-                 sigma.data.data(), nrhs, 0.0, xi_sigma.data.data(), nrhs);
+        {
+            CpuTimerRange x_range(g_timer, "X = X + s * xi * sigma");
+            // Step a: tmp2 = xi * sigma  (nrhs x nrhs)
+            dense_mm('N', 'N', nrhs, nrhs, nrhs, 1.0, xi.data.data(), nrhs,
+                     sigma.data.data(), nrhs, 0.0, xi_sigma.data.data(),
+                     nrhs);
 
-        // Step b: X += s * xi_sigma  (n x nrhs)
-        dense_mm('N', 'N', n, nrhs, nrhs, 1.0, s.data.data(), n,
-                 xi_sigma.data.data(), nrhs, 1.0, X.data.data(), n);
-        g_timer.stop("X = X + s * xi * sigma");
+            // Step b: X += s * xi_sigma  (n x nrhs)
+            dense_mm('N', 'N', n, nrhs, nrhs, 1.0, s.data.data(), n,
+                     xi_sigma.data.data(), nrhs, 1.0, X.data.data(), n);
+        }
 
         // ------------------------------------------------------------------
         // Convergence check: rrn = ||B(:,1) - A*X(:,1)|| / ||B(:,1)||
         // ------------------------------------------------------------------
-        g_timer.start("norm(B1 - A * X1) / norm(B1)");
-        DenseMatrix X_col1 = alloc_dense(n, 1);
-        std::copy(X.data.begin(), X.data.begin() + n, X_col1.data.begin());
+        double residual_norm = 0.0;
+        {
+            CpuTimerRange rrn_range(g_timer, "norm(B1 - A * X1) / norm(B1)");
+            DenseMatrix X_col1 = alloc_dense(n, 1);
+            std::copy(X.data.begin(), X.data.begin() + n, X_col1.data.begin());
 
-        DenseMatrix r1 = alloc_dense(n, 1);
-        std::copy(B.data.begin(), B.data.begin() + n, r1.data.begin());
-        sparse_mm(A, 'N', -1.0, X_col1, 1.0, r1);
+            DenseMatrix r1 = alloc_dense(n, 1);
+            std::copy(B.data.begin(), B.data.begin() + n, r1.data.begin());
+            sparse_mm(A, 'N', -1.0, X_col1, 1.0, r1);
 
-        double residual_norm = cblas_dnrm2(n, r1.data.data(), 1);
-        LOG_TRACE(residual_norm / b_norm);
-        g_timer.stop("norm(B1 - A * X1) / norm(B1)");
+            residual_norm = cblas_dnrm2(n, r1.data.data(), 1);
+            LOG_TRACE(residual_norm / b_norm);
+        }
 
         if (residual_norm / b_norm < tolerance) {
-            g_timer.stop("iteration");
             break;
         }
 
-        // ------------------------------------------------------------------
-        // Update w and s for next iteration
-        // ------------------------------------------------------------------
-        // tmp = L^{-1} * A * s * xi   (n x nrhs)
-        //     = L^{-1} * As * xi
-        g_timer.start("[w zeta] = QR(w - L^{-1} * A * s * xi)");
-        // Step 1: As_xi = As * xi  (n x nrhs)
-        DenseMatrix As_xi = alloc_dense(n, nrhs);
-        dense_mm('N', 'N', n, nrhs, nrhs, 1.0, As.data.data(), n,
-                 xi.data.data(), nrhs, 0.0, As_xi.data.data(), n);
-
-        // Step 2: L^{-1} * As_xi  (forward solve)
-        sparse_trsm(L, 'N', As_xi); // As_xi = L^{-1} * A * s * xi
-
-        // w_new_input = w - L^{-1} * A * s * xi
-        DenseMatrix w_new_input = alloc_dense(n, nrhs);
-        for (size_t i = 0; i < w_new_input.data.size(); ++i)
-            w_new_input.data[i] = w.data[i] - As_xi.data[i];
-
-        // [w, zeta] = QR(w_new_input)
+        // We break [w zeta] = QR(w - L^-1 * A * s * xi) into two steps for timing purposes:
+        // 1. w = w - L^-1 * A * s * xi
+        // 2. [w zeta] = QR(w)
         DenseMatrix zeta;
-        thin_qr(w_new_input, w, zeta); // w: n x nrhs, zeta: nrhs x nrhs
-        g_timer.stop("[w zeta] = QR(w - L^{-1} * A * s * xi)");
+        {
+            CpuTimerRange w_zeta_range(g_timer, "w = w - L^-1 * A * s * xi");
 
-        // s = (L^-1)' * w + s * zeta'
-        g_timer.start("s = (L^-1)' * w + s * zeta'");
-        DenseMatrix Linv_T_w = w;
-        sparse_trsm(L, 'T', Linv_T_w); // Linv_T_w = L^{-T} * w
+            // temp = As * xi
+            dense_mm('N', 'N', n, nrhs, nrhs, 1.0, As.data.data(), n,
+                     xi.data.data(), nrhs, 0.0, temp.data.data(), n);
 
-        // s = Linv_T_w + s * zeta'
-        DenseMatrix s_new = alloc_dense(n, nrhs);
-        // s_new = s * zeta^T
-        dense_mm('N', 'T', n, nrhs, nrhs, 1.0, s.data.data(), n,
-                 zeta.data.data(), nrhs, 0.0, s_new.data.data(), n);
-        // s_new += Linv_T_w
-        for (size_t i = 0; i < s_new.data.size(); ++i)
-            s_new.data[i] += Linv_T_w.data[i];
-        s = std::move(s_new);
-        g_timer.stop("s = (L^-1)' * w + s * zeta'");
+            // temp = L^-1 * As_xi
+            sparse_trsm(L, 'N', temp);
 
-        // sigma = zeta * sigma
-        g_timer.start("sigma = zeta * sigma");
-        DenseMatrix sigma_new = alloc_dense(nrhs, nrhs);
-        dense_mm('N', 'N', nrhs, nrhs, nrhs, 1.0, zeta.data.data(), nrhs,
-                 sigma.data.data(), nrhs, 0.0, sigma_new.data.data(), nrhs);
-        sigma = std::move(sigma_new);
-        g_timer.stop("sigma = zeta * sigma");
+            // w = w - L^{-1} * A * s * xi
+            for (size_t i = 0; i < w.data.size(); ++i)
+                w.data[i] = w.data[i] - temp.data[i];
+        }
 
-        g_timer.stop("iteration");
+        {
+            CpuTimerRange w_zeta_range(g_timer, "[w zeta] = QR(w)");
+            thin_qr(w, w, zeta);
+        }
+
+        {
+            CpuTimerRange s_range(g_timer, "s = (L^-1)' * w + s * zeta'");
+            DenseMatrix Linv_T_w = w;
+            sparse_trsm(L, 'T', Linv_T_w); // Linv_T_w = L^{-T} * w
+
+            // s = Linv_T_w + s * zeta'
+            DenseMatrix s_new = alloc_dense(n, nrhs);
+            // s_new = s * zeta^T
+            dense_mm('N', 'T', n, nrhs, nrhs, 1.0, s.data.data(), n,
+                     zeta.data.data(), nrhs, 0.0, s_new.data.data(), n);
+            // s_new += Linv_T_w
+            for (size_t i = 0; i < s_new.data.size(); ++i)
+                s_new.data[i] += Linv_T_w.data[i];
+            s = std::move(s_new);
+        }
+
+        {
+            CpuTimerRange sigma_range(g_timer, "sigma = zeta * sigma");
+            DenseMatrix sigma_new = alloc_dense(nrhs, nrhs);
+            dense_mm('N', 'N', nrhs, nrhs, nrhs, 1.0, zeta.data.data(), nrhs,
+                     sigma.data.data(), nrhs, 0.0, sigma_new.data.data(),
+                     nrhs);
+            sigma = std::move(sigma_new);
+        }
     }
-
-    g_timer.report("timings_mkl_dr-bcg.csv");
 
     return iterations;
 }
