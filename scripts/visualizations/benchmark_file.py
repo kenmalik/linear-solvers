@@ -6,7 +6,8 @@ import pandas as pd
 
 # Expect the following file naming convention:
 # timings_<implementation>_<algorithm>_s<block_size>.csv
-FILE_PATTERN = re.compile(r"timings_(\w+)_([a-z-]+)_s(\d+).csv")
+# _s<block_size> is optional
+FILE_PATTERN = re.compile(r"timings_(\w+)_([a-z-]+)(?:_s(\d+))?\.csv")
 
 
 @dataclass
