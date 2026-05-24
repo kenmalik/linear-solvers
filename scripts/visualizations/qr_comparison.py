@@ -4,7 +4,7 @@ import pandas as pd
 from pathlib import Path
 import re
 
-FILE_PATTERN = re.compile(r"timings_(\w+)_([a-z-]+)_s(\d+).csv")
+from benchmark_file import read, FILE_PATTERN
 
 
 def main():
@@ -97,7 +97,8 @@ def plot(data: dict[str, pd.DataFrame]):
         ax.legend()
 
     fig.tight_layout()
-    plt.show()
+    plt.savefig("qr_comparison.png")
+    print("qr_comparison.png")
 
 
 if __name__ == "__main__":
