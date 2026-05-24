@@ -1,5 +1,7 @@
 from pathlib import Path
 import re
+from typing import Any
+from collections.abc import Iterable
 
 import pandas as pd
 
@@ -29,3 +31,23 @@ def read_dir(dir: Path) -> pd.DataFrame:
     assert dir.is_dir()
 
     return pd.concat([read_file(f) for f in dir.glob("*.csv")], ignore_index=True)
+
+
+def range_runtimes_by_block_size(
+    df: pd.DataFrame, ranges: Iterable[Any] | None = None
+) -> pd.DataFrame:
+    """
+    Restructures data to list average runtimes of ranges in milliseconds,
+    indexed by block_size.
+    """
+
+    if df["implementation"].nunique() > 1:
+        raise ValueError("solver implementations do not match")
+    if not df["block_size"].all():
+        raise ValueError("some block sizes are not defined")
+
+    if ranges:
+        df = df[df["Range"].isin(ranges)]
+    df = df.pivot(index="block_size", columns="Range", values="Avg (ms)")
+
+    return df

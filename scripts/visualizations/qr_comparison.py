@@ -5,7 +5,7 @@ from sys import exit
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from benchmark_file import read_dir, read_file
+from benchmark_file import read_dir, read_file, range_runtimes_by_block_size
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
 
     sources = {s.stem: s for s in args.sources}
     dr_bcg_data = {
-        algorithm: restructure_dr_bcg_bms(read_dir(bm_data))
+        algorithm: process_dr_bcg(read_dir(bm_data))
         for algorithm, bm_data in sources.items()
         if bm_data.is_dir()
     }
@@ -31,29 +31,15 @@ def main():
     plot(dr_bcg_data, cg_data, args.output if args.output else "qr_comparison.png")
 
 
-def restructure_dr_bcg_bms(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Restructures data to list average runtimes in milliseconds and iterations
-    to convergence by block size, matching the following format:
-
-                    iteration   [w sigma] = QR(temp)    [w zeta] = QR(w)    iterations
-    block_size
-    """
-
-    if df["implementation"].nunique() > 1:
-        raise ValueError("solver implementations do not match")
-    if not (df["algorithm"] == "dr-bcg").all():
-        raise ValueError("solver algorithms are not dr-bcg")
-
-    df = df[
-        df["Range"].isin(
-            ("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)")
-        )
-    ].set_index("block_size")
-    iterations = df[df["Range"] == "iteration"]["Instances"]
-    df = df.pivot(columns="Range", values="Avg (ms)")
+def process_dr_bcg(df: pd.DataFrame) -> pd.DataFrame:
+    iterations = df[df["Range"] == "iteration"][["block_size", "Instances"]].set_index(
+        "block_size"
+    )
+    df = range_runtimes_by_block_size(
+        df,
+        ranges=("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)"),
+    )
     df["iterations"] = iterations
-
     return df
 
 
