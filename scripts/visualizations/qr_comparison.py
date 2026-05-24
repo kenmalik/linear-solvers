@@ -5,7 +5,7 @@ from sys import exit
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from benchmark_file import read_dir, read_file, range_runtimes_by_block_size
+from benchmark_file import read_dir, read_file, process_dr_bcg
 
 
 def main():
@@ -17,7 +17,10 @@ def main():
 
     sources = {s.stem: s for s in args.sources}
     dr_bcg_data = {
-        algorithm: process_dr_bcg(read_dir(bm_data))
+        algorithm: process_dr_bcg(
+            read_dir(bm_data),
+            ranges=("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)"),
+        )
         for algorithm, bm_data in sources.items()
         if bm_data.is_dir()
     }
@@ -29,18 +32,6 @@ def main():
     cg_data = read_file(args.cg) if args.cg else None
 
     plot(dr_bcg_data, cg_data, args.output if args.output else "qr_comparison.png")
-
-
-def process_dr_bcg(df: pd.DataFrame) -> pd.DataFrame:
-    iterations = df[df["Range"] == "iteration"][["block_size", "Instances"]].set_index(
-        "block_size"
-    )
-    df = range_runtimes_by_block_size(
-        df,
-        ranges=("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)"),
-    )
-    df["iterations"] = iterations
-    return df
 
 
 def plot(

@@ -51,3 +51,14 @@ def range_runtimes_by_block_size(
     df = df.pivot(index="block_size", columns="Range", values="Avg (ms)")
 
     return df
+
+
+def process_dr_bcg(
+    df: pd.DataFrame, ranges: Iterable[Any] | None = None
+) -> pd.DataFrame:
+    iterations = df[df["Range"] == "iteration"][["block_size", "Instances"]].set_index(
+        "block_size"
+    )
+    df = range_runtimes_by_block_size(df, ranges=ranges)
+    df["iterations"] = iterations
+    return df
