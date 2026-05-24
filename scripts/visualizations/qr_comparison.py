@@ -5,29 +5,33 @@ from sys import exit
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from benchmark_file import read_dir, BenchmarkFile
+from benchmark_file import read_dir, read_file, BenchmarkFile
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--output", type=Path)
+    parser.add_argument("--cg", type=Path)
     parser.add_argument("sources", type=Path, nargs="+")
     args = parser.parse_args()
 
     sources = {s.stem: s for s in args.sources}
-    data = {
-        algorithm: restructure_benchmarks(read_dir(bm_data))
+    dr_bcg_data = {
+        algorithm: restructure_dr_bcg_bms(read_dir(bm_data))
         for algorithm, bm_data in sources.items()
+        if bm_data.is_dir()
     }
 
-    if not data:
+    if not dr_bcg_data:
         print("error: no data read")
         exit(1)
 
-    plot(data, output=args.output if args.output else "qr_comparison.png")
+    cg_data = read_file(args.cg).data if args.cg else None
+
+    plot(dr_bcg_data, cg_data, args.output if args.output else "qr_comparison.png")
 
 
-def restructure_benchmarks(benchmarks: list[BenchmarkFile]) -> pd.DataFrame:
+def restructure_dr_bcg_bms(benchmarks: list[BenchmarkFile]) -> pd.DataFrame:
     """
     Restructures data to list average runtimes in milliseconds and iterations
     to convergence by block size, matching the following format:
@@ -57,12 +61,18 @@ def get_block_size_records(df: pd.DataFrame) -> dict:
     } | {"iterations": df.loc["iteration"]["Instances"]}
 
 
-def plot(data: dict[str, pd.DataFrame], output: str):
-    assert data
-    available_algorithms = data.keys()
+def plot(
+    dr_bcg_data: dict[str, pd.DataFrame], cg_data: pd.DataFrame | None, output: str
+):
+    assert dr_bcg_data
+    available_algorithms = dr_bcg_data.keys()
 
     block_sizes = sorted(
-        {int(block_size) for df in data.values() for block_size in df.index.tolist()}
+        {
+            int(block_size)
+            for df in dr_bcg_data.values()
+            for block_size in df.index.tolist()
+        }
     )
     x = list(range(len(block_sizes)))
     width = 0.35
@@ -82,7 +92,7 @@ def plot(data: dict[str, pd.DataFrame], output: str):
 
     for ax, (metric, title, ylabel) in zip(axes, metrics):
         for name in available_algorithms:
-            df = data[name]
+            df = dr_bcg_data[name]
             heights = [
                 df.loc[block_size, metric] if block_size in df.index else 0
                 for block_size in block_sizes
@@ -94,10 +104,17 @@ def plot(data: dict[str, pd.DataFrame], output: str):
                 label=name,
             )
 
+        cg_col = {"iteration": "Avg (ms)", "iterations": "Instances"}.get(metric)
+        if cg_col is not None and cg_data is not None:
+            cg_x = -1
+            ax.bar(cg_x, cg_data.loc["iteration"][cg_col], width, label="CG")
+            ax.set_xticks([cg_x] + list(x), ["CG"] + [str(bs) for bs in block_sizes])
+        else:
+            ax.set_xticks(x, [str(block_size) for block_size in block_sizes])
+
         ax.set_xlabel("Block Size")
         ax.set_ylabel(ylabel)
         ax.set_title(title)
-        ax.set_xticks(x, [str(block_size) for block_size in block_sizes])
         ax.legend()
 
     fig.tight_layout()
