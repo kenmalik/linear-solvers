@@ -1,17 +1,20 @@
-import matplotlib.pyplot as plt
-import pandas as pd
-
 from pathlib import Path
 import re
+import argparse
+
+import matplotlib.pyplot as plt
+import pandas as pd
 
 from benchmark_file import read, FILE_PATTERN
 
 
 def main():
-    sources = {
-        "chol_qr": "./data/18390215_interactive/chol_qr",
-        "std_qr": "./data/18390215_interactive/std_qr",
-    }
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-o", "--output", type=Path)
+    parser.add_argument("sources", type=Path, nargs="+")
+    args = parser.parse_args()
+
+    sources = {s.stem: s for s in args.sources}
     data = {}
 
     for k, v in sources.items():
@@ -20,35 +23,10 @@ def main():
         except Exception as e:
             print(f"error reading dir: {str(e)}. skipping.")
 
-    plot(data)
+    plot(data, output=args.output if args.output else "qr_comparison.png")
 
 
-def read(dir: Path) -> pd.DataFrame:
-    if not dir.is_dir():
-        raise Exception("invalid data directory")
-
-    data = {}
-
-    for file in dir.glob("*.csv"):
-        match = FILE_PATTERN.search(str(file))
-
-        if not match:
-            raise Exception("invalid file name")
-
-        block_size = int(match.group(3))
-        data.setdefault("block_size", []).append(block_size)
-
-        df = pd.read_csv(file, index_col="Range")
-        for r in ("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)"):
-            data.setdefault(r, []).append(df.loc[r]["Avg (ms)"])
-        data.setdefault("iteration_instances", []).append(
-            df.loc["iteration"]["Instances"]
-        )
-
-    return pd.DataFrame(data).set_index("block_size")
-
-
-def plot(data: dict[str, pd.DataFrame]):
+def plot(data: dict[str, pd.DataFrame], output: str):
     algorithms = ("std_qr", "chol_qr")
     available_algorithms = [name for name in algorithms if name in data]
     if not available_algorithms:
@@ -97,8 +75,8 @@ def plot(data: dict[str, pd.DataFrame]):
         ax.legend()
 
     fig.tight_layout()
-    plt.savefig("qr_comparison.png")
-    print("qr_comparison.png")
+    plt.savefig(output)
+    print(output)
 
 
 if __name__ == "__main__":
