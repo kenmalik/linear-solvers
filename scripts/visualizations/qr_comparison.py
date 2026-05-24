@@ -45,23 +45,16 @@ def restructure_dr_bcg_bms(df: pd.DataFrame) -> pd.DataFrame:
     if not (df["algorithm"] == "dr-bcg").all():
         raise ValueError("solver algorithms are not dr-bcg")
 
-    return pd.DataFrame.from_records(
-        [
-            get_block_size_records(df[df["block_size"] == bs]) | {"block_size": bs}
-            for bs in df["block_size"].unique()
-        ],
-        index="block_size",
-    )
+    df = df[
+        df["Range"].isin(
+            ("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)")
+        )
+    ].set_index("block_size")
+    iterations = df[df["Range"] == "iteration"]["Instances"]
+    df = df.pivot(columns="Range", values="Avg (ms)")
+    df["iterations"] = iterations
 
-
-def get_block_size_records(df: pd.DataFrame) -> dict:
-    def avg(r):
-        return df.loc[df["Range"] == r, "Avg (ms)"].iloc[0]
-
-    return {
-        r: avg(r)
-        for r in ("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)")
-    } | {"iterations": df.loc[df["Range"] == "iteration", "Instances"].iloc[0]}
+    return df
 
 
 def plot(
@@ -116,9 +109,19 @@ def plot(
         if cg_col is not None and cg_data is not None:
             cg_x = -1
             if metric == "iteration" or metric == "iterations":
-                ax.bar(cg_x, cg_data.loc[cg_data["Range"] == "iteration", cg_col].iloc[0], width, label="CG")
+                ax.bar(
+                    cg_x,
+                    cg_data.loc[cg_data["Range"] == "iteration", cg_col].iloc[0],
+                    width,
+                    label="CG",
+                )
             else:
-                ax.bar(cg_x, cg_data.loc[cg_data["Range"] == "solve", cg_col].iloc[0], width, label="CG")
+                ax.bar(
+                    cg_x,
+                    cg_data.loc[cg_data["Range"] == "solve", cg_col].iloc[0],
+                    width,
+                    label="CG",
+                )
             ax.set_xticks([cg_x] + list(x), ["CG"] + [str(bs) for bs in block_sizes])
         else:
             ax.set_xticks(x, [str(block_size) for block_size in block_sizes])
