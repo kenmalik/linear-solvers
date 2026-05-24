@@ -57,7 +57,7 @@ def restructure_dr_bcg_bms(benchmarks: list[BenchmarkFile]) -> pd.DataFrame:
 def get_block_size_records(df: pd.DataFrame) -> dict:
     return {
         r: df.loc[r]["Avg (ms)"]
-        for r in ("iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)")
+        for r in ("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)")
     } | {"iterations": df.loc["iteration"]["Instances"]}
 
 
@@ -81,6 +81,7 @@ def plot(
         ("[w zeta] = QR(w)", "QR(w) Runtime by Block Size", "Avg (ms)"),
         ("iteration", "Iteration Runtime by Block Size", "Avg (ms)"),
         ("iterations", "Iterations by Block Size", "Iterations"),
+        ("solve", "Solver Runtime by Block Size", "Avg (ms)"),
     )
 
     fig, axes = plt.subplots(1, len(metrics), figsize=(18, 4), sharey=False)
@@ -104,10 +105,17 @@ def plot(
                 label=name,
             )
 
-        cg_col = {"iteration": "Avg (ms)", "iterations": "Instances"}.get(metric)
+        cg_col = {
+            "iteration": "Avg (ms)",
+            "iterations": "Instances",
+            "solve": "Avg (ms)",
+        }.get(metric)
         if cg_col is not None and cg_data is not None:
-            cg_x = -1
-            ax.bar(cg_x, cg_data.loc["iteration"][cg_col], width, label="CG")
+            if metric == "iteration" or metric == "iterations":
+                cg_x = -1
+                ax.bar(cg_x, cg_data.loc["iteration"][cg_col], width, label="CG")
+            else:
+                ax.bar(cg_x, cg_data.loc["solve"][cg_col], width, label="CG")
             ax.set_xticks([cg_x] + list(x), ["CG"] + [str(bs) for bs in block_sizes])
         else:
             ax.set_xticks(x, [str(block_size) for block_size in block_sizes])
