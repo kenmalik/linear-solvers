@@ -1,30 +1,39 @@
 from pathlib import Path
 import re
+from dataclasses import dataclass
+
 import pandas as pd
 
+# Expect the following file naming convention:
+# timings_<implementation>_<algorithm>_s<block_size>.csv
 FILE_PATTERN = re.compile(r"timings_(\w+)_([a-z-]+)_s(\d+).csv")
 
 
-def read(dir: Path) -> pd.DataFrame:
-    if not dir.is_dir():
-        raise Exception("invalid data directory")
+@dataclass
+class BenchmarkFile:
+    implementation: str
+    algorithm: str
+    block_size: int | None
+    data: pd.DataFrame
 
-    data = {}
 
-    for file in dir.glob("*.csv"):
-        match = FILE_PATTERN.search(str(file))
+def read_file(file: Path) -> BenchmarkFile:
+    assert file.is_file()
 
-        if not match:
-            raise Exception("invalid file name")
+    match = FILE_PATTERN.search(str(file))
 
-        block_size = int(match.group(3))
-        data.setdefault("block_size", []).append(block_size)
+    if not match:
+        raise Exception("invalid file name")
 
-        df = pd.read_csv(file, index_col="Range")
-        for r in ("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)"):
-            data.setdefault(r, []).append(df.loc[r]["Avg (ms)"])
-        data.setdefault("iteration_instances", []).append(
-            df.loc["iteration"]["Instances"]
-        )
+    implementation = match.group(1)
+    algorithm = match.group(2)
+    block_size = int(match.group(3)) if match.group(3) else None
+    data = pd.read_csv(file, index_col="Range")
 
-    return pd.DataFrame(data).set_index("block_size")
+    return BenchmarkFile(implementation, algorithm, block_size, data)
+
+
+def read_dir(dir: Path) -> list[BenchmarkFile]:
+    assert dir.is_dir()
+
+    return [read_file(f) for f in dir.glob("*.csv")]

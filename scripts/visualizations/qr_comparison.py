@@ -1,12 +1,11 @@
 from pathlib import Path
-import re
 import argparse
 from sys import exit
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from benchmark_file import read, FILE_PATTERN
+from benchmark_file import read_dir, BenchmarkFile
 
 
 def main():
@@ -16,13 +15,10 @@ def main():
     args = parser.parse_args()
 
     sources = {s.stem: s for s in args.sources}
-    data = {}
-
-    for k, v in sources.items():
-        try:
-            data[k] = read(Path(v))
-        except Exception as e:
-            print(f"error: {str(e)}. skipping.")
+    data = {
+        algorithm: restructure_benchmarks(read_dir(bm_data))
+        for algorithm, bm_data in sources.items()
+    }
 
     if not data:
         print("error: no data read")
@@ -31,13 +27,39 @@ def main():
     plot(data, output=args.output if args.output else "qr_comparison.png")
 
 
+def restructure_benchmarks(benchmarks: list[BenchmarkFile]) -> pd.DataFrame:
+    """
+    Restructures data to list average runtimes in milliseconds and iterations
+    to convergence by block size, matching the following format:
+
+                    iteration   [w sigma] = QR(temp)    [w zeta] = QR(w)    iterations
+    block_size
+    """
+
+    if not all(bm.implementation == benchmarks[0].implementation for bm in benchmarks):
+        raise ValueError("solver implementations do not match")
+    if not all(bm.algorithm == "dr-bcg" for bm in benchmarks):
+        raise ValueError("solver algorithms are not dr-bcg")
+
+    return pd.DataFrame.from_records(
+        [
+            get_block_size_records(bm.data) | {"block_size": bm.block_size}
+            for bm in benchmarks
+        ],
+        index="block_size",
+    )
+
+
+def get_block_size_records(df: pd.DataFrame) -> dict:
+    return {
+        r: df.loc[r]["Avg (ms)"]
+        for r in ("iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)")
+    } | {"iterations": df.loc["iteration"]["Instances"]}
+
+
 def plot(data: dict[str, pd.DataFrame], output: str):
-    algorithms = ("std_qr", "chol_qr")
-    available_algorithms = [name for name in algorithms if name in data]
-    if not available_algorithms:
-        raise Exception("no data available to plot")
-    if not all(name in data for name in algorithms):
-        raise Exception("expected both std_qr and chol_qr data")
+    assert data
+    available_algorithms = data.keys()
 
     block_sizes = sorted(
         {int(block_size) for df in data.values() for block_size in df.index.tolist()}
@@ -45,11 +67,10 @@ def plot(data: dict[str, pd.DataFrame], output: str):
     x = list(range(len(block_sizes)))
     width = 0.35
     metrics = (
-        ("solve", "Solve Runtime by Block Size", "Avg (ms)"),
-        ("iteration", "Iteration Runtime by Block Size", "Avg (ms)"),
         ("[w sigma] = QR(temp)", "QR(temp) Runtime by Block Size", "Avg (ms)"),
         ("[w zeta] = QR(w)", "QR(w) Runtime by Block Size", "Avg (ms)"),
-        ("iteration_instances", "Iterations by Block Size", "Instances"),
+        ("iteration", "Iteration Runtime by Block Size", "Avg (ms)"),
+        ("iterations", "Iterations by Block Size", "Iterations"),
     )
 
     fig, axes = plt.subplots(1, len(metrics), figsize=(18, 4), sharey=False)
