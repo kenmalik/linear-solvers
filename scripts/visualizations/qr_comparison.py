@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 import argparse
+from sys import exit
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -21,7 +22,11 @@ def main():
         try:
             data[k] = read(Path(v))
         except Exception as e:
-            print(f"error reading dir: {str(e)}. skipping.")
+            print(f"error: {str(e)}. skipping.")
+
+    if not data:
+        print("error: no data read")
+        exit(1)
 
     plot(data, output=args.output if args.output else "qr_comparison.png")
 
