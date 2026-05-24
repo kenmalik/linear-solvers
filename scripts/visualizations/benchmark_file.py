@@ -1,6 +1,5 @@
 from pathlib import Path
 import re
-from dataclasses import dataclass
 
 import pandas as pd
 
@@ -10,15 +9,7 @@ import pandas as pd
 FILE_PATTERN = re.compile(r"timings_(\w+)_([a-z-]+)(?:_s(\d+))?\.csv")
 
 
-@dataclass
-class BenchmarkFile:
-    implementation: str
-    algorithm: str
-    block_size: int | None
-    data: pd.DataFrame
-
-
-def read_file(file: Path) -> BenchmarkFile:
+def read_file(file: Path) -> pd.DataFrame:
     assert file.is_file()
 
     match = FILE_PATTERN.search(str(file))
@@ -26,15 +17,15 @@ def read_file(file: Path) -> BenchmarkFile:
     if not match:
         raise Exception("invalid file name")
 
-    implementation = match.group(1)
-    algorithm = match.group(2)
-    block_size = int(match.group(3)) if match.group(3) else None
-    data = pd.read_csv(file, index_col="Range")
+    df = pd.read_csv(file)
+    df["implementation"] = match.group(1)
+    df["algorithm"] = match.group(2)
+    df["block_size"] = int(match.group(3)) if match.group(3) else None
 
-    return BenchmarkFile(implementation, algorithm, block_size, data)
+    return df
 
 
-def read_dir(dir: Path) -> list[BenchmarkFile]:
+def read_dir(dir: Path) -> pd.DataFrame:
     assert dir.is_dir()
 
-    return [read_file(f) for f in dir.glob("*.csv")]
+    return pd.concat([read_file(f) for f in dir.glob("*.csv")], ignore_index=True)
