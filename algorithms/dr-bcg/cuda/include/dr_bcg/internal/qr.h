@@ -1,5 +1,7 @@
 #pragma once
 
+#include <common/cuda_event_timer.h>
+
 template <typename T>
 struct HouseholderQrWorkspace {
     T *d_tau = nullptr;
@@ -141,29 +143,39 @@ void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_
     CUBLAS_CHECK(cublasSetPointerMode(cublasH, CUBLAS_POINTER_MODE_HOST));
 
     if constexpr (std::is_same_v<T, float>) {
+        CudaTimerRange rng{g_event_timer, "QR:syrk", stream};
         CUBLAS_CHECK(cublasSsyrk(cublasH, CUBLAS_FILL_MODE_UPPER,
                                  CUBLAS_OP_T, n, m, &alpha, d_A, m, &beta,
                                  cholqr_ws.d_gram, n));
     } else {
+        CudaTimerRange rng{g_event_timer, "QR:syrk", stream};
         CUBLAS_CHECK(cublasDsyrk(cublasH, CUBLAS_FILL_MODE_UPPER,
                                  CUBLAS_OP_T, n, m, &alpha, d_A, m, &beta,
                                  cholqr_ws.d_gram, n));
     }
 
-    CUSOLVER_CHECK(cusolverDnXpotrf(
-        cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, data_type,
-        cholqr_ws.d_gram, n, data_type, cholqr_ws.d_work,
-        cholqr_ws.d_work_size, cholqr_ws.h_work, cholqr_ws.h_work_size,
-        cholqr_ws.d_info));
+    {
+        CudaTimerRange rng{g_event_timer, "QR:potrf", stream};
+        CUSOLVER_CHECK(cusolverDnXpotrf(
+            cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, data_type,
+            cholqr_ws.d_gram, n, data_type, cholqr_ws.d_work,
+            cholqr_ws.d_work_size, cholqr_ws.h_work, cholqr_ws.h_work_size,
+            cholqr_ws.d_info));
+    }
 
-    copy_upper_triangular(d_R, cholqr_ws.d_gram, n, n, stream);
+    {
+        CudaTimerRange rng{g_event_timer, "QR:copy_upper_triangular", stream};
+        copy_upper_triangular(d_R, cholqr_ws.d_gram, n, n, stream);
+    }
 
     if constexpr (std::is_same_v<T, float>) {
+        CudaTimerRange rng{g_event_timer, "QR:trsm", stream};
         CUBLAS_CHECK(cublasStrsm_v2(
             cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
             CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, m, n, &alpha,
             cholqr_ws.d_gram, n, d_Q, m));
     } else {
+        CudaTimerRange rng{g_event_timer, "QR:trsm", stream};
         CUBLAS_CHECK(cublasDtrsm_v2(
             cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
             CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, m, n, &alpha,
@@ -184,20 +196,28 @@ void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStre
     CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
                                cudaMemcpyDeviceToDevice, stream));
 
-    CUSOLVER_CHECK(cusolverDnXgeqrf(
-        cusolverH, params, m, n, data_type, d_Q, m, data_type,
-        householder_ws.d_tau, data_type, householder_ws.d_work,
-        householder_ws.lwork_geqrf_d, householder_ws.h_work,
-        householder_ws.lwork_geqrf_h, householder_ws.d_info));
+    {
+        CudaTimerRange rng{g_event_timer, "QR:geqrf", stream};
+        CUSOLVER_CHECK(cusolverDnXgeqrf(
+            cusolverH, params, m, n, data_type, d_Q, m, data_type,
+            householder_ws.d_tau, data_type, householder_ws.d_work,
+            householder_ws.lwork_geqrf_d, householder_ws.h_work,
+            householder_ws.lwork_geqrf_h, householder_ws.d_info));
+    }
 
-    copy_upper_triangular(d_R, d_Q, m, n, stream);
+    {
+        CudaTimerRange rng{g_event_timer, "QR:copy_upper_triangular", stream};
+        copy_upper_triangular(d_R, d_Q, m, n, stream);
+    }
 
     if constexpr (std::is_same_v<T, float>) {
+        CudaTimerRange rng{g_event_timer, "QR:orgqr", stream};
         CUSOLVER_CHECK(cusolverDnSorgqr(
             cusolverH, m, n, n, d_Q, m, householder_ws.d_tau,
             reinterpret_cast<T *>(householder_ws.d_work),
             householder_ws.numfloats_orgqr_d, householder_ws.d_info));
     } else {
+        CudaTimerRange rng{g_event_timer, "QR:orgqr", stream};
         CUSOLVER_CHECK(cusolverDnDorgqr(
             cusolverH, m, n, n, d_Q, m, householder_ws.d_tau,
             reinterpret_cast<T *>(householder_ws.d_work),
@@ -223,14 +243,12 @@ void orthonormalize_block(
     assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
     switch (backend) {
-    case dr_bcg::cuda::QrBackend::Householder: {
+    case dr_bcg::cuda::QrBackend::Householder:
         householder_qr(d_Q, d_A, m, n, stream, cusolverH, params, data_type, householder_ws, d_R);
         break;
-    }
-    case dr_bcg::cuda::QrBackend::CholQR: {
+    case dr_bcg::cuda::QrBackend::CholQR:
         cholesky_qr(d_Q, d_A, m, n, stream, cublasH, cholqr_ws, cusolverH, params, data_type, d_R);
         break;
-    }
     default:
         throw std::runtime_error("Unknown QR backend");
     }
