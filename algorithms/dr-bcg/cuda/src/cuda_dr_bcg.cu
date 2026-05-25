@@ -1,6 +1,7 @@
 #include "dr_bcg/cuda.h"
 #include "dr_bcg/internal/device_buffer.h"
 #include "dr_bcg/internal/math.h"
+#include "dr_bcg/internal/qr.h"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
