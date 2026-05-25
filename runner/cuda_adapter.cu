@@ -1,12 +1,17 @@
 #include "cuda_adapter.h"
 
+#include <iostream>
+
 #include "common/cuda_checks.h"
 #include "common/device_sparse_matrix.h"
 
-#include <cg/cuda.h>
-#include <dr_bcg/cuda.h>
+#ifdef CG_ENABLED
+#include "cg/cuda.h"
+#endif
 
-#include <iostream>
+#ifdef DR_BCG_ENABLED
+#include "dr_bcg/cuda.h"
+#endif
 
 namespace {
 
@@ -29,6 +34,8 @@ const char *qr_backend_name(dr_bcg::cuda::QrBackend qr_backend) {
 }
 
 } // namespace
+
+#ifdef CG_ENABLED
 
 int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
                 std::vector<double> &x, const mat_utils::SpMatReader &L,
@@ -87,6 +94,10 @@ int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
 
     return iters;
 }
+
+#endif
+
+#ifdef DR_BCG_ENABLED
 
 int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
@@ -207,3 +218,5 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     return iters;
 }
+
+#endif
