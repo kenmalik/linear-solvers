@@ -269,3 +269,4 @@ residuals_*.txt
 *.json
 
 !c_cpp_properties.json
+!tasks.json
