@@ -35,8 +35,6 @@ Building the project requires CMake. The following build options are provided:
 | `SOLVERS_BUILD_TESTS` | Build tests |
 | `SOLVERS_BUILD_RUNNER` | Build runner program |
 
-All options have the value `OFF` by default.
-
 As an example, you can build the runner program with CUDA and MKL DR-BCG like so:
 
 ```shell
