@@ -4,12 +4,11 @@
 #include <mkl_spblas.h>
 
 #include "common/log.h"
+#include "common/timer.h"
 
-#ifdef SOLVERS_VERBOSE
+#ifdef SOLVERS_ENABLE_VERBOSE
 #include <cmath>
 #endif
-
-#include "common/timer.h"
 
 namespace cg::mkl {
 int solve(const CSRMatrix &A, const std::vector<double> &b,

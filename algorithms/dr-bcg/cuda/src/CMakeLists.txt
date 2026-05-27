@@ -20,10 +20,9 @@ target_link_libraries(
     CUDA::cusparse
     nvtx3::nvtx3-cpp
 )
+target_link_libraries(cuda_dr_bcg PRIVATE solver_config)
 
 target_compile_definitions(
     cuda_dr_bcg PRIVATE
     $<$<CONFIG:Debug>:CUDA_DR_BCG_DEBUG_BUILD>
-    $<$<BOOL:${SOLVERS_VERBOSE}>:SOLVERS_VERBOSE>
-    $<$<BOOL:${SOLVERS_ENABLE_TIMER}>:ENABLE_TIMER>
 )

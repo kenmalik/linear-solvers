@@ -4,3 +4,12 @@
 #cmakedefine SOLVERS_BUILD_CUDA
 #cmakedefine SOLVERS_BUILD_CG
 #cmakedefine SOLVERS_BUILD_DR_BCG
+
+#cmakedefine SOLVERS_ENABLE_VERBOSE
+
+#cmakedefine SOLVERS_ENABLE_TIMER
+#ifdef SOLVERS_ENABLE_TIMER
+inline constexpr bool timer_enabled = true;
+#else
+inline constexpr bool timer_enabled = false;
+#endif

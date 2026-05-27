@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -7,12 +9,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#ifdef ENABLE_TIMER
-inline constexpr bool timer_enabled = true;
-#else
-inline constexpr bool timer_enabled = false;
-#endif
 
 template <bool Enabled>
 class CpuTimer;
