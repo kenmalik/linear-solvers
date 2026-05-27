@@ -5,7 +5,7 @@ from sys import exit
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from benchmark_file import read_dir, read_file, BenchmarkFile
+from benchmark_file import read_dir, read_file, process_dr_bcg
 
 
 def main():
@@ -17,7 +17,10 @@ def main():
 
     sources = {s.stem: s for s in args.sources}
     dr_bcg_data = {
-        algorithm: restructure_dr_bcg_bms(read_dir(bm_data))
+        algorithm: process_dr_bcg(
+            read_dir(bm_data),
+            ranges=("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)"),
+        )
         for algorithm, bm_data in sources.items()
         if bm_data.is_dir()
     }
@@ -26,39 +29,9 @@ def main():
         print("error: no data read")
         exit(1)
 
-    cg_data = read_file(args.cg).data if args.cg else None
+    cg_data = read_file(args.cg) if args.cg else None
 
     plot(dr_bcg_data, cg_data, args.output if args.output else "qr_comparison.png")
-
-
-def restructure_dr_bcg_bms(benchmarks: list[BenchmarkFile]) -> pd.DataFrame:
-    """
-    Restructures data to list average runtimes in milliseconds and iterations
-    to convergence by block size, matching the following format:
-
-                    iteration   [w sigma] = QR(temp)    [w zeta] = QR(w)    iterations
-    block_size
-    """
-
-    if not all(bm.implementation == benchmarks[0].implementation for bm in benchmarks):
-        raise ValueError("solver implementations do not match")
-    if not all(bm.algorithm == "dr-bcg" for bm in benchmarks):
-        raise ValueError("solver algorithms are not dr-bcg")
-
-    return pd.DataFrame.from_records(
-        [
-            get_block_size_records(bm.data) | {"block_size": bm.block_size}
-            for bm in benchmarks
-        ],
-        index="block_size",
-    )
-
-
-def get_block_size_records(df: pd.DataFrame) -> dict:
-    return {
-        r: df.loc[r]["Avg (ms)"]
-        for r in ("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)")
-    } | {"iterations": df.loc["iteration"]["Instances"]}
 
 
 def plot(
@@ -111,11 +84,21 @@ def plot(
             "solve": "Avg (ms)",
         }.get(metric)
         if cg_col is not None and cg_data is not None:
+            cg_x = -1
             if metric == "iteration" or metric == "iterations":
-                cg_x = -1
-                ax.bar(cg_x, cg_data.loc["iteration"][cg_col], width, label="CG")
+                ax.bar(
+                    cg_x,
+                    cg_data.loc[cg_data["Range"] == "iteration", cg_col].iloc[0],
+                    width,
+                    label="CG",
+                )
             else:
-                ax.bar(cg_x, cg_data.loc["solve"][cg_col], width, label="CG")
+                ax.bar(
+                    cg_x,
+                    cg_data.loc[cg_data["Range"] == "solve", cg_col].iloc[0],
+                    width,
+                    label="CG",
+                )
             ax.set_xticks([cg_x] + list(x), ["CG"] + [str(bs) for bs in block_sizes])
         else:
             ax.set_xticks(x, [str(block_size) for block_size in block_sizes])

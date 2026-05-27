@@ -5,7 +5,7 @@ add_library(
 )
 add_library(dr_bcg::cuda ALIAS cuda_dr_bcg)
 
-target_compile_features(cuda_dr_bcg PRIVATE cxx_std_17)
+target_compile_features(cuda_dr_bcg PRIVATE cxx_std_20)
 target_include_directories(
     cuda_dr_bcg PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>

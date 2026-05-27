@@ -356,6 +356,8 @@ TEST(Rhs, GeneratesZeroInitialGuessWhenFileNotProvided) {
 
 #ifdef MKL_ENABLED
 
+#ifdef CG_ENABLED
+
 TEST(CgMkl, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
@@ -368,6 +370,10 @@ TEST(CgMkl, ConvergesOn1138Bus) {
 
     EXPECT_LT(iters, n) << "CG (MKL) did not converge within " << n << " iterations";
 }
+
+#endif
+
+#ifdef DR_BCG_ENABLED
 
 TEST(DrBcgMkl, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
@@ -382,9 +388,13 @@ TEST(DrBcgMkl, ConvergesOn1138Bus) {
     EXPECT_LT(iters, n) << "DR-BCG (MKL) did not converge within " << n << " iterations";
 }
 
+#endif
+
 #endif // MKL_ENABLED
 
 #ifdef CUDA_ENABLED
+
+#ifdef CG_ENABLED
 
 TEST(CgCuda, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
@@ -399,6 +409,10 @@ TEST(CgCuda, ConvergesOn1138Bus) {
     EXPECT_LT(iters, n) << "CG (CUDA) did not converge within " << n << " iterations";
 }
 
+#endif
+
+#ifdef DR_BCG_ENABLED
+
 TEST(DrBcgCuda, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
@@ -411,5 +425,7 @@ TEST(DrBcgCuda, ConvergesOn1138Bus) {
 
     EXPECT_LT(iters, n) << "DR-BCG (CUDA) did not converge within " << n << " iterations";
 }
+
+#endif
 
 #endif // CUDA_ENABLED
