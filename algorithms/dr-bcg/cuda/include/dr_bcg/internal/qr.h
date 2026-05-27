@@ -136,6 +136,8 @@ struct CholQrWorkspace {
 
 template <typename T>
 void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream, cublasHandle_t &cublasH, CholQrWorkspace<T> &cholqr_ws, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params, const cudaDataType_t &data_type, T *&d_R) {
+    CudaTimerRange rng{g_event_timer, "QR:func", stream};
+
     constexpr T alpha = 1;
     constexpr T beta = 0;
     CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
@@ -193,6 +195,8 @@ void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_
 
 template <typename T>
 void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params, const cudaDataType_t &data_type, HouseholderQrWorkspace<T> &householder_ws, T *&d_R) {
+    CudaTimerRange rng{g_event_timer, "QR:func", stream};
+
     CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
                                cudaMemcpyDeviceToDevice, stream));
 
