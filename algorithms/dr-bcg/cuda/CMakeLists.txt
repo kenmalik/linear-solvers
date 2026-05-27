@@ -20,8 +20,3 @@ target_link_libraries(
     nvtx3::nvtx3-cpp
 )
 target_link_libraries(cuda_dr_bcg PRIVATE solver_config solvers_internal)
-
-target_compile_definitions(
-    cuda_dr_bcg PRIVATE
-    $<$<CONFIG:Debug>:CUDA_DR_BCG_DEBUG_BUILD>
-)
