@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <gtest/gtest.h>
 
 #include <mat_utils/mat_reader.h>
@@ -19,11 +21,11 @@
 #include "parser.h"
 #include "rhs.h"
 
-#ifdef MKL_ENABLED
+#ifdef SOLVERS_BUILD_MKL
 #include "mkl_adapter.h"
 #endif
 
-#ifdef CUDA_ENABLED
+#ifdef SOLVERS_BUILD_CUDA
 #include "cuda_adapter.h"
 #endif
 
@@ -354,9 +356,9 @@ TEST(Rhs, GeneratesZeroInitialGuessWhenFileNotProvided) {
               (std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
 }
 
-#ifdef MKL_ENABLED
+#ifdef SOLVERS_BUILD_MKL
 
-#ifdef CG_ENABLED
+#ifdef SOLVERS_BUILD_CG
 
 TEST(CgMkl, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
@@ -371,9 +373,9 @@ TEST(CgMkl, ConvergesOn1138Bus) {
     EXPECT_LT(iters, n) << "CG (MKL) did not converge within " << n << " iterations";
 }
 
-#endif
+#endif // SOLVERS_BUILD_CG
 
-#ifdef DR_BCG_ENABLED
+#ifdef SOLVERS_BUILD_DR_BCG
 
 TEST(DrBcgMkl, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
@@ -388,13 +390,13 @@ TEST(DrBcgMkl, ConvergesOn1138Bus) {
     EXPECT_LT(iters, n) << "DR-BCG (MKL) did not converge within " << n << " iterations";
 }
 
-#endif
+#endif // SOLVERS_BUILD_DR_BCG
 
-#endif // MKL_ENABLED
+#endif // SOLVERS_BUILD_MKL
 
-#ifdef CUDA_ENABLED
+#ifdef SOLVERS_BUILD_CUDA
 
-#ifdef CG_ENABLED
+#ifdef SOLVERS_BUILD_CG
 
 TEST(CgCuda, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
@@ -409,9 +411,9 @@ TEST(CgCuda, ConvergesOn1138Bus) {
     EXPECT_LT(iters, n) << "CG (CUDA) did not converge within " << n << " iterations";
 }
 
-#endif
+#endif // SOLVERS_BUILD_CG
 
-#ifdef DR_BCG_ENABLED
+#ifdef SOLVERS_BUILD_DR_BCG
 
 TEST(DrBcgCuda, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
@@ -426,6 +428,6 @@ TEST(DrBcgCuda, ConvergesOn1138Bus) {
     EXPECT_LT(iters, n) << "DR-BCG (CUDA) did not converge within " << n << " iterations";
 }
 
-#endif
+#endif // SOLVERS_BUILD_DR_BCG
 
-#endif // CUDA_ENABLED
+#endif // SOLVERS_BUILD_CUDA

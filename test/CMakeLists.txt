@@ -27,11 +27,7 @@ target_link_libraries(solver_tests PRIVATE GTest::gtest_main MatUtils::mat_utils
     cxxopts::cxxopts)
 target_compile_definitions(solver_tests PRIVATE
     TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data")
-target_compile_definitions(solver_tests PRIVATE
-    $<$<BOOL:${SOLVERS_BUILD_MKL}>:MKL_ENABLED>
-    $<$<BOOL:${SOLVERS_BUILD_CUDA}>:CUDA_ENABLED>
-    $<$<BOOL:${SOLVERS_BUILD_CG}>:CG_ENABLED>
-    $<$<BOOL:${SOLVERS_BUILD_DR_BCG}>:DR_BCG_ENABLED>)
+target_link_libraries(solver_tests PRIVATE solver_config)
 
 if(SOLVERS_BUILD_MKL)
     target_sources(solver_tests PRIVATE ${CMAKE_SOURCE_DIR}/runner/mkl_adapter.cpp)

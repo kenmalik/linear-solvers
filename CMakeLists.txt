@@ -16,6 +16,13 @@ option(SOLVERS_ENABLE_TIMER "Enable timing output" OFF)
 
 set(COMMON_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
+configure_file(
+    ${CMAKE_SOURCE_DIR}/include/config.h.in
+    ${CMAKE_BINARY_DIR}/include/config.h
+)
+add_library(solver_config INTERFACE)
+target_include_directories(solver_config INTERFACE ${CMAKE_BINARY_DIR}/include)
+
 if(SOLVERS_BUILD_CUDA)
     find_package(CUDAToolkit 12.0 REQUIRED)
     find_package(nvtx3 CONFIG REQUIRED)

@@ -9,12 +9,7 @@ target_link_libraries(cgrun PRIVATE MatUtils::mat_utils)
 target_compile_definitions(cgrun PRIVATE
     $<$<BOOL:${SOLVERS_VERBOSE}>:SOLVERS_VERBOSE>
     $<$<BOOL:${SOLVERS_ENABLE_TIMER}>:ENABLE_TIMER>)
-
-target_compile_definitions(cgrun PRIVATE
-    $<$<BOOL:${SOLVERS_BUILD_MKL}>:MKL_ENABLED>
-    $<$<BOOL:${SOLVERS_BUILD_CUDA}>:CUDA_ENABLED>
-    $<$<BOOL:${SOLVERS_BUILD_CG}>:CG_ENABLED>
-    $<$<BOOL:${SOLVERS_BUILD_DR_BCG}>:DR_BCG_ENABLED>)
+target_link_libraries(cgrun PRIVATE solver_config)
 
 if(SOLVERS_BUILD_CUDA)
     target_sources(cgrun PRIVATE cuda_adapter.cu)
