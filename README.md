@@ -3,7 +3,7 @@
 ## Introduction
 
 This repo contains a collection of linear solver implementations. The primary
-solver of interest is the [CUDA DR-BCG](algorithms/dr-bcg/cuda); the other
+solver of interest is [CUDA DR-BCG](algorithms/dr-bcg/cuda); the other
 solvers serve as points of comparison to evaluate DR-BCG's performance.
 
 Currently, there are two algorithms implemented:
