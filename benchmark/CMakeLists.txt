@@ -17,7 +17,7 @@ target_compile_features(solver_benchmarks PRIVATE cxx_std_20)
 target_include_directories(solver_benchmarks PRIVATE
     ${PROJECT_SOURCE_DIR}/runner
     ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(solver_benchmarks PRIVATE benchmark::benchmark_main MatUtils::mat_utils)
+target_link_libraries(solver_benchmarks PRIVATE benchmark::benchmark_main MatUtils::mat_utils solver_config)
 target_compile_definitions(solver_benchmarks PRIVATE
     BENCHMARK_DATA_DIR="${PROJECT_SOURCE_DIR}/data")
 

@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <benchmark/benchmark.h>
 
 #include <mat_utils/mat_reader.h>
@@ -8,17 +10,19 @@
 #define BENCHMARK_DATA_DIR "."
 #endif
 
-#ifdef MKL_ENABLED
+#ifdef SOLVERS_BUILD_MKL
 #include "mkl_adapter.h"
 #endif
 
-#ifdef CUDA_ENABLED
+#ifdef SOLVERS_BUILD_CUDA
 #include "cuda_adapter.h"
 #endif
 
 static constexpr double tolerance = 1e-6;
 
-#ifdef MKL_ENABLED
+#ifdef SOLVERS_BUILD_MKL
+
+#ifdef SOLVERS_BUILD_CG
 
 static void BM_CgMkl(benchmark::State &state) {
     mat_utils::SpMatReader A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
@@ -33,6 +37,10 @@ static void BM_CgMkl(benchmark::State &state) {
     }
 }
 BENCHMARK(BM_CgMkl)->MinWarmUpTime(0.5);
+
+#endif // SOLVERS_BUILD_CG
+
+#ifdef SOLVERS_BUILD_DR_BCG
 
 static void BM_DrBcgMkl(benchmark::State &state) {
     int block_size = state.range(0);
@@ -49,9 +57,13 @@ static void BM_DrBcgMkl(benchmark::State &state) {
 }
 BENCHMARK(BM_DrBcgMkl)->ArgsProduct({{1, 2, 4, 8, 16, 32, 64}})->MinWarmUpTime(0.5);
 
-#endif // MKL_ENABLED
+#endif // SOLVERS_BUILD_DR_BCG
 
-#ifdef CUDA_ENABLED
+#endif // SOLVERS_BUILD_MKL
+
+#ifdef SOLVERS_BUILD_CUDA
+
+#ifdef SOLVERS_BUILD_CG
 
 static void BM_CgCuda(benchmark::State &state) {
     mat_utils::SpMatReader A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
@@ -66,6 +78,10 @@ static void BM_CgCuda(benchmark::State &state) {
     }
 }
 BENCHMARK(BM_CgCuda)->MinWarmUpTime(0.5);
+
+#endif // SOLVERS_BUILD_CG
+
+#ifdef SOLVERS_BUILD_DR_BCG
 
 static void BM_DrBcgCuda(benchmark::State &state) {
     int block_size = state.range(0);
@@ -82,4 +98,6 @@ static void BM_DrBcgCuda(benchmark::State &state) {
 }
 BENCHMARK(BM_DrBcgCuda)->ArgsProduct({{1, 2, 4, 8, 16, 32, 64}})->MinWarmUpTime(0.5);
 
-#endif // CUDA_ENABLED
+#endif // SOLVERS_BUILD_DR_BCG
+
+#endif // SOLVERS_BUILD_CUDA
