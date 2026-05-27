@@ -14,14 +14,18 @@ option(SOLVERS_BUILD_BENCHMARKS "Build benchmark programs" OFF)
 option(SOLVERS_ENABLE_VERBOSE "Enable verbose output" OFF)
 option(SOLVERS_ENABLE_TIMER "Enable timing output" OFF)
 
-set(COMMON_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include")
-
 configure_file(
     ${CMAKE_SOURCE_DIR}/include/config.h.in
     ${CMAKE_BINARY_DIR}/include/config.h
 )
 add_library(solver_config INTERFACE)
 target_include_directories(solver_config INTERFACE ${CMAKE_BINARY_DIR}/include)
+
+add_library(solvers_internal INTERFACE)
+target_include_directories(solvers_internal INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 
 if(SOLVERS_BUILD_CUDA)
     find_package(CUDAToolkit 12.0 REQUIRED)

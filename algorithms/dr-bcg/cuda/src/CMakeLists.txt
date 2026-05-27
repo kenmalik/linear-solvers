@@ -10,7 +10,6 @@ target_include_directories(
     cuda_dr_bcg PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    ${COMMON_HEADERS}
 )
 
 target_link_libraries(
@@ -20,7 +19,7 @@ target_link_libraries(
     CUDA::cusparse
     nvtx3::nvtx3-cpp
 )
-target_link_libraries(cuda_dr_bcg PRIVATE solver_config)
+target_link_libraries(cuda_dr_bcg PRIVATE solver_config solvers_internal)
 
 target_compile_definitions(
     cuda_dr_bcg PRIVATE
