@@ -25,10 +25,14 @@ target_link_libraries(solver_tests PRIVATE GTest::gtest_main MatUtils::mat_utils
     cxxopts::cxxopts)
 target_compile_definitions(solver_tests PRIVATE
     TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data")
+target_compile_definitions(solver_tests PRIVATE
+    $<$<BOOL:${SOLVERS_BUILD_MKL}>:MKL_ENABLED>
+    $<$<BOOL:${SOLVERS_BUILD_CUDA}>:CUDA_ENABLED>
+    $<$<BOOL:${SOLVERS_BUILD_CG}>:CG_ENABLED>
+    $<$<BOOL:${SOLVERS_BUILD_DR_BCG}>:DR_BCG_ENABLED>)
 
 if(SOLVERS_BUILD_MKL)
     target_sources(solver_tests PRIVATE ${CMAKE_SOURCE_DIR}/runner/mkl_adapter.cpp)
-    target_compile_definitions(solver_tests PRIVATE MKL_ENABLED)
     if(SOLVERS_BUILD_CG)
         target_link_libraries(solver_tests PRIVATE cg::mkl)
     endif()
@@ -39,7 +43,6 @@ endif()
 
 if(SOLVERS_BUILD_CUDA)
     target_sources(solver_tests PRIVATE ${CMAKE_SOURCE_DIR}/runner/cuda_adapter.cu)
-    target_compile_definitions(solver_tests PRIVATE CUDA_ENABLED)
     set_target_properties(solver_tests PROPERTIES CUDA_STANDARD 20)
     if(SOLVERS_BUILD_CG)
         target_link_libraries(solver_tests PRIVATE cg::cuda)

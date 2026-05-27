@@ -1,10 +1,17 @@
 #include "cuda_adapter.h"
 
+#include <iostream>
+
 #include "common/cuda_checks.h"
 #include "common/device_sparse_matrix.h"
 
-#include <cg/cuda.h>
-#include <dr_bcg/cuda.h>
+#ifdef CG_ENABLED
+#include "cg/cuda.h"
+#endif
+
+#ifdef DR_BCG_ENABLED
+#include "dr_bcg/cuda.h"
+#endif
 
 namespace {
 
@@ -15,7 +22,20 @@ void configure_cublas_math_mode(cublasHandle_t cublas,
     }
 }
 
+const char *qr_backend_name(dr_bcg::cuda::QrBackend qr_backend) {
+    switch (qr_backend) {
+    case dr_bcg::cuda::QrBackend::Householder:
+        return "householder";
+    case dr_bcg::cuda::QrBackend::CholQR:
+        return "cholqr";
+    default:
+        return "unknown";
+    }
+}
+
 } // namespace
+
+#ifdef CG_ENABLED
 
 int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
                 std::vector<double> &x, const mat_utils::SpMatReader &L,
@@ -75,11 +95,16 @@ int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
     return iters;
 }
 
+#endif
+
+#ifdef DR_BCG_ENABLED
+
 int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
                     const mat_utils::SpMatReader &L, double tolerance,
                     int max_iterations, int block_size,
-                    bool disable_tensor_cores) {
+                    bool disable_tensor_cores,
+                    dr_bcg::cuda::QrBackend qr_backend) {
     auto n = A.rows();
 
     dr_bcg::cuda::Handles handles;
@@ -111,12 +136,19 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    int iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr, L_mat.get(),
-                                    tolerance, max_iterations, stream);
-
-    CUDA_CHECK(cudaMemcpyAsync(x.data(), x_d, sizeof(double) * x.size(),
-                               cudaMemcpyDeviceToHost, stream));
-    CUDA_CHECK(cudaStreamSynchronize(stream));
+    int iters = -1;
+    try {
+        iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr,
+                                    L_mat.get(), tolerance, max_iterations,
+                                    stream, qr_backend);
+        CUDA_CHECK(cudaMemcpyAsync(x.data(), x_d, sizeof(double) * x.size(),
+                                   cudaMemcpyDeviceToHost, stream));
+        CUDA_CHECK(cudaStreamSynchronize(stream));
+    } catch (const std::exception &e) {
+        std::cerr << "CUDA DR-BCG failed with QR backend '"
+                  << qr_backend_name(qr_backend) << "': " << e.what()
+                  << std::endl;
+    }
 
     CUSPARSE_CHECK(cusparseDestroyDnMat(x_descr));
     CUDA_CHECK(cudaFree(x_d));
@@ -131,7 +163,8 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
                     double tolerance, int max_iterations, int block_size,
-                    bool disable_tensor_cores) {
+                    bool disable_tensor_cores,
+                    dr_bcg::cuda::QrBackend qr_backend) {
     auto n = A.rows();
 
     dr_bcg::cuda::Handles handles;
@@ -162,12 +195,19 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    int iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr, tolerance,
-                                    max_iterations, stream);
-
-    CUDA_CHECK(cudaMemcpyAsync(x.data(), x_d, sizeof(double) * x.size(),
-                               cudaMemcpyDeviceToHost, stream));
-    CUDA_CHECK(cudaStreamSynchronize(stream));
+    int iters = -1;
+    try {
+        iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr,
+                                    tolerance, max_iterations, stream,
+                                    qr_backend);
+        CUDA_CHECK(cudaMemcpyAsync(x.data(), x_d, sizeof(double) * x.size(),
+                                   cudaMemcpyDeviceToHost, stream));
+        CUDA_CHECK(cudaStreamSynchronize(stream));
+    } catch (const std::exception &e) {
+        std::cerr << "CUDA DR-BCG failed with QR backend '"
+                  << qr_backend_name(qr_backend) << "': " << e.what()
+                  << std::endl;
+    }
 
     CUSPARSE_CHECK(cusparseDestroyDnMat(x_descr));
     CUDA_CHECK(cudaFree(x_d));
@@ -178,3 +218,5 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     return iters;
 }
+
+#endif

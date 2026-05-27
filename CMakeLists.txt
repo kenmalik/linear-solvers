@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.10.0)
 project(Solvers VERSION 0.1.0 LANGUAGES CXX CUDA)
 
-option(SOLVERS_BUILD_CUDA "Build CUDA implementations of solvers" OFF)
+option(SOLVERS_BUILD_CUDA "Build CUDA implementations of solvers" ON)
 option(SOLVERS_BUILD_MKL "Build MKL implementations of solvers" OFF)
 
+option(SOLVERS_BUILD_DR_BCG "Build DR-BCG implementations" ON)
 option(SOLVERS_BUILD_CG "Build CG implementations" OFF)
-option(SOLVERS_BUILD_DR_BCG "Build DR-BCG implementations" OFF)
 
-option(SOLVERS_BUILD_TESTS "Build tests" OFF)
-option(SOLVERS_BUILD_RUNNER "Build runner program" OFF)
+option(SOLVERS_BUILD_TESTS "Build tests" ON)
+option(SOLVERS_BUILD_RUNNER "Build runner program" ON)
 option(SOLVERS_BUILD_BENCHMARKS "Build benchmark programs" OFF)
 
 option(SOLVERS_VERBOSE "Enable verbose output" OFF)

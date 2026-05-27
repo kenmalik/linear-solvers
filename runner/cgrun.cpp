@@ -1,21 +1,11 @@
 #include <iostream>
 #include <vector>
 
-#ifdef MKL_CG_ENABLED
+#ifdef MKL_ENABLED
 #include "mkl_adapter.h"
 #endif
 
-#ifdef MKL_DR_BCG_ENABLED
-#include "mkl_adapter.h"
-#endif
-
-#ifdef CUDA_CG_ENABLED
-#include "common/cuda_checks.h"
-#include "cuda_adapter.h"
-#include <cuda_runtime.h>
-#endif
-
-#ifdef CUDA_DR_BCG_ENABLED
+#ifdef CUDA_ENABLED
 #include "common/cuda_checks.h"
 #include "cuda_adapter.h"
 #include <cuda_runtime.h>
@@ -27,6 +17,23 @@
 #include "cgrun.h"
 #include "parser.h"
 #include "rhs.h"
+
+namespace {
+
+#if defined(CUDA_ENABLED) && defined(DR_BCG_ENABLED)
+dr_bcg::cuda::QrBackend to_cuda_qr_backend(QrBackend backend) {
+    switch (backend) {
+    case QrBackend::Householder:
+        return dr_bcg::cuda::QrBackend::Householder;
+    case QrBackend::CholQR:
+        return dr_bcg::cuda::QrBackend::CholQR;
+    default:
+        throw std::runtime_error("Unknown QR backend");
+    }
+}
+#endif
+
+} // namespace
 
 int main(int argc, char *argv[]) {
     auto args = parse_args(argc, argv);
@@ -82,7 +89,8 @@ int run_cg(const Args &args) {
     int max_iters = args.max_iterations.value_or(n);
 
     switch (args.implementation) {
-#ifdef MKL_CG_ENABLED
+#ifdef CG_ENABLED
+#ifdef MKL_ENABLED
     case Implementation::MKL: {
         if (args.L.has_value()) {
             return run_mkl_cg(args.A, b, x, args.L.value(), args.tolerance,
@@ -93,12 +101,13 @@ int run_cg(const Args &args) {
         }
     }
 #endif
-#ifdef CUDA_CG_ENABLED
+#ifdef CUDA_ENABLED
     case Implementation::CUDA: {
         CUDA_CHECK(cudaDeviceSynchronize());
         return run_cuda_cg(args.A, b, x, args.L.value(), args.tolerance,
                            max_iters, args.disable_tensor_cores);
     }
+#endif
 #endif
     default:
         std::cerr << "Selected implementation not available in this build"
@@ -124,7 +133,8 @@ int run_dr_bcg(const Args &args) {
     int max_iters = args.max_iterations.value_or(n);
 
     switch (args.implementation) {
-#ifdef MKL_DR_BCG_ENABLED
+#ifdef DR_BCG_ENABLED
+#ifdef MKL_ENABLED
     case Implementation::MKL: {
         if (args.L.has_value()) {
             return run_mkl_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
@@ -135,19 +145,22 @@ int run_dr_bcg(const Args &args) {
         }
     }
 #endif
-#ifdef CUDA_DR_BCG_ENABLED
+#ifdef CUDA_ENABLED
     case Implementation::CUDA: {
         CUDA_CHECK(cudaDeviceSynchronize());
         if (args.L.has_value()) {
             return run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
                                    max_iters, args.block_size,
-                                   args.disable_tensor_cores);
+                                   args.disable_tensor_cores,
+                                   to_cuda_qr_backend(args.qr_backend));
         } else {
             return run_cuda_dr_bcg(args.A, b, x, args.tolerance, max_iters,
                                    args.block_size,
-                                   args.disable_tensor_cores);
+                                   args.disable_tensor_cores,
+                                   to_cuda_qr_backend(args.qr_backend));
         }
     }
+#endif
 #endif
     default:
         std::cerr << "Selected implementation not available in this build"

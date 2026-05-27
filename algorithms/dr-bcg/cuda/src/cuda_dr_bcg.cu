@@ -1,6 +1,7 @@
 #include "dr_bcg/cuda.h"
 #include "dr_bcg/internal/device_buffer.h"
 #include "dr_bcg/internal/math.h"
+#include "dr_bcg/internal/qr.h"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
@@ -29,6 +30,41 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
     return {n, s};
 }
 
+template <typename T>
+void check_orthonormalization_status(
+    dr_bcg::cuda::QrBackend backend,
+    HouseholderQrWorkspace<T> &householder_ws, CholQrWorkspace<T> &cholqr_ws,
+    int n, cudaStream_t stream, const char *stage) {
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+
+    if (backend == dr_bcg::cuda::QrBackend::Householder) {
+        if (*householder_ws.h_info < 0) {
+            throw std::runtime_error(std::string(stage) + ": " +
+                                     std::to_string(-*householder_ws.h_info) +
+                                     "-th parameter is wrong in QR");
+        }
+        return;
+    }
+
+    if (*cholqr_ws.h_info < 0) {
+        throw std::runtime_error(std::string(stage) + ": " +
+                                 std::to_string(-*cholqr_ws.h_info) +
+                                 "-th parameter is wrong in CholQR");
+    }
+    if (*cholqr_ws.h_info > 0) {
+        throw std::runtime_error(
+            std::string(stage) + ": CholQR failed, Gram matrix lost positive "
+                                 "definiteness at leading minor " +
+            std::to_string(*cholqr_ws.h_info));
+    }
+    for (int i = 0; i < n; ++i) {
+        if (cholqr_ws.h_factor[i + i * n] == T{0}) {
+            throw std::runtime_error(std::string(stage) +
+                                     ": CholQR produced a zero diagonal in R");
+        }
+    }
+}
+
 } // namespace
 
 namespace dr_bcg::cuda {
@@ -55,7 +91,7 @@ void Handles::set_stream(cudaStream_t stream) {
 
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, double tolerance, int max_iterations,
-          cudaStream_t stream) {
+          cudaStream_t stream, QrBackend qr_backend) {
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
@@ -65,9 +101,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     handles.set_stream(stream);
 
-    QrWorkspace<double> qr_ws;
-    qr_ws.allocate(handles.cusolver, handles.cusolver_params,
-                   static_cast<int>(n), static_cast<int>(s));
+    HouseholderQrWorkspace<double> householder_qr_ws;
+    householder_qr_ws.allocate(handles.cusolver, handles.cusolver_params,
+                               static_cast<int>(n), static_cast<int>(s));
+    CholQrWorkspace<double> cholqr_ws;
+    cholqr_ws.allocate(handles.cusolver, handles.cusolver_params,
+                       static_cast<int>(s));
     LuWorkspace<double> lu_ws;
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
                    static_cast<int>(s));
@@ -137,8 +176,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         CudaTimerRange er(g_event_timer, "[w sigma] = QR(L^-1 * R)", stream);
 
         // [w, sigma] = qr(R, 'econ')
-        qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
-                         d.sigma, n, s, d_R, qr_ws, stream);
+        orthonormalize_block(handles.cublas, handles.cusolver,
+                             handles.cusolver_params, d.w, d.sigma, n, s, d_R,
+                             qr_backend, householder_qr_ws, cholqr_ws, stream);
+        check_orthonormalization_status(qr_backend, householder_qr_ws,
+                                        cholqr_ws, static_cast<int>(s), stream,
+                                        "initial orthonormalization");
     }
 
     CUDA_CHECK(cudaFreeAsync(d_R, stream));
@@ -265,9 +308,6 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                        cudaMemcpyDeviceToHost, stream));
             CUDA_CHECK(cudaStreamSynchronize(stream));
 
-            if (*qr_ws.h_info < 0)
-                throw std::runtime_error(std::to_string(-*qr_ws.h_info) +
-                                         "-th parameter is wrong in QR\n");
             if (*lu_ws.h_info < 0)
                 throw std::runtime_error(std::to_string(-*lu_ws.h_info) +
                                          "-th parameter is wrong in LU\n");
@@ -303,8 +343,14 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         &spmm_alpha, A, temp, &spmm_beta,
                                         w_desc, compute_type, alg, scratch_d));
 
-            qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
-                             d.zeta, n, s, d.w, qr_ws, stream);
+            orthonormalize_block(handles.cublas, handles.cusolver,
+                                 handles.cusolver_params, d.w, d.zeta, n, s,
+                                 d.w, qr_backend, householder_qr_ws,
+                                 cholqr_ws, stream);
+            check_orthonormalization_status(qr_backend, householder_qr_ws,
+                                            cholqr_ws, static_cast<int>(s),
+                                            stream,
+                                            "iteration orthonormalization");
         }
 
         {
@@ -357,7 +403,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 // Preconditioned double-precision variant
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L, double tolerance,
-          int max_iterations, cudaStream_t stream) {
+          int max_iterations, cudaStream_t stream, QrBackend qr_backend) {
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
@@ -367,9 +413,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     handles.set_stream(stream);
 
-    QrWorkspace<double> qr_ws;
-    qr_ws.allocate(handles.cusolver, handles.cusolver_params,
-                   static_cast<int>(n), static_cast<int>(s));
+    HouseholderQrWorkspace<double> householder_qr_ws;
+    householder_qr_ws.allocate(handles.cusolver, handles.cusolver_params,
+                               static_cast<int>(n), static_cast<int>(s));
+    CholQrWorkspace<double> cholqr_ws;
+    cholqr_ws.allocate(handles.cusolver, handles.cusolver_params,
+                       static_cast<int>(s));
     LuWorkspace<double> lu_ws;
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
                    static_cast<int>(s));
@@ -462,8 +511,13 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(temp)"};
         CudaTimerRange er(g_event_timer, "[w sigma] = QR(temp)", stream);
 
-        qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
-                         d.sigma, n, s, d.temp, qr_ws, stream);
+        orthonormalize_block(handles.cublas, handles.cusolver,
+                             handles.cusolver_params, d.w, d.sigma, n, s,
+                             d.temp, qr_backend, householder_qr_ws,
+                             cholqr_ws, stream);
+        check_orthonormalization_status(qr_backend, householder_qr_ws,
+                                        cholqr_ws, static_cast<int>(s), stream,
+                                        "initial orthonormalization");
     }
 
     CUDA_CHECK(cudaFreeAsync(d_R, stream));
@@ -581,9 +635,6 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                        cudaMemcpyDeviceToHost, stream));
             CUDA_CHECK(cudaStreamSynchronize(stream));
 
-            if (*qr_ws.h_info < 0)
-                throw std::runtime_error(std::to_string(-*qr_ws.h_info) +
-                                         "-th parameter is wrong in QR\n");
             if (*lu_ws.h_info < 0)
                 throw std::runtime_error(std::to_string(-*lu_ws.h_info) +
                                          "-th parameter is wrong in LU\n");
@@ -629,8 +680,14 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CudaTimerRange er(g_event_timer, "[w zeta] = QR(w)", stream);
 
             // [w, zeta] = qr(w)
-            qr_factorization(handles.cusolver, handles.cusolver_params, d.w,
-                             d.zeta, n, s, d.w, qr_ws, stream);
+            orthonormalize_block(handles.cublas, handles.cusolver,
+                                 handles.cusolver_params, d.w, d.zeta, n, s,
+                                 d.w, qr_backend, householder_qr_ws,
+                                 cholqr_ws, stream);
+            check_orthonormalization_status(qr_backend, householder_qr_ws,
+                                            cholqr_ws, static_cast<int>(s),
+                                            stream,
+                                            "iteration orthonormalization");
         }
 
         {

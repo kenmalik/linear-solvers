@@ -6,6 +6,11 @@
 
 namespace dr_bcg::cuda {
 
+enum class QrBackend {
+    Householder,
+    CholQR,
+};
+
 struct Handles {
     cusparseHandle_t cusparse;
     cusolverDnHandle_t cusolver;
@@ -20,11 +25,13 @@ struct Handles {
 
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, double tolerance = 1e-6,
-          int max_iterations = 100, cudaStream_t stream = nullptr);
+          int max_iterations = 100, cudaStream_t stream = nullptr,
+          QrBackend qr_backend = QrBackend::Householder);
 
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
           double tolerance = 1e-6, int max_iterations = 100,
-          cudaStream_t stream = nullptr);
+          cudaStream_t stream = nullptr,
+          QrBackend qr_backend = QrBackend::Householder);
 
 } // namespace dr_bcg::cuda
