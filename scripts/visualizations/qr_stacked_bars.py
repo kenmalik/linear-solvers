@@ -17,6 +17,13 @@ def main():
     data = read_file(args.source)
     data = data[data["Range"].str.startswith("QR:")]
 
+    compute = data[data["Range"] != "QR:func"]
+    func_ms = data[data["Range"] == "QR:func"]["Avg (ms)"]
+    compute_ms = compute["Avg (ms)"].sum()
+    memory = pd.DataFrame({"Range": "QR:memory", "Avg (ms)": func_ms - compute_ms})
+
+    data = pd.concat([compute, memory], ignore_index=True)
+
     plot(data, args.qr_type, args.output)
 
 
