@@ -2,6 +2,8 @@
 
 #include "common/cuda_event_timer.h"
 #include "common/type_info.h"
+#include "common/cuda_checks.h"
+#include "helper.h"
 
 template <typename T>
 struct HouseholderQrWorkspace {

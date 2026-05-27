@@ -11,7 +11,6 @@
 #include "common/type_info.h"
 
 #include "dr_bcg/cuda.h"
-#include "dr_bcg/helper.h"
 
 template <typename T>
 struct LuWorkspace {

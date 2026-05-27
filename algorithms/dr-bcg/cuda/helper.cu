@@ -1,7 +1,7 @@
 #include <nvtx3/nvtx3.hpp>
 
-#include "dr_bcg/helper.h"
-#include "dr_bcg/internal/math.h"
+#include "helper.h"
+#include "math.h"
 
 __global__ void copy_upper_triangular_kernel(float *dst, const float *src,
                                              const int ld_src, const int n) {

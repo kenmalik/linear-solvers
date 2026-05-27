@@ -8,9 +8,7 @@
 #endif
 
 #ifdef SOLVERS_BUILD_CUDA
-#include "common/cuda_checks.h"
 #include "cuda_adapter.h"
-#include <cuda_runtime.h>
 #endif
 
 #include "common/cuda_event_timer.h"
@@ -105,7 +103,6 @@ int run_cg(const Args &args) {
 #endif // SOLVERS_BUILD_MKL
 #ifdef SOLVERS_BUILD_CUDA
     case Implementation::CUDA: {
-        CUDA_CHECK(cudaDeviceSynchronize());
         return run_cuda_cg(args.A, b, x, args.L.value(), args.tolerance,
                            max_iters, args.disable_tensor_cores);
     }
@@ -149,7 +146,6 @@ int run_dr_bcg(const Args &args) {
 #endif // SOLVERS_BUILD_MKL
 #ifdef SOLVERS_BUILD_CUDA
     case Implementation::CUDA: {
-        CUDA_CHECK(cudaDeviceSynchronize());
         if (args.L.has_value()) {
             return run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
                                    max_iters, args.block_size,
