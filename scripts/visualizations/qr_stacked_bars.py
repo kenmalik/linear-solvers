@@ -48,7 +48,9 @@ def plot(data: pd.DataFrame, qr_type: str, output: str | None):
     fig.suptitle(f"{qr_type.capitalize()} QR Runtime Breakdown")
 
     plt.tight_layout()
-    plt.savefig(output if output else "qr_stacked_bars.png")
+    out = output if output else "qr_stacked_bars.png"
+    plt.savefig(out)
+    print(out)
 
 
 if __name__ == "__main__":
