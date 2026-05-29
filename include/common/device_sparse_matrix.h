@@ -1,3 +1,4 @@
+#include "common/type_info.h"
 #include "cuda_checks.h"
 
 #include <mat_utils/mat_reader.h>
@@ -107,13 +108,10 @@ class DeviceSparseMatrix {
         CUDA_CHECK(cudaMemcpy(d_vals, csrVal.data(), sizeof(T) * csrVal.size(),
                               cudaMemcpyHostToDevice));
 
-        cusparseIndexType_t idxType = CUSPARSE_INDEX_64I;
-        cudaDataType valueType =
-            std::is_same<T, float>::value ? CUDA_R_32F : CUDA_R_64F;
-
+        constexpr cusparseIndexType_t idxType = CUSPARSE_INDEX_64I;
         CUSPARSE_CHECK(cusparseCreateCsr(
             &A, ssm_A.rows(), ssm_A.cols(), ssm_A.nnz(), d_rowPtr, d_colInd,
-            d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, valueType));
+            d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, cuda_type<T>));
     }
 
     ~DeviceSparseMatrix() {

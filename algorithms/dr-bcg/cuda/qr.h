@@ -24,8 +24,6 @@ struct HouseholderQrWorkspace {
     // m: rows of Q (problem size n), n: cols of Q (block size s)
     void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
                   int m, int n) {
-        constexpr cudaDataType_t data_type = TypeInfo<T>::cuda;
-
         CUDA_CHECK(cudaMalloc(&d_tau, sizeof(T) * n));
         CUDA_CHECK(cudaMalloc(&d_info, sizeof(int)));
         CUDA_CHECK(
@@ -37,8 +35,8 @@ struct HouseholderQrWorkspace {
         CUDA_CHECK(cudaMalloc(&d_dummy, sizeof(T) * m * n));
 
         CUSOLVER_CHECK(cusolverDnXgeqrf_bufferSize(
-            cusolverH, params, m, n, data_type, d_dummy, m, data_type, d_tau,
-            data_type, &d_lwork_geqrf, &h_lwork_geqrf));
+            cusolverH, params, m, n, cuda_type<T>, d_dummy, m, cuda_type<T>, d_tau,
+            cuda_type<T>, &d_lwork_geqrf, &h_lwork_geqrf));
 
         if constexpr (std::is_same_v<T, float>) {
             CUSOLVER_CHECK(cusolverDnSorgqr_bufferSize(
@@ -92,8 +90,6 @@ struct CholQrWorkspace {
 
     void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
                   int n) {
-        constexpr cudaDataType_t data_type = TypeInfo<T>::cuda;
-
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_gram),
                               sizeof(T) * n * n));
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int)));
@@ -105,8 +101,8 @@ struct CholQrWorkspace {
         T *d_dummy = nullptr;
         CUDA_CHECK(cudaMalloc(&d_dummy, sizeof(T) * n * n));
         CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(
-            cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, data_type, d_dummy,
-            n, data_type, &d_work_size, &h_work_size));
+            cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, cuda_type<T>, d_dummy,
+            n, cuda_type<T>, &d_work_size, &h_work_size));
         CUDA_CHECK(cudaFree(d_dummy));
 
         if (d_work_size > 0) {
@@ -138,7 +134,9 @@ struct CholQrWorkspace {
 };
 
 template <typename T>
-void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream, cublasHandle_t &cublasH, CholQrWorkspace<T> &cholqr_ws, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params, const cudaDataType_t &data_type, T *&d_R) {
+void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream,
+                 cublasHandle_t &cublasH, CholQrWorkspace<T> &cholqr_ws,
+                 cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params, T *&d_R) {
     CudaTimerRange rng{g_event_timer, "QR:func", stream};
 
     constexpr T alpha = 1;
@@ -162,8 +160,8 @@ void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_
     {
         CudaTimerRange rng{g_event_timer, "QR:potrf", stream};
         CUSOLVER_CHECK(cusolverDnXpotrf(
-            cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, data_type,
-            cholqr_ws.d_gram, n, data_type, cholqr_ws.d_work,
+            cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, cuda_type<T>,
+            cholqr_ws.d_gram, n, cuda_type<T>, cholqr_ws.d_work,
             cholqr_ws.d_work_size, cholqr_ws.h_work, cholqr_ws.h_work_size,
             cholqr_ws.d_info));
     }
@@ -197,7 +195,9 @@ void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_
 }
 
 template <typename T>
-void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params, const cudaDataType_t &data_type, HouseholderQrWorkspace<T> &householder_ws, T *&d_R) {
+void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream,
+                    cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                    HouseholderQrWorkspace<T> &householder_ws, T *&d_R) {
     CudaTimerRange rng{g_event_timer, "QR:func", stream};
 
     CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
@@ -206,8 +206,8 @@ void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStre
     {
         CudaTimerRange rng{g_event_timer, "QR:geqrf", stream};
         CUSOLVER_CHECK(cusolverDnXgeqrf(
-            cusolverH, params, m, n, data_type, d_Q, m, data_type,
-            householder_ws.d_tau, data_type, householder_ws.d_work,
+            cusolverH, params, m, n, cuda_type<T>, d_Q, m, cuda_type<T>,
+            householder_ws.d_tau, cuda_type<T>, householder_ws.d_work,
             householder_ws.d_lwork_geqrf, householder_ws.h_work,
             householder_ws.h_lwork_geqrf, householder_ws.d_info));
     }
@@ -245,16 +245,14 @@ void orthonormalize_block(
     cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
 
-    constexpr cudaDataType_t data_type = TypeInfo<T>::cuda;
-
     assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
     switch (backend) {
     case dr_bcg::cuda::QrBackend::Householder:
-        householder_qr(d_Q, d_A, m, n, stream, cusolverH, params, data_type, householder_ws, d_R);
+        householder_qr(d_Q, d_A, m, n, stream, cusolverH, params, householder_ws, d_R);
         break;
     case dr_bcg::cuda::QrBackend::CholQR:
-        cholesky_qr(d_Q, d_A, m, n, stream, cublasH, cholqr_ws, cusolverH, params, data_type, d_R);
+        cholesky_qr(d_Q, d_A, m, n, stream, cublasH, cholqr_ws, cusolverH, params, d_R);
         break;
     default:
         throw std::runtime_error("Unknown QR backend");
