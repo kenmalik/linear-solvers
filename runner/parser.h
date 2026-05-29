@@ -4,9 +4,12 @@
 
 #include <mat_utils/mat_reader.h>
 
-enum class Algorithm { CG, DR_BCG };
-enum class Implementation { MKL, CUDA };
-enum class QrBackend { Householder, CholQR };
+enum class Algorithm { CG,
+                       DR_BCG };
+enum class Implementation { MKL,
+                            CUDA };
+enum class QrBackend { Householder,
+                       CholQR };
 
 struct Args {
     Algorithm algorithm;

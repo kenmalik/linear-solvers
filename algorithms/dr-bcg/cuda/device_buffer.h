@@ -9,18 +9,19 @@
  * This template manages device memory for all buffers used in the DR-BCG
  * algorithm. It only accepts `float` or `double` as the template parameter.
  */
-template <typename T> struct DeviceBuffer {
+template <typename T>
+struct DeviceBuffer {
     static_assert(std::is_same<T, float>::value ||
                       std::is_same<T, double>::value,
                   "DeviceBuffer<T> only supports float or double");
 
-    T *w = nullptr;        ///< Device pointer for matrix w (n x s)
-    T *sigma = nullptr;    ///< Device pointer for matrix sigma (s x s)
-    T *s = nullptr;        ///< Device pointer for matrix s (n x s)
-    T *xi = nullptr;       ///< Device pointer for matrix xi (s x s)
-    T *zeta = nullptr;     ///< Device pointer for matrix zeta (s x s)
-    T *temp = nullptr;     ///< Device pointer for temporary matrix (n x s)
-    T *residual = nullptr; ///< Device pointer for residual vector (n)
+    T *w = nullptr;         ///< Device pointer for matrix w (n x s)
+    T *sigma = nullptr;     ///< Device pointer for matrix sigma (s x s)
+    T *s = nullptr;         ///< Device pointer for matrix s (n x s)
+    T *xi = nullptr;        ///< Device pointer for matrix xi (s x s)
+    T *zeta = nullptr;      ///< Device pointer for matrix zeta (s x s)
+    T *temp = nullptr;      ///< Device pointer for temporary matrix (n x s)
+    T *residual = nullptr;  ///< Device pointer for residual vector (n)
     T *d_one = nullptr;     ///< Device scalar: 1.0
     T *d_zero = nullptr;    ///< Device scalar: 0.0
     T *d_neg_one = nullptr; ///< Device scalar: -1.0
@@ -47,11 +48,11 @@ template <typename T> struct DeviceBuffer {
         const T h_one = 1;
         const T h_zero = 0;
         const T h_neg_one = -1;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_one),     sizeof(T)));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_zero),    sizeof(T)));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_one), sizeof(T)));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_zero), sizeof(T)));
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_neg_one), sizeof(T)));
-        CUDA_CHECK(cudaMemcpy(d_one,     &h_one,     sizeof(T), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_zero,    &h_zero,    sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_one, &h_one, sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_zero, &h_zero, sizeof(T), cudaMemcpyHostToDevice));
         CUDA_CHECK(cudaMemcpy(d_neg_one, &h_neg_one, sizeof(T), cudaMemcpyHostToDevice));
     }
 

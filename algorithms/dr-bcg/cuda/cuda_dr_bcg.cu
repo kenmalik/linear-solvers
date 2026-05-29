@@ -1,5 +1,5 @@
-#include "dr_bcg/cuda.h"
 #include "device_buffer.h"
+#include "dr_bcg/cuda.h"
 #include "math.h"
 #include "qr.h"
 

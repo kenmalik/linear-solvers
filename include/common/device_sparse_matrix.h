@@ -9,7 +9,8 @@
 #include <type_traits>
 #include <vector>
 
-template <typename T> class DeviceSparseMatrix {
+template <typename T>
+class DeviceSparseMatrix {
   public:
     static_assert(std::is_same<T, float>::value ||
                       std::is_same<T, double>::value,
