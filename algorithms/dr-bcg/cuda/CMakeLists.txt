@@ -5,7 +5,7 @@ add_library(
 )
 add_library(dr_bcg::cuda ALIAS cuda_dr_bcg)
 
-target_compile_features(cuda_dr_bcg PRIVATE cxx_std_20)
+target_compile_features(cuda_dr_bcg PRIVATE cxx_std_20 cuda_std_20)
 target_include_directories(
     cuda_dr_bcg PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -17,6 +17,5 @@ target_link_libraries(
     CUDA::cublas
     CUDA::cusolver
     CUDA::cusparse
-    nvtx3::nvtx3-cpp
 )
-target_link_libraries(cuda_dr_bcg PRIVATE solver_config solvers_internal)
+target_link_libraries(cuda_dr_bcg PRIVATE nvtx3::nvtx3-cpp solver_config solvers_internal)
