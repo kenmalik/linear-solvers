@@ -1,26 +1,21 @@
 #pragma once
 
 #include "common/cuda_checks.h"
-
-#include <type_traits>
+#include "common/type_info.h"
 
 /// Templated device pointers for reused device buffers.
 ///
 /// This template manages device memory for all buffers used in the DR-BCG
 /// algorithm. It only accepts `float` or `double` as the template parameter.
-template <typename T>
+template <SupportedType T>
 struct DeviceBuffer {
-    static_assert(std::is_same<T, float>::value ||
-                      std::is_same<T, double>::value,
-                  "DeviceBuffer<T> only supports float or double");
-
-    T *w = nullptr;         ///< Device pointer for matrix w (n x s)
-    T *sigma = nullptr;     ///< Device pointer for matrix sigma (s x s)
-    T *s = nullptr;         ///< Device pointer for matrix s (n x s)
-    T *xi = nullptr;        ///< Device pointer for matrix xi (s x s)
-    T *zeta = nullptr;      ///< Device pointer for matrix zeta (s x s)
-    T *temp = nullptr;      ///< Device pointer for temporary matrix (n x s)
-    T *residual = nullptr;  ///< Device pointer for residual vector (n)
+    T *w = nullptr;        ///< Device pointer for matrix w (n x s)
+    T *sigma = nullptr;    ///< Device pointer for matrix sigma (s x s)
+    T *s = nullptr;        ///< Device pointer for matrix s (n x s)
+    T *xi = nullptr;       ///< Device pointer for matrix xi (s x s)
+    T *zeta = nullptr;     ///< Device pointer for matrix zeta (s x s)
+    T *temp = nullptr;     ///< Device pointer for temporary matrix (n x s)
+    T *residual = nullptr; ///< Device pointer for residual vector (n)
     T *one = nullptr;      ///< Device scalar: 1.0
     T *zero = nullptr;     ///< Device scalar: 0.0
     T *neg_one = nullptr;  ///< Device scalar: -1.0

@@ -7,16 +7,11 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <type_traits>
 #include <vector>
 
-template <typename T>
+template <SupportedType T>
 class DeviceSparseMatrix {
   public:
-    static_assert(std::is_same<T, float>::value ||
-                      std::is_same<T, double>::value,
-                  "DeviceSparseMatrix<T> only supports float or double");
-
     explicit DeviceSparseMatrix(const mat_utils::SpMatReader &ssm_A) {
         std::size_t min_row =
             *std::min_element(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());

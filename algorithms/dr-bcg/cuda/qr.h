@@ -5,7 +5,7 @@
 #include "common/type_info.h"
 #include "helper.h"
 
-template <typename T>
+template <SupportedType T>
 struct HouseholderQrWorkspace {
     T *d_tau = nullptr;
     void *d_work = nullptr;
@@ -73,7 +73,7 @@ struct HouseholderQrWorkspace {
     }
 };
 
-template <typename T>
+template <SupportedType T>
 struct CholQrWorkspace {
     T *d_gram = nullptr;
     int *d_info = nullptr;
@@ -133,7 +133,7 @@ struct CholQrWorkspace {
     }
 };
 
-template <typename T>
+template <SupportedType T>
 void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream,
                  cublasHandle_t &cublasH, CholQrWorkspace<T> &cholqr_ws,
                  cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params, T *&d_R) {
@@ -194,7 +194,7 @@ void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_
     CUBLAS_CHECK(cublasSetPointerMode(cublasH, CUBLAS_POINTER_MODE_DEVICE));
 }
 
-template <typename T>
+template <SupportedType T>
 void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream,
                     cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
                     HouseholderQrWorkspace<T> &householder_ws, T *&d_R) {
@@ -236,7 +236,7 @@ void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStre
                                cudaMemcpyDeviceToHost, stream));
 }
 
-template <typename T>
+template <SupportedType T>
 void orthonormalize_block(
     cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH,
     cusolverDnParams_t &params, T *d_Q, T *d_R, const int m, const int n,

@@ -11,7 +11,7 @@
 #include <cusolverDn.h>
 #include <nvtx3/nvtx3.hpp>
 
-template <typename T>
+template <SupportedType T>
 struct LuWorkspace {
     int64_t *d_Ipiv = nullptr;
     void *d_work = nullptr;
@@ -81,7 +81,7 @@ struct LuWorkspace {
     }
 };
 
-template <typename T>
+template <SupportedType T>
 struct SpsmCache {
     cusparseSpSMDescr_t spsm = nullptr;
     void *buffer = nullptr;
@@ -128,7 +128,7 @@ struct SpsmCache {
     }
 };
 
-template <typename T>
+template <SupportedType T>
 void sptri_solve(const cusparseHandle_t &cusparseH, cusparseDnMatDescr_t &C,
                  cusparseOperation_t opA, const cusparseSpMatDescr_t &A,
                  const cusparseDnMatDescr_t &B, const SpsmCache<T> &cache) {
@@ -143,7 +143,7 @@ void sptri_solve(const cusparseHandle_t &cusparseH, cusparseDnMatDescr_t &C,
         cuda_type<T>, ALG_TYPE, cache.spsm));
 }
 
-template <typename T>
+template <SupportedType T>
 void invert_square_matrix(cusolverDnHandle_t &cusolverH,
                           cusolverDnParams_t &params, T *d_A, const int n,
                           LuWorkspace<T> &ws, cudaStream_t stream) {

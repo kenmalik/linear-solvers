@@ -9,7 +9,7 @@
 #include <cusparse_v2.h>
 
 namespace {
-template <typename T>
+template <SupportedType T>
 struct DeviceBuffers {
     DeviceBuffers(std::int64_t n) noexcept {
         CUDA_CHECK(cudaMalloc(&d_r, sizeof(T) * n));

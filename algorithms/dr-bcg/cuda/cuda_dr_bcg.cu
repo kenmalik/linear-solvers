@@ -30,7 +30,7 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
     return {n, s};
 }
 
-template <typename T>
+template <SupportedType T>
 void check_orthonormalization_status(
     dr_bcg::cuda::QrBackend backend,
     HouseholderQrWorkspace<T> &householder_ws, CholQrWorkspace<T> &cholqr_ws,
