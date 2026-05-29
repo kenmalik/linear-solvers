@@ -3,10 +3,7 @@ find_package(cxxopts CONFIG REQUIRED)
 
 add_executable(cgrun cgrun.cpp parser.cpp rhs.cpp)
 target_compile_features(cgrun PRIVATE cxx_std_20)
-target_include_directories(cgrun PRIVATE ../include)
-target_link_libraries(cgrun PRIVATE MatUtils::mat_utils)
-
-target_link_libraries(cgrun PRIVATE solver_config)
+target_link_libraries(cgrun PRIVATE MatUtils::mat_utils solver_config solvers_internal)
 
 if(SOLVERS_BUILD_CUDA)
     target_sources(cgrun PRIVATE cuda_adapter.cu)
