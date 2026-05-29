@@ -1,14 +1,15 @@
 #include "cg/mkl.h"
-#include <cassert>
-#include <mkl_cblas.h>
-#include <mkl_spblas.h>
 
 #include "common/log.h"
 #include "common/timer.h"
 
+#include <cassert>
 #ifdef SOLVERS_ENABLE_VERBOSE
 #include <cmath>
 #endif
+
+#include <mkl_cblas.h>
+#include <mkl_spblas.h>
 
 namespace cg::mkl {
 int solve(const CSRMatrix &A, const std::vector<double> &b,

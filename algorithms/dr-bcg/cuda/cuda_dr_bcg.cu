@@ -1,5 +1,5 @@
-#include "dr_bcg/cuda.h"
 #include "device_buffer.h"
+#include "dr_bcg/cuda.h"
 #include "math.h"
 #include "qr.h"
 
@@ -95,7 +95,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
-    Device_buffer<double> d(n, s);
+    DeviceBuffer<double> d(n, s);
 
     CudaTimerRange solve_range{g_event_timer, "solve", stream};
 
@@ -111,7 +111,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
                    static_cast<int>(s));
 
-    void *scratch_d = nullptr;
+    void *d_scratch = nullptr;
 
     cusparseDnMatDescr_t temp;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, CUDA_R_64F,
@@ -163,12 +163,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                                A, X, &beta, B, compute_type,
                                                alg, &buffer_size));
 
-        CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
+        CUDA_CHECK(cudaMallocAsync(&d_scratch, buffer_size, stream));
 
         CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A, X,
-                                    &beta, R, compute_type, alg, scratch_d));
+                                    &beta, R, compute_type, alg, d_scratch));
 
-        CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+        CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
     }
 
     {
@@ -230,7 +230,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             w_desc, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT, &buf_w_zeta));
         std::size_t scratch_size = std::max({buf_xi, buf_rrn, buf_w_zeta});
         if (scratch_size > 0) {
-            CUDA_CHECK(cudaMallocAsync(&scratch_d, scratch_size, stream));
+            CUDA_CHECK(cudaMallocAsync(&d_scratch, scratch_size, stream));
         }
     }
 
@@ -255,12 +255,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
                                         s_desc, &beta, temp, compute_type, alg,
-                                        scratch_d));
+                                        d_scratch));
 
             constexpr cublasOperation_t op_t = CUBLAS_OP_T;
             constexpr cublasOperation_t op_n = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op_t, op_n, s, s, n,
-                                        d.d_one, d.s, n, d.temp, n, d.d_zero,
+                                        d.one, d.s, n, d.temp, n, d.zero,
                                         d.xi, s));
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
@@ -273,12 +273,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             // X = X + s * xi * sigma
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, s, s, s, d.d_one, d.xi, s,
-                                        d.sigma, s, d.d_zero, d.temp, n));
+                                        CUBLAS_OP_N, s, s, s, d.one, d.xi, s,
+                                        d.sigma, s, d.zero, d.temp, n));
 
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, n, s, s, d.d_one, d.s, n,
-                                        d.temp, n, d.d_one, d_X, n));
+                                        CUBLAS_OP_N, n, s, s, d.one, d.s, n,
+                                        d.temp, n, d.one, d_X, n));
         }
 
         double relative_residual_norm = 0;
@@ -299,7 +299,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMV(handles.cusparse, op, &alpha, A, X1,
                                         &beta, temp1, compute_type, alg,
-                                        scratch_d));
+                                        d_scratch));
 
             CUBLAS_CHECK(
                 cublasDnrm2_v2(handles.cublas, n, d.temp, incx, d_norm));
@@ -329,8 +329,8 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             // [w, zeta] = qr(w - A * s * xi, 'econ')
             constexpr cublasOperation_t op = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op, op, n, s, s,
-                                        d.d_one, d.s, n, d.xi, s,
-                                        d.d_zero, d.temp, n));
+                                        d.one, d.s, n, d.xi, s,
+                                        d.zero, d.temp, n));
 
             constexpr cusparseOperation_t spmm_op =
                 CUSPARSE_OPERATION_NON_TRANSPOSE;
@@ -341,7 +341,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, spmm_op, spmm_op,
                                         &spmm_alpha, A, temp, &spmm_beta,
-                                        w_desc, compute_type, alg, scratch_d));
+                                        w_desc, compute_type, alg, d_scratch));
 
             orthonormalize_block(handles.cublas, handles.cusolver,
                                  handles.cusolver_params, d.w, d.zeta, n, s,
@@ -365,12 +365,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_T;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, n, s, d.d_one,
+                                        op_zeta, diag_type, n, s, d.one,
                                         d.zeta, s, d.s, n, d.s, n));
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
-                                     d.d_one, d.s, n, d.d_one, d.w, n,
+                                     d.one, d.s, n, d.one, d.w, n,
                                      d.s, n));
         }
 
@@ -385,13 +385,13 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_N;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, s, s, d.d_one,
+                                        op_zeta, diag_type, s, s, d.one,
                                         d.zeta, s, d.sigma, s, d.sigma, s));
         }
     }
 
     CUDA_CHECK(cudaFreeAsync(d_norm, stream));
-    CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+    CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
     CUSPARSE_CHECK(cusparseDestroyDnMat(s_desc));
     CUSPARSE_CHECK(cusparseDestroyDnMat(w_desc));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
@@ -407,7 +407,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
-    Device_buffer<double> d(n, s);
+    DeviceBuffer<double> d(n, s);
 
     CudaTimerRange solve_range{g_event_timer, "solve", stream};
 
@@ -423,7 +423,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
                    static_cast<int>(s));
 
-    void *scratch_d = nullptr;
+    void *d_scratch = nullptr;
 
     cusparseDnMatDescr_t temp;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, CUDA_R_64F, CUSPARSE_ORDER_COL));
@@ -488,12 +488,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                                A, X, &beta, B, compute_type,
                                                alg, &buffer_size));
 
-        CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
+        CUDA_CHECK(cudaMallocAsync(&d_scratch, buffer_size, stream));
 
         CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A, X,
-                                    &beta, R, compute_type, alg, scratch_d));
+                                    &beta, R, compute_type, alg, d_scratch));
 
-        CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+        CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
     }
 
     // We break [w sigma] = QR(L^-1 * R) into two steps for timing purposes:
@@ -557,7 +557,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CUDA_R_64F, CUSPARSE_SPMV_ALG_DEFAULT, &buf_rrn));
         std::size_t scratch_size = std::max(buf_xi, buf_rrn);
         if (scratch_size > 0) {
-            CUDA_CHECK(cudaMallocAsync(&scratch_d, scratch_size, stream));
+            CUDA_CHECK(cudaMallocAsync(&d_scratch, scratch_size, stream));
         }
     }
 
@@ -582,12 +582,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
                                         s_desc, &beta, temp, compute_type, alg,
-                                        scratch_d));
+                                        d_scratch));
 
             constexpr cublasOperation_t op_t = CUBLAS_OP_T;
             constexpr cublasOperation_t op_n = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op_t, op_n, s, s, n,
-                                        d.d_one, d.s, n, d.temp, n, d.d_zero,
+                                        d.one, d.s, n, d.temp, n, d.zero,
                                         d.xi, s));
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
@@ -600,12 +600,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             // X = X + s * xi * sigma
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, s, s, s, d.d_one, d.xi, s,
-                                        d.sigma, s, d.d_zero, d.temp, n));
+                                        CUBLAS_OP_N, s, s, s, d.one, d.xi, s,
+                                        d.sigma, s, d.zero, d.temp, n));
 
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, n, s, s, d.d_one, d.s, n,
-                                        d.temp, n, d.d_one, d_X, n));
+                                        CUBLAS_OP_N, n, s, s, d.one, d.s, n,
+                                        d.temp, n, d.one, d_X, n));
         }
 
         double relative_residual_norm = 0;
@@ -626,7 +626,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMV(handles.cusparse, op, &alpha, A, X1,
                                         &beta, temp1, compute_type, alg,
-                                        scratch_d));
+                                        d_scratch));
 
             CUBLAS_CHECK(
                 cublasDnrm2_v2(handles.cublas, n, d.temp, incx, d_norm));
@@ -663,7 +663,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
                                         s_desc, &beta, temp, compute_type, alg,
-                                        scratch_d));
+                                        d_scratch));
 
             // temp = L^-1 * temp
             sptri_solve<double>(handles.cusparse, temp, op, L, temp, spsm_nt);
@@ -671,8 +671,8 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             // w = w - temp * xi
             constexpr cublasOperation_t sgemm_op = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, sgemm_op, sgemm_op, n,
-                                        s, s, d.d_neg_one, d.temp, n, d.xi, s,
-                                        d.d_one, d.w, n));
+                                        s, s, d.neg_one, d.temp, n, d.xi, s,
+                                        d.one, d.w, n));
         }
 
         {
@@ -702,7 +702,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_T;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, n, s, d.d_one,
+                                        op_zeta, diag_type, n, s, d.one,
                                         d.zeta, s, d.s, n, d.s, n));
 
             sptri_solve<double>(handles.cusparse, temp,
@@ -711,7 +711,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
-                                     d.d_one, d.s, n, d.d_one, d.temp,
+                                     d.one, d.s, n, d.one, d.temp,
                                      n, d.s, n));
         }
 
@@ -726,13 +726,13 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_N;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, s, s, d.d_one,
+                                        op_zeta, diag_type, s, s, d.one,
                                         d.zeta, s, d.sigma, s, d.sigma, s));
         }
     }
 
     CUDA_CHECK(cudaFreeAsync(d_norm, stream));
-    CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+    CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
     CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
 

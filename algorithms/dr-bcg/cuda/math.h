@@ -1,16 +1,15 @@
 #pragma once
 
-#include <cassert>
-#include <vector>
-
-#include <nvtx3/nvtx3.hpp>
-
-#include <cusolverDn.h>
-
 #include "common/cuda_checks.h"
 #include "common/type_info.h"
 
 #include "dr_bcg/cuda.h"
+
+#include <cassert>
+#include <vector>
+
+#include <cusolverDn.h>
+#include <nvtx3/nvtx3.hpp>
 
 template <typename T>
 struct LuWorkspace {

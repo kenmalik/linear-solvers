@@ -14,12 +14,12 @@
         }                                                                      \
     } while (0)
 
-#define MKL_LAPACKE_CHECK(call)                                                \
-    do {                                                                       \
-        lapack_int _err = (call);                                              \
-        if (_err != 0) {                                                       \
-            std::cerr << "MKL LAPACKE error at " << __FILE__ << ":"            \
-                      << __LINE__ << ": " << _err << std::endl;                \
-            std::abort();                                                      \
-        }                                                                      \
+#define MKL_LAPACKE_CHECK(call)                                     \
+    do {                                                            \
+        lapack_int _err = (call);                                   \
+        if (_err != 0) {                                            \
+            std::cerr << "MKL LAPACKE error at " << __FILE__ << ":" \
+                      << __LINE__ << ": " << _err << std::endl;     \
+            std::abort();                                           \
+        }                                                           \
     } while (0)

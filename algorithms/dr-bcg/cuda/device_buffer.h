@@ -1,32 +1,32 @@
 #pragma once
 
 #include "common/cuda_checks.h"
+
 #include <type_traits>
 
-/**
- * @brief Templated device pointers for reused device buffers.
- *
- * This template manages device memory for all buffers used in the DR-BCG
- * algorithm. It only accepts `float` or `double` as the template parameter.
- */
-template <typename T> struct Device_buffer {
+/// Templated device pointers for reused device buffers.
+///
+/// This template manages device memory for all buffers used in the DR-BCG
+/// algorithm. It only accepts `float` or `double` as the template parameter.
+template <typename T>
+struct DeviceBuffer {
     static_assert(std::is_same<T, float>::value ||
                       std::is_same<T, double>::value,
                   "DeviceBuffer<T> only supports float or double");
 
-    T *w = nullptr;        ///< Device pointer for matrix w (n x s)
-    T *sigma = nullptr;    ///< Device pointer for matrix sigma (s x s)
-    T *s = nullptr;        ///< Device pointer for matrix s (n x s)
-    T *xi = nullptr;       ///< Device pointer for matrix xi (s x s)
-    T *zeta = nullptr;     ///< Device pointer for matrix zeta (s x s)
-    T *temp = nullptr;     ///< Device pointer for temporary matrix (n x s)
-    T *residual = nullptr; ///< Device pointer for residual vector (n)
-    T *d_one = nullptr;     ///< Device scalar: 1.0
-    T *d_zero = nullptr;    ///< Device scalar: 0.0
-    T *d_neg_one = nullptr; ///< Device scalar: -1.0
+    T *w = nullptr;         ///< Device pointer for matrix w (n x s)
+    T *sigma = nullptr;     ///< Device pointer for matrix sigma (s x s)
+    T *s = nullptr;         ///< Device pointer for matrix s (n x s)
+    T *xi = nullptr;        ///< Device pointer for matrix xi (s x s)
+    T *zeta = nullptr;      ///< Device pointer for matrix zeta (s x s)
+    T *temp = nullptr;      ///< Device pointer for temporary matrix (n x s)
+    T *residual = nullptr;  ///< Device pointer for residual vector (n)
+    T *one = nullptr;      ///< Device scalar: 1.0
+    T *zero = nullptr;     ///< Device scalar: 0.0
+    T *neg_one = nullptr;  ///< Device scalar: -1.0
 
-    Device_buffer(int n, int s) { allocate(n, s); }
-    ~Device_buffer() { deallocate(); }
+    DeviceBuffer(int n, int s) { allocate(n, s); }
+    ~DeviceBuffer() { deallocate(); }
 
     void allocate(int n, int s) {
         CUDA_CHECK(
@@ -47,12 +47,12 @@ template <typename T> struct Device_buffer {
         const T h_one = 1;
         const T h_zero = 0;
         const T h_neg_one = -1;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_one),     sizeof(T)));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_zero),    sizeof(T)));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_neg_one), sizeof(T)));
-        CUDA_CHECK(cudaMemcpy(d_one,     &h_one,     sizeof(T), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_zero,    &h_zero,    sizeof(T), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_neg_one, &h_neg_one, sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&one), sizeof(T)));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&zero), sizeof(T)));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&neg_one), sizeof(T)));
+        CUDA_CHECK(cudaMemcpy(one, &h_one, sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(zero, &h_zero, sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(neg_one, &h_neg_one, sizeof(T), cudaMemcpyHostToDevice));
     }
 
     void deallocate() {
@@ -72,16 +72,16 @@ template <typename T> struct Device_buffer {
             CUDA_CHECK(cudaFree(residual));
         w = sigma = s = xi = zeta = temp = residual = nullptr;
 
-        if (d_one)
-            CUDA_CHECK(cudaFree(d_one));
-        if (d_zero)
-            CUDA_CHECK(cudaFree(d_zero));
-        if (d_neg_one)
-            CUDA_CHECK(cudaFree(d_neg_one));
-        d_one = d_zero = d_neg_one = nullptr;
+        if (one)
+            CUDA_CHECK(cudaFree(one));
+        if (zero)
+            CUDA_CHECK(cudaFree(zero));
+        if (neg_one)
+            CUDA_CHECK(cudaFree(neg_one));
+        one = zero = neg_one = nullptr;
     }
 };
 
 // Common aliases
-using DeviceBufferFloat = Device_buffer<float>;
-using DeviceBufferDouble = Device_buffer<double>;
+using DeviceBufferFloat = DeviceBuffer<float>;
+using DeviceBufferDouble = DeviceBuffer<double>;
