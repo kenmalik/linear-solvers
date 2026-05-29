@@ -1,56 +1,11 @@
 #include "cg/cuda.h"
-#include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
 #include "common/log.h"
 
 #include <cassert>
 #include <cmath>
-#include <cstdint>
-#include <type_traits>
 
 #include <nvtx3/nvtx3.hpp>
-
-namespace {
-template <typename T>
-struct DeviceBuffers {
-    cudaDataType_t cuda_type =
-        std::is_same_v<T, float> ? CUDA_R_32F : CUDA_R_64F;
-
-    DeviceBuffers(std::int64_t n) noexcept {
-        CUDA_CHECK(cudaMalloc(&d_r, sizeof(T) * n));
-        CUDA_CHECK(cudaMalloc(&d_s, sizeof(T) * n));
-        CUDA_CHECK(cudaMalloc(&d_d, sizeof(T) * n));
-        CUDA_CHECK(cudaMalloc(&d_q, sizeof(T) * n));
-
-        CUSPARSE_CHECK(cusparseCreateDnVec(&r, n, d_r, cuda_type));
-        CUSPARSE_CHECK(cusparseCreateDnVec(&s, n, d_s, cuda_type));
-        CUSPARSE_CHECK(cusparseCreateDnVec(&d, n, d_d, cuda_type));
-        CUSPARSE_CHECK(cusparseCreateDnVec(&q, n, d_q, cuda_type));
-    }
-
-    ~DeviceBuffers() noexcept {
-        CUDA_CHECK(cudaFree(d_r));
-        CUDA_CHECK(cudaFree(d_s));
-        CUDA_CHECK(cudaFree(d_d));
-        CUDA_CHECK(cudaFree(d_q));
-
-        CUSPARSE_CHECK(cusparseDestroyDnVec(r));
-        CUSPARSE_CHECK(cusparseDestroyDnVec(s));
-        CUSPARSE_CHECK(cusparseDestroyDnVec(d));
-        CUSPARSE_CHECK(cusparseDestroyDnVec(q));
-    }
-
-    cusparseDnVecDescr_t r;
-    cusparseDnVecDescr_t s;
-    cusparseDnVecDescr_t d;
-    cusparseDnVecDescr_t q;
-
-    T *d_r;
-    T *d_s;
-    T *d_d;
-    T *d_q;
-};
-} // namespace
 
 namespace cg::cuda {
 namespace {

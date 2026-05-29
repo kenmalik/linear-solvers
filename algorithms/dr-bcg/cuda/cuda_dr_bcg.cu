@@ -1,11 +1,9 @@
-#include "device_buffer.h"
 #include "dr_bcg/cuda.h"
-#include "math.h"
-#include "qr.h"
 
-#include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
 #include "common/log.h"
+#include "math.h"
+#include "qr.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -30,7 +28,7 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
     return {n, s};
 }
 
-template <typename T>
+template <SupportedType T>
 void check_orthonormalization_status(
     dr_bcg::cuda::QrBackend backend,
     HouseholderQrWorkspace<T> &householder_ws, CholQrWorkspace<T> &cholqr_ws,
