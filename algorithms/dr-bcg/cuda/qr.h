@@ -13,9 +13,9 @@ struct HouseholderQrWorkspace {
     int *h_info = nullptr;
     void *h_work = nullptr;
 
-    std::size_t lwork_geqrf_d = 0;
-    std::size_t lwork_geqrf_h = 0;
-    int numfloats_orgqr_d = 0;
+    std::size_t d_lwork_geqrf = 0;
+    std::size_t h_lwork_geqrf = 0;
+    int d_numfloats_orgqr = 0;
 
     HouseholderQrWorkspace() = default;
     HouseholderQrWorkspace(const HouseholderQrWorkspace &) = delete;
@@ -38,23 +38,23 @@ struct HouseholderQrWorkspace {
 
         CUSOLVER_CHECK(cusolverDnXgeqrf_bufferSize(
             cusolverH, params, m, n, data_type, d_dummy, m, data_type, d_tau,
-            data_type, &lwork_geqrf_d, &lwork_geqrf_h));
+            data_type, &d_lwork_geqrf, &h_lwork_geqrf));
 
         if constexpr (std::is_same_v<T, float>) {
             CUSOLVER_CHECK(cusolverDnSorgqr_bufferSize(
-                cusolverH, m, n, n, d_dummy, m, d_tau, &numfloats_orgqr_d));
+                cusolverH, m, n, n, d_dummy, m, d_tau, &d_numfloats_orgqr));
         } else {
             CUSOLVER_CHECK(cusolverDnDorgqr_bufferSize(
-                cusolverH, m, n, n, d_dummy, m, d_tau, &numfloats_orgqr_d));
+                cusolverH, m, n, n, d_dummy, m, d_tau, &d_numfloats_orgqr));
         }
 
         CUDA_CHECK(cudaFree(d_dummy));
 
-        const std::size_t lwork_orgqr_d = numfloats_orgqr_d * sizeof(T);
-        CUDA_CHECK(cudaMalloc(&d_work, std::max(lwork_geqrf_d, lwork_orgqr_d)));
+        const std::size_t d_lwork_orgqr = d_numfloats_orgqr * sizeof(T);
+        CUDA_CHECK(cudaMalloc(&d_work, std::max(d_lwork_geqrf, d_lwork_orgqr)));
 
-        if (lwork_geqrf_h > 0) {
-            h_work = malloc(lwork_geqrf_h);
+        if (h_lwork_geqrf > 0) {
+            h_work = malloc(h_lwork_geqrf);
             if (!h_work)
                 throw std::runtime_error(
                     "Error: QrWorkspace h_work not allocated.");
@@ -208,8 +208,8 @@ void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStre
         CUSOLVER_CHECK(cusolverDnXgeqrf(
             cusolverH, params, m, n, data_type, d_Q, m, data_type,
             householder_ws.d_tau, data_type, householder_ws.d_work,
-            householder_ws.lwork_geqrf_d, householder_ws.h_work,
-            householder_ws.lwork_geqrf_h, householder_ws.d_info));
+            householder_ws.d_lwork_geqrf, householder_ws.h_work,
+            householder_ws.h_lwork_geqrf, householder_ws.d_info));
     }
 
     {
@@ -222,13 +222,13 @@ void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStre
         CUSOLVER_CHECK(cusolverDnSorgqr(
             cusolverH, m, n, n, d_Q, m, householder_ws.d_tau,
             reinterpret_cast<T *>(householder_ws.d_work),
-            householder_ws.numfloats_orgqr_d, householder_ws.d_info));
+            householder_ws.d_numfloats_orgqr, householder_ws.d_info));
     } else {
         CudaTimerRange rng{g_event_timer, "QR:orgqr", stream};
         CUSOLVER_CHECK(cusolverDnDorgqr(
             cusolverH, m, n, n, d_Q, m, householder_ws.d_tau,
             reinterpret_cast<T *>(householder_ws.d_work),
-            householder_ws.numfloats_orgqr_d, householder_ws.d_info));
+            householder_ws.d_numfloats_orgqr, householder_ws.d_info));
     }
 
     CUDA_CHECK(cudaMemcpyAsync(householder_ws.h_info,

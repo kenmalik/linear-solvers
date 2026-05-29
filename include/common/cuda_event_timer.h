@@ -1,15 +1,15 @@
 #pragma once
 
 #include "config.h"
-
 #include "cuda_checks.h"
 
-#include <cuda_runtime.h>
 #include <fstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include <cuda_runtime.h>
 
 template <bool Enabled>
 class CudaTimer;

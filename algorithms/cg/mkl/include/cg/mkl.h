@@ -1,10 +1,11 @@
 #pragma once
 
-#include <mkl_spblas.h>
-#include <mkl_types.h>
+#include "common/mkl_matrices.h"
+
 #include <vector>
 
-#include "common/mkl_matrices.h"
+#include <mkl_spblas.h>
+#include <mkl_types.h>
 
 namespace cg::mkl {
 /// Preconditioned Conjugate Gradient solver for sparse A with incomplete

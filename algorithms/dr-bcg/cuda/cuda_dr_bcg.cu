@@ -260,7 +260,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_t = CUBLAS_OP_T;
             constexpr cublasOperation_t op_n = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op_t, op_n, s, s, n,
-                                        d.d_one, d.s, n, d.temp, n, d.d_zero,
+                                        d.one, d.s, n, d.temp, n, d.zero,
                                         d.xi, s));
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
@@ -273,12 +273,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             // X = X + s * xi * sigma
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, s, s, s, d.d_one, d.xi, s,
-                                        d.sigma, s, d.d_zero, d.temp, n));
+                                        CUBLAS_OP_N, s, s, s, d.one, d.xi, s,
+                                        d.sigma, s, d.zero, d.temp, n));
 
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, n, s, s, d.d_one, d.s, n,
-                                        d.temp, n, d.d_one, d_X, n));
+                                        CUBLAS_OP_N, n, s, s, d.one, d.s, n,
+                                        d.temp, n, d.one, d_X, n));
         }
 
         double relative_residual_norm = 0;
@@ -329,8 +329,8 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             // [w, zeta] = qr(w - A * s * xi, 'econ')
             constexpr cublasOperation_t op = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op, op, n, s, s,
-                                        d.d_one, d.s, n, d.xi, s,
-                                        d.d_zero, d.temp, n));
+                                        d.one, d.s, n, d.xi, s,
+                                        d.zero, d.temp, n));
 
             constexpr cusparseOperation_t spmm_op =
                 CUSPARSE_OPERATION_NON_TRANSPOSE;
@@ -365,12 +365,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_T;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, n, s, d.d_one,
+                                        op_zeta, diag_type, n, s, d.one,
                                         d.zeta, s, d.s, n, d.s, n));
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
-                                     d.d_one, d.s, n, d.d_one, d.w, n,
+                                     d.one, d.s, n, d.one, d.w, n,
                                      d.s, n));
         }
 
@@ -385,7 +385,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_N;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, s, s, d.d_one,
+                                        op_zeta, diag_type, s, s, d.one,
                                         d.zeta, s, d.sigma, s, d.sigma, s));
         }
     }
@@ -587,7 +587,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_t = CUBLAS_OP_T;
             constexpr cublasOperation_t op_n = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op_t, op_n, s, s, n,
-                                        d.d_one, d.s, n, d.temp, n, d.d_zero,
+                                        d.one, d.s, n, d.temp, n, d.zero,
                                         d.xi, s));
 
             invert_square_matrix(handles.cusolver, handles.cusolver_params,
@@ -600,12 +600,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             // X = X + s * xi * sigma
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, s, s, s, d.d_one, d.xi, s,
-                                        d.sigma, s, d.d_zero, d.temp, n));
+                                        CUBLAS_OP_N, s, s, s, d.one, d.xi, s,
+                                        d.sigma, s, d.zero, d.temp, n));
 
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, n, s, s, d.d_one, d.s, n,
-                                        d.temp, n, d.d_one, d_X, n));
+                                        CUBLAS_OP_N, n, s, s, d.one, d.s, n,
+                                        d.temp, n, d.one, d_X, n));
         }
 
         double relative_residual_norm = 0;
@@ -671,8 +671,8 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             // w = w - temp * xi
             constexpr cublasOperation_t sgemm_op = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, sgemm_op, sgemm_op, n,
-                                        s, s, d.d_neg_one, d.temp, n, d.xi, s,
-                                        d.d_one, d.w, n));
+                                        s, s, d.neg_one, d.temp, n, d.xi, s,
+                                        d.one, d.w, n));
         }
 
         {
@@ -702,7 +702,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_T;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, n, s, d.d_one,
+                                        op_zeta, diag_type, n, s, d.one,
                                         d.zeta, s, d.s, n, d.s, n));
 
             sptri_solve<double>(handles.cusparse, temp,
@@ -711,7 +711,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
-                                     d.d_one, d.s, n, d.d_one, d.temp,
+                                     d.one, d.s, n, d.one, d.temp,
                                      n, d.s, n));
         }
 
@@ -726,7 +726,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             constexpr cublasOperation_t op_zeta = CUBLAS_OP_N;
 
             CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, s, s, d.d_one,
+                                        op_zeta, diag_type, s, s, d.one,
                                         d.zeta, s, d.sigma, s, d.sigma, s));
         }
     }
