@@ -95,7 +95,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
-    Device_buffer<double> d(n, s);
+    DeviceBuffer<double> d(n, s);
 
     CudaTimerRange solve_range{g_event_timer, "solve", stream};
 
@@ -407,7 +407,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
-    Device_buffer<double> d(n, s);
+    DeviceBuffer<double> d(n, s);
 
     CudaTimerRange solve_range{g_event_timer, "solve", stream};
 
