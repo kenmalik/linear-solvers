@@ -1,11 +1,9 @@
-#include "device_buffer.h"
 #include "dr_bcg/cuda.h"
-#include "math.h"
-#include "qr.h"
 
-#include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
 #include "common/log.h"
+#include "math.h"
+#include "qr.h"
 
 #include <algorithm>
 #include <cstdint>

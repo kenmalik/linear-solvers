@@ -2,6 +2,7 @@
 
 #include <concepts>
 #include <type_traits>
+#include <cuda_runtime.h>
 
 template <typename T>
 concept SupportedType = std::same_as<T, float> || std::same_as<T, double>;
