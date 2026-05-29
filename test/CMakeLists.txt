@@ -41,11 +41,7 @@ endif()
 
 if(SOLVERS_BUILD_CUDA)
     target_sources(solver_tests PRIVATE ${PROJECT_SOURCE_DIR}/runner/cuda_adapter.cu)
-<<<<<<< HEAD
     target_compile_features(solver_tests PRIVATE cuda_std_20)
-=======
-    set_target_properties(solver_tests PROPERTIES CUDA_STANDARD 20)
->>>>>>> c659191 (Use PROJECT_SOURCE_DIR in test config)
     if(SOLVERS_BUILD_CG)
         target_link_libraries(solver_tests PRIVATE cg::cuda)
     endif()
