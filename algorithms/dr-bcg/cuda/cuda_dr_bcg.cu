@@ -111,7 +111,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
                    static_cast<int>(s));
 
-    void *scratch_d = nullptr;
+    void *d_scratch = nullptr;
 
     cusparseDnMatDescr_t temp;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, CUDA_R_64F,
@@ -163,12 +163,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                                A, X, &beta, B, compute_type,
                                                alg, &buffer_size));
 
-        CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
+        CUDA_CHECK(cudaMallocAsync(&d_scratch, buffer_size, stream));
 
         CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A, X,
-                                    &beta, R, compute_type, alg, scratch_d));
+                                    &beta, R, compute_type, alg, d_scratch));
 
-        CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+        CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
     }
 
     {
@@ -230,7 +230,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             w_desc, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT, &buf_w_zeta));
         std::size_t scratch_size = std::max({buf_xi, buf_rrn, buf_w_zeta});
         if (scratch_size > 0) {
-            CUDA_CHECK(cudaMallocAsync(&scratch_d, scratch_size, stream));
+            CUDA_CHECK(cudaMallocAsync(&d_scratch, scratch_size, stream));
         }
     }
 
@@ -255,7 +255,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
                                         s_desc, &beta, temp, compute_type, alg,
-                                        scratch_d));
+                                        d_scratch));
 
             constexpr cublasOperation_t op_t = CUBLAS_OP_T;
             constexpr cublasOperation_t op_n = CUBLAS_OP_N;
@@ -299,7 +299,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMV(handles.cusparse, op, &alpha, A, X1,
                                         &beta, temp1, compute_type, alg,
-                                        scratch_d));
+                                        d_scratch));
 
             CUBLAS_CHECK(
                 cublasDnrm2_v2(handles.cublas, n, d.temp, incx, d_norm));
@@ -341,7 +341,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, spmm_op, spmm_op,
                                         &spmm_alpha, A, temp, &spmm_beta,
-                                        w_desc, compute_type, alg, scratch_d));
+                                        w_desc, compute_type, alg, d_scratch));
 
             orthonormalize_block(handles.cublas, handles.cusolver,
                                  handles.cusolver_params, d.w, d.zeta, n, s,
@@ -391,7 +391,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     }
 
     CUDA_CHECK(cudaFreeAsync(d_norm, stream));
-    CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+    CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
     CUSPARSE_CHECK(cusparseDestroyDnMat(s_desc));
     CUSPARSE_CHECK(cusparseDestroyDnMat(w_desc));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
@@ -423,7 +423,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
                    static_cast<int>(s));
 
-    void *scratch_d = nullptr;
+    void *d_scratch = nullptr;
 
     cusparseDnMatDescr_t temp;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, CUDA_R_64F, CUSPARSE_ORDER_COL));
@@ -488,12 +488,12 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                                A, X, &beta, B, compute_type,
                                                alg, &buffer_size));
 
-        CUDA_CHECK(cudaMallocAsync(&scratch_d, buffer_size, stream));
+        CUDA_CHECK(cudaMallocAsync(&d_scratch, buffer_size, stream));
 
         CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A, X,
-                                    &beta, R, compute_type, alg, scratch_d));
+                                    &beta, R, compute_type, alg, d_scratch));
 
-        CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+        CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
     }
 
     // We break [w sigma] = QR(L^-1 * R) into two steps for timing purposes:
@@ -557,7 +557,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CUDA_R_64F, CUSPARSE_SPMV_ALG_DEFAULT, &buf_rrn));
         std::size_t scratch_size = std::max(buf_xi, buf_rrn);
         if (scratch_size > 0) {
-            CUDA_CHECK(cudaMallocAsync(&scratch_d, scratch_size, stream));
+            CUDA_CHECK(cudaMallocAsync(&d_scratch, scratch_size, stream));
         }
     }
 
@@ -582,7 +582,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
                                         s_desc, &beta, temp, compute_type, alg,
-                                        scratch_d));
+                                        d_scratch));
 
             constexpr cublasOperation_t op_t = CUBLAS_OP_T;
             constexpr cublasOperation_t op_n = CUBLAS_OP_N;
@@ -626,7 +626,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMV(handles.cusparse, op, &alpha, A, X1,
                                         &beta, temp1, compute_type, alg,
-                                        scratch_d));
+                                        d_scratch));
 
             CUBLAS_CHECK(
                 cublasDnrm2_v2(handles.cublas, n, d.temp, incx, d_norm));
@@ -663,7 +663,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
             CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
                                         s_desc, &beta, temp, compute_type, alg,
-                                        scratch_d));
+                                        d_scratch));
 
             // temp = L^-1 * temp
             sptri_solve<double>(handles.cusparse, temp, op, L, temp, spsm_nt);
@@ -732,7 +732,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     }
 
     CUDA_CHECK(cudaFreeAsync(d_norm, stream));
-    CUDA_CHECK(cudaFreeAsync(scratch_d, stream));
+    CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
     CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
 

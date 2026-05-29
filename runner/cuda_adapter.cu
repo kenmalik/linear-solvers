@@ -55,21 +55,21 @@ int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
     CUSPARSE_CHECK(cusparseSetStream(cusparse, stream));
     CUBLAS_CHECK(cublasSetStream_v2(cublas, stream));
 
-    double *b_d = nullptr;
-    CUDA_CHECK(cudaMalloc(&b_d, sizeof(double) * b.size()));
-    CUDA_CHECK(cudaMemcpyAsync(b_d, b.data(), sizeof(double) * b.size(),
+    double *d_b = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_b, sizeof(double) * b.size()));
+    CUDA_CHECK(cudaMemcpyAsync(d_b, b.data(), sizeof(double) * b.size(),
                                cudaMemcpyHostToDevice, stream));
 
     cusparseDnVecDescr_t b_descr;
-    CUSPARSE_CHECK(cusparseCreateDnVec(&b_descr, b.size(), b_d, CUDA_R_64F));
+    CUSPARSE_CHECK(cusparseCreateDnVec(&b_descr, b.size(), d_b, CUDA_R_64F));
 
-    double *x_d = nullptr;
-    CUDA_CHECK(cudaMalloc(&x_d, sizeof(double) * x.size()));
-    CUDA_CHECK(cudaMemcpyAsync(x_d, x.data(), sizeof(double) * x.size(),
+    double *d_x = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_x, sizeof(double) * x.size()));
+    CUDA_CHECK(cudaMemcpyAsync(d_x, x.data(), sizeof(double) * x.size(),
                                cudaMemcpyHostToDevice, stream));
 
     cusparseDnVecDescr_t x_descr;
-    CUSPARSE_CHECK(cusparseCreateDnVec(&x_descr, x.size(), x_d, CUDA_R_64F));
+    CUSPARSE_CHECK(cusparseCreateDnVec(&x_descr, x.size(), d_x, CUDA_R_64F));
 
     DeviceSparseMatrixDouble A_mat{A};
     DeviceSparseMatrixDouble L_mat{L};
@@ -80,15 +80,15 @@ int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
                                 L_mat.get(), tolerance, max_iterations, true,
                                 stream);
 
-    CUDA_CHECK(cudaMemcpyAsync(x.data(), x_d, sizeof(double) * x.size(),
+    CUDA_CHECK(cudaMemcpyAsync(x.data(), d_x, sizeof(double) * x.size(),
                                cudaMemcpyDeviceToHost, stream));
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
     CUSPARSE_CHECK(cusparseDestroyDnVec(x_descr));
-    CUDA_CHECK(cudaFree(x_d));
+    CUDA_CHECK(cudaFree(d_x));
 
     CUSPARSE_CHECK(cusparseDestroyDnVec(b_descr));
-    CUDA_CHECK(cudaFree(b_d));
+    CUDA_CHECK(cudaFree(d_b));
 
     CUDA_CHECK(cudaStreamDestroy(stream));
     CUBLAS_CHECK(cublasDestroy_v2(cublas));
@@ -115,22 +115,22 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
     cudaStream_t stream = nullptr;
     CUDA_CHECK(cudaStreamCreate(&stream));
 
-    double *b_d = nullptr;
-    CUDA_CHECK(cudaMalloc(&b_d, sizeof(double) * b.size()));
-    CUDA_CHECK(cudaMemcpyAsync(b_d, b.data(), sizeof(double) * b.size(),
+    double *d_b = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_b, sizeof(double) * b.size()));
+    CUDA_CHECK(cudaMemcpyAsync(d_b, b.data(), sizeof(double) * b.size(),
                                cudaMemcpyHostToDevice, stream));
 
     cusparseDnMatDescr_t b_descr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&b_descr, n, block_size, n, b_d,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&b_descr, n, block_size, n, d_b,
                                        CUDA_R_64F, CUSPARSE_ORDER_COL));
 
-    double *x_d = nullptr;
-    CUDA_CHECK(cudaMalloc(&x_d, sizeof(double) * x.size()));
-    CUDA_CHECK(cudaMemcpyAsync(x_d, x.data(), sizeof(double) * x.size(),
+    double *d_x = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_x, sizeof(double) * x.size()));
+    CUDA_CHECK(cudaMemcpyAsync(d_x, x.data(), sizeof(double) * x.size(),
                                cudaMemcpyHostToDevice, stream));
 
     cusparseDnMatDescr_t x_descr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&x_descr, n, block_size, n, x_d,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&x_descr, n, block_size, n, d_x,
                                        CUDA_R_64F, CUSPARSE_ORDER_COL));
 
     DeviceSparseMatrixDouble A_mat{A};
@@ -143,7 +143,7 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
         iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr,
                                     L_mat.get(), tolerance, max_iterations,
                                     stream, qr_backend);
-        CUDA_CHECK(cudaMemcpyAsync(x.data(), x_d, sizeof(double) * x.size(),
+        CUDA_CHECK(cudaMemcpyAsync(x.data(), d_x, sizeof(double) * x.size(),
                                    cudaMemcpyDeviceToHost, stream));
         CUDA_CHECK(cudaStreamSynchronize(stream));
     } catch (const std::exception &e) {
@@ -153,10 +153,10 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
     }
 
     CUSPARSE_CHECK(cusparseDestroyDnMat(x_descr));
-    CUDA_CHECK(cudaFree(x_d));
+    CUDA_CHECK(cudaFree(d_x));
 
     CUSPARSE_CHECK(cusparseDestroyDnMat(b_descr));
-    CUDA_CHECK(cudaFree(b_d));
+    CUDA_CHECK(cudaFree(d_b));
     CUDA_CHECK(cudaStreamDestroy(stream));
 
     return iters;
@@ -175,22 +175,22 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
     cudaStream_t stream = nullptr;
     CUDA_CHECK(cudaStreamCreate(&stream));
 
-    double *b_d = nullptr;
-    CUDA_CHECK(cudaMalloc(&b_d, sizeof(double) * b.size()));
-    CUDA_CHECK(cudaMemcpyAsync(b_d, b.data(), sizeof(double) * b.size(),
+    double *d_b = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_b, sizeof(double) * b.size()));
+    CUDA_CHECK(cudaMemcpyAsync(d_b, b.data(), sizeof(double) * b.size(),
                                cudaMemcpyHostToDevice, stream));
 
     cusparseDnMatDescr_t b_descr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&b_descr, n, block_size, n, b_d,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&b_descr, n, block_size, n, d_b,
                                        CUDA_R_64F, CUSPARSE_ORDER_COL));
 
-    double *x_d = nullptr;
-    CUDA_CHECK(cudaMalloc(&x_d, sizeof(double) * x.size()));
-    CUDA_CHECK(cudaMemcpyAsync(x_d, x.data(), sizeof(double) * x.size(),
+    double *d_x = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_x, sizeof(double) * x.size()));
+    CUDA_CHECK(cudaMemcpyAsync(d_x, x.data(), sizeof(double) * x.size(),
                                cudaMemcpyHostToDevice, stream));
 
     cusparseDnMatDescr_t x_descr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&x_descr, n, block_size, n, x_d,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&x_descr, n, block_size, n, d_x,
                                        CUDA_R_64F, CUSPARSE_ORDER_COL));
 
     DeviceSparseMatrixDouble A_mat{A};
@@ -202,7 +202,7 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
         iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr,
                                     tolerance, max_iterations, stream,
                                     qr_backend);
-        CUDA_CHECK(cudaMemcpyAsync(x.data(), x_d, sizeof(double) * x.size(),
+        CUDA_CHECK(cudaMemcpyAsync(x.data(), d_x, sizeof(double) * x.size(),
                                    cudaMemcpyDeviceToHost, stream));
         CUDA_CHECK(cudaStreamSynchronize(stream));
     } catch (const std::exception &e) {
@@ -212,10 +212,10 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
     }
 
     CUSPARSE_CHECK(cusparseDestroyDnMat(x_descr));
-    CUDA_CHECK(cudaFree(x_d));
+    CUDA_CHECK(cudaFree(d_x));
 
     CUSPARSE_CHECK(cusparseDestroyDnMat(b_descr));
-    CUDA_CHECK(cudaFree(b_d));
+    CUDA_CHECK(cudaFree(d_b));
     CUDA_CHECK(cudaStreamDestroy(stream));
 
     return iters;
