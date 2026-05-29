@@ -12,11 +12,11 @@
 
 namespace {
 template <typename T>
-struct Device_buffers {
+struct DeviceBuffers {
     cudaDataType_t cuda_type =
         std::is_same_v<T, float> ? CUDA_R_32F : CUDA_R_64F;
 
-    Device_buffers(std::int64_t n) noexcept {
+    DeviceBuffers(std::int64_t n) noexcept {
         CUDA_CHECK(cudaMalloc(&d_r, sizeof(T) * n));
         CUDA_CHECK(cudaMalloc(&d_s, sizeof(T) * n));
         CUDA_CHECK(cudaMalloc(&d_d, sizeof(T) * n));
@@ -28,7 +28,7 @@ struct Device_buffers {
         CUSPARSE_CHECK(cusparseCreateDnVec(&q, n, d_q, cuda_type));
     }
 
-    ~Device_buffers() noexcept {
+    ~DeviceBuffers() noexcept {
         CUDA_CHECK(cudaFree(d_r));
         CUDA_CHECK(cudaFree(d_s));
         CUDA_CHECK(cudaFree(d_d));
@@ -95,7 +95,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
     CUSPARSE_CHECK(cusparseDnVecGetValues(b, &b_d_void));
     double *d_b = static_cast<double *>(b_d_void);
 
-    Device_buffers<double> d{n};
+    DeviceBuffers<double> d{n};
 
     // b_norm = sqrt(b' * b)
     double b_norm = 0;
