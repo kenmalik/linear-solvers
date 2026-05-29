@@ -52,3 +52,18 @@ e.g. If building for a GeForce RTX 2070
 cmake -B build -S . -DCMAKE_CUDA_ARCHITECTURES=75 -DSOLVERS_BUILD_CUDA=ON -DSOLVERS_BUILD_DR_BCG=ON -DSOLVERS_BUILD_RUNNER=ON
 cmake --build build
 ```
+
+## Developing
+
+This project was developed on an HPC cluster using Lmod.
+
+Lmod's module system tends to break include paths and CUDA tends to break CMake's `compile_commands.json`.
+Hence, we have a script to manually set up VSCode's IntelliSense include paths.
+Use it like so:
+
+```shell
+module load intel-oneapi-mkl  # Ensure the MKL module is loaded
+make vscode-config
+```
+
+The `vscode-config` Make target calls [this script](scripts/vscode_config.sh). 

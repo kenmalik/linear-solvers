@@ -1,27 +1,21 @@
-option(DR_BCG_BUILD_BENCHMARKS "Enable benchmarks" OFF)
-option(DR_BCG_BUILD_EXAMPLES "Enable examples" OFF)
+add_library(
+    cuda_dr_bcg
+    cuda_dr_bcg.cu
+    helper.cu
+)
+add_library(dr_bcg::cuda ALIAS cuda_dr_bcg)
 
-# include(GNUInstallDirs)
+target_compile_features(cuda_dr_bcg PRIVATE cxx_std_20 cuda_std_20)
+target_include_directories(
+    cuda_dr_bcg PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 
-# include(CMakePackageConfigHelpers)
-# configure_package_config_file(
-#   cmake/DR_BCGConfig.cmake.in
-#   ${CMAKE_CURRENT_BINARY_DIR}/DR_BCGConfig.cmake
-#   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DR_BCG
-# )
-
-# install(FILES
-#   ${CMAKE_CURRENT_BINARY_DIR}/DR_BCGConfig.cmake
-#   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DR_BCG
-# )
-# install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-add_subdirectory("src")
-
-if(DR_BCG_BUILD_BENCHMARKS)
-    add_subdirectory("benchmark")
-endif()
-
-if(DR_BCG_BUILD_EXAMPLES)
-    add_subdirectory("examples")
-endif()
+target_link_libraries(
+    cuda_dr_bcg PUBLIC
+    CUDA::cublas
+    CUDA::cusolver
+    CUDA::cusparse
+)
+target_link_libraries(cuda_dr_bcg PRIVATE nvtx3::nvtx3-cpp solver_config solvers_internal)

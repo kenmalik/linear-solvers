@@ -16,3 +16,6 @@ run-all:
 .PHONY: benchmark
 benchmark:
 	@scripts/benchmark.sh
+
+vscode-config:
+	@bash scripts/vscode_config.sh

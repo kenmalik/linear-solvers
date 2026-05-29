@@ -1,14 +1,14 @@
+#include "config.h"
+
 #include <iostream>
 #include <vector>
 
-#ifdef MKL_ENABLED
+#ifdef SOLVERS_BUILD_MKL
 #include "mkl_adapter.h"
 #endif
 
-#ifdef CUDA_ENABLED
-#include "common/cuda_checks.h"
+#ifdef SOLVERS_BUILD_CUDA
 #include "cuda_adapter.h"
-#include <cuda_runtime.h>
 #endif
 
 #include "common/cuda_event_timer.h"
@@ -20,7 +20,7 @@
 
 namespace {
 
-#if defined(CUDA_ENABLED) && defined(DR_BCG_ENABLED)
+#if defined(SOLVERS_BUILD_CUDA) && defined(SOLVERS_BUILD_DR_BCG)
 dr_bcg::cuda::QrBackend to_cuda_qr_backend(QrBackend backend) {
     switch (backend) {
     case QrBackend::Householder:
@@ -89,8 +89,8 @@ int run_cg(const Args &args) {
     int max_iters = args.max_iterations.value_or(n);
 
     switch (args.implementation) {
-#ifdef CG_ENABLED
-#ifdef MKL_ENABLED
+#ifdef SOLVERS_BUILD_CG
+#ifdef SOLVERS_BUILD_MKL
     case Implementation::MKL: {
         if (args.L.has_value()) {
             return run_mkl_cg(args.A, b, x, args.L.value(), args.tolerance,
@@ -100,15 +100,14 @@ int run_cg(const Args &args) {
             return -1;
         }
     }
-#endif
-#ifdef CUDA_ENABLED
+#endif // SOLVERS_BUILD_MKL
+#ifdef SOLVERS_BUILD_CUDA
     case Implementation::CUDA: {
-        CUDA_CHECK(cudaDeviceSynchronize());
         return run_cuda_cg(args.A, b, x, args.L.value(), args.tolerance,
                            max_iters, args.disable_tensor_cores);
     }
-#endif
-#endif
+#endif // SOLVERS_BUILD_CUDA
+#endif // SOLVERS_BUILD_CG
     default:
         std::cerr << "Selected implementation not available in this build"
                   << std::endl;
@@ -133,8 +132,8 @@ int run_dr_bcg(const Args &args) {
     int max_iters = args.max_iterations.value_or(n);
 
     switch (args.implementation) {
-#ifdef DR_BCG_ENABLED
-#ifdef MKL_ENABLED
+#ifdef SOLVERS_BUILD_DR_BCG
+#ifdef SOLVERS_BUILD_MKL
     case Implementation::MKL: {
         if (args.L.has_value()) {
             return run_mkl_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
@@ -144,10 +143,9 @@ int run_dr_bcg(const Args &args) {
             return -1;
         }
     }
-#endif
-#ifdef CUDA_ENABLED
+#endif // SOLVERS_BUILD_MKL
+#ifdef SOLVERS_BUILD_CUDA
     case Implementation::CUDA: {
-        CUDA_CHECK(cudaDeviceSynchronize());
         if (args.L.has_value()) {
             return run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
                                    max_iters, args.block_size,
@@ -160,8 +158,8 @@ int run_dr_bcg(const Args &args) {
                                    to_cuda_qr_backend(args.qr_backend));
         }
     }
-#endif
-#endif
+#endif // SOLVERS_BUILD_CUDA
+#endif // SOLVERS_BUILD_DR_BCG
     default:
         std::cerr << "Selected implementation not available in this build"
                   << std::endl;

@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include "cuda_adapter.h"
 
 #include <iostream>
@@ -5,11 +7,11 @@
 #include "common/cuda_checks.h"
 #include "common/device_sparse_matrix.h"
 
-#ifdef CG_ENABLED
+#ifdef SOLVERS_BUILD_CG
 #include "cg/cuda.h"
 #endif
 
-#ifdef DR_BCG_ENABLED
+#ifdef SOLVERS_BUILD_DR_BCG
 #include "dr_bcg/cuda.h"
 #endif
 
@@ -35,7 +37,7 @@ const char *qr_backend_name(dr_bcg::cuda::QrBackend qr_backend) {
 
 } // namespace
 
-#ifdef CG_ENABLED
+#ifdef SOLVERS_BUILD_CG
 
 int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
                 std::vector<double> &x, const mat_utils::SpMatReader &L,
@@ -95,9 +97,9 @@ int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
     return iters;
 }
 
-#endif
+#endif // SOLVERS_BUILD_CG
 
-#ifdef DR_BCG_ENABLED
+#ifdef SOLVERS_BUILD_DR_BCG
 
 int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
@@ -219,4 +221,4 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
     return iters;
 }
 
-#endif
+#endif // SOLVERS_BUILD_DR_BCG

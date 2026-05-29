@@ -1,7 +1,8 @@
 #pragma once
 
+#include "config.h"
+
 #include "cuda_checks.h"
-#include "timer.h"
 
 #include <cuda_runtime.h>
 #include <fstream>

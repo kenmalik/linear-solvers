@@ -3,18 +3,7 @@ find_package(cxxopts CONFIG REQUIRED)
 
 add_executable(cgrun cgrun.cpp parser.cpp rhs.cpp)
 target_compile_features(cgrun PRIVATE cxx_std_20)
-target_include_directories(cgrun PRIVATE ../include)
-target_link_libraries(cgrun PRIVATE MatUtils::mat_utils)
-
-target_compile_definitions(cgrun PRIVATE
-    $<$<BOOL:${SOLVERS_VERBOSE}>:SOLVERS_VERBOSE>
-    $<$<BOOL:${SOLVERS_ENABLE_TIMER}>:ENABLE_TIMER>)
-
-target_compile_definitions(cgrun PRIVATE
-    $<$<BOOL:${SOLVERS_BUILD_MKL}>:MKL_ENABLED>
-    $<$<BOOL:${SOLVERS_BUILD_CUDA}>:CUDA_ENABLED>
-    $<$<BOOL:${SOLVERS_BUILD_CG}>:CG_ENABLED>
-    $<$<BOOL:${SOLVERS_BUILD_DR_BCG}>:DR_BCG_ENABLED>)
+target_link_libraries(cgrun PRIVATE MatUtils::mat_utils solver_config solvers_internal)
 
 if(SOLVERS_BUILD_CUDA)
     target_sources(cgrun PRIVATE cuda_adapter.cu)
@@ -36,6 +25,5 @@ if(SOLVERS_BUILD_MKL)
     endif()
 endif()
 
-include(GNUInstallDirs)
 set_target_properties(cgrun PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 install(TARGETS cgrun RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

@@ -7,14 +7,7 @@ option(MKL_CG_PRINT_RELATIVE_RESIDUAL_NORMS
 add_library(mkl_cg mkl_cg.cpp)
 add_library(cg::mkl ALIAS mkl_cg)
 
-target_include_directories(mkl_cg PUBLIC include ${COMMON_HEADERS})
+target_include_directories(mkl_cg PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(mkl_cg PRIVATE cxx_std_17)
-
-target_compile_definitions(mkl_cg PRIVATE
-    $<$<BOOL:${SOLVERS_VERBOSE}>:SOLVERS_VERBOSE>
-    $<$<BOOL:${SOLVERS_ENABLE_TIMER}>:ENABLE_TIMER>)
-
-target_compile_options(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
-target_include_directories(mkl_cg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)
+target_link_libraries(mkl_cg PRIVATE solver_config solvers_internal)
 target_link_libraries(mkl_cg PUBLIC MKL::MKL)
-

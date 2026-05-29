@@ -1,6 +1,9 @@
 #pragma once
 
-#include <common/cuda_event_timer.h>
+#include "common/cuda_event_timer.h"
+#include "common/type_info.h"
+#include "common/cuda_checks.h"
+#include "helper.h"
 
 template <typename T>
 struct HouseholderQrWorkspace {
@@ -21,7 +24,7 @@ struct HouseholderQrWorkspace {
     // m: rows of Q (problem size n), n: cols of Q (block size s)
     void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
                   int m, int n) {
-        constexpr cudaDataType_t data_type = Type_info<T>::cuda;
+        constexpr cudaDataType_t data_type = TypeInfo<T>::cuda;
 
         CUDA_CHECK(cudaMalloc(&d_tau, sizeof(T) * n));
         CUDA_CHECK(cudaMalloc(&d_info, sizeof(int)));
@@ -89,7 +92,7 @@ struct CholQrWorkspace {
 
     void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
                   int n) {
-        constexpr cudaDataType_t data_type = Type_info<T>::cuda;
+        constexpr cudaDataType_t data_type = TypeInfo<T>::cuda;
 
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_gram),
                               sizeof(T) * n * n));
@@ -242,7 +245,7 @@ void orthonormalize_block(
     cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
 
-    constexpr cudaDataType_t data_type = Type_info<T>::cuda;
+    constexpr cudaDataType_t data_type = TypeInfo<T>::cuda;
 
     assert(n < m && "Expect cols to be less than rows for DR-BCG");
 

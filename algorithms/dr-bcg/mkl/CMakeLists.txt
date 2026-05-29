@@ -1,11 +1,6 @@
 add_library(mkl_dr_bcg mkl_dr_bcg.cpp)
 add_library(dr_bcg::mkl ALIAS mkl_dr_bcg)
 
-target_include_directories(mkl_dr_bcg PUBLIC include ${COMMON_HEADERS})
-
-target_compile_options(mkl_dr_bcg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
-target_compile_definitions(mkl_dr_bcg PRIVATE
-    $<$<BOOL:${SOLVERS_VERBOSE}>:SOLVERS_VERBOSE>
-    $<$<BOOL:${SOLVERS_ENABLE_TIMER}>:ENABLE_TIMER>)
-target_include_directories(mkl_dr_bcg PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)
+target_include_directories(mkl_dr_bcg PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_link_libraries(mkl_dr_bcg PRIVATE solver_config solvers_internal)
 target_link_libraries(mkl_dr_bcg PUBLIC MKL::MKL)

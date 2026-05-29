@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef SOLVERS_VERBOSE
+#ifdef SOLVERS_ENABLE_VERBOSE
 #include <iostream>
 
 #define LOG_TRACE(v)                                                           \

@@ -8,9 +8,9 @@
 #include <cusolverDn.h>
 
 #include "common/cuda_checks.h"
+#include "common/type_info.h"
+
 #include "dr_bcg/cuda.h"
-#include "dr_bcg/helper.h"
-#include "dr_bcg/internal/type_info.h"
 
 template <typename T>
 struct LuWorkspace {
@@ -31,7 +31,7 @@ struct LuWorkspace {
     // n: matrix side length (block size s)
     void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
                   int n) {
-        constexpr cudaDataType_t data_type = Type_info<T>::cuda;
+        constexpr cudaDataType_t data_type = TypeInfo<T>::cuda;
 
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Ipiv),
                               sizeof(int64_t) * n));
@@ -98,7 +98,7 @@ struct SpsmCache {
                  const cusparseSpMatDescr_t &A, const cusparseDnMatDescr_t &B,
                  cusparseDnMatDescr_t &C) {
         constexpr cusparseOperation_t OP_B = CUSPARSE_OPERATION_NON_TRANSPOSE;
-        constexpr cudaDataType_t compute_type = Type_info<T>::cuda;
+        constexpr cudaDataType_t compute_type = TypeInfo<T>::cuda;
         constexpr T alpha = 1;
         constexpr cusparseSpSMAlg_t ALG_TYPE = CUSPARSE_SPSM_ALG_DEFAULT;
 
@@ -139,7 +139,7 @@ void sptri_solve(const cusparseHandle_t &cusparseH, cusparseDnMatDescr_t &C,
     NVTX3_FUNC_RANGE();
 
     constexpr cusparseOperation_t OP_B = CUSPARSE_OPERATION_NON_TRANSPOSE;
-    constexpr cudaDataType_t compute_type = Type_info<T>::cuda;
+    constexpr cudaDataType_t compute_type = TypeInfo<T>::cuda;
     constexpr T alpha = 1;
     constexpr cusparseSpSMAlg_t ALG_TYPE = CUSPARSE_SPSM_ALG_DEFAULT;
 
@@ -154,7 +154,7 @@ void invert_square_matrix(cusolverDnHandle_t &cusolverH,
                           LuWorkspace<T> &ws, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
 
-    constexpr cudaDataType_t data_type = Type_info<T>::cuda;
+    constexpr cudaDataType_t data_type = TypeInfo<T>::cuda;
 
     // Restore identity into d_I from the pinned h_I template (async).
     CUDA_CHECK(cudaMemcpyAsync(ws.d_I, ws.h_I, sizeof(T) * n * n,
