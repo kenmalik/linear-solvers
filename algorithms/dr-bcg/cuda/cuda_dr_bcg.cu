@@ -28,41 +28,6 @@ std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
     return {n, s};
 }
 
-template <SupportedType T>
-void check_orthonormalization_status(
-    dr_bcg::cuda::QrBackend backend,
-    HouseholderQrWorkspace<T> &householder_ws, CholQrWorkspace<T> &cholqr_ws,
-    int n, cudaStream_t stream, const char *stage) {
-    CUDA_CHECK(cudaStreamSynchronize(stream));
-
-    if (backend == dr_bcg::cuda::QrBackend::Householder) {
-        if (*householder_ws.h_info < 0) {
-            throw std::runtime_error(std::string(stage) + ": " +
-                                     std::to_string(-*householder_ws.h_info) +
-                                     "-th parameter is wrong in QR");
-        }
-        return;
-    }
-
-    if (*cholqr_ws.h_info < 0) {
-        throw std::runtime_error(std::string(stage) + ": " +
-                                 std::to_string(-*cholqr_ws.h_info) +
-                                 "-th parameter is wrong in CholQR");
-    }
-    if (*cholqr_ws.h_info > 0) {
-        throw std::runtime_error(
-            std::string(stage) + ": CholQR failed, Gram matrix lost positive "
-                                 "definiteness at leading minor " +
-            std::to_string(*cholqr_ws.h_info));
-    }
-    for (int i = 0; i < n; ++i) {
-        if (cholqr_ws.h_factor[i + i * n] == T{0}) {
-            throw std::runtime_error(std::string(stage) +
-                                     ": CholQR produced a zero diagonal in R");
-        }
-    }
-}
-
 } // namespace
 
 namespace dr_bcg::cuda {
