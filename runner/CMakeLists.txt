@@ -25,6 +25,5 @@ if(SOLVERS_BUILD_MKL)
     endif()
 endif()
 
-include(GNUInstallDirs)
 set_target_properties(cgrun PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 install(TARGETS cgrun RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

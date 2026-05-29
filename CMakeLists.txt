@@ -1,5 +1,7 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.18)
 project(Solvers VERSION 0.1.0 LANGUAGES CXX CUDA)
+
+include(GNUInstallDirs)
 
 option(SOLVERS_BUILD_CUDA "Build CUDA implementations of solvers" ON)
 option(SOLVERS_BUILD_MKL "Build MKL implementations of solvers" OFF)
