@@ -1,40 +1,25 @@
-#include "dr_bcg/cuda.cuh"
+#pragma once
 
 #include "common/cuda_event_timer.h"
 #include "common/log.h"
+#include "dr_bcg/cuda.h"
+#include "dr_bcg/math.h"
+#include "dr_bcg/qr.cuh"
 
 #include <algorithm>
 #include <cstdint>
-#include <functional>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
 #include <nvtx3/nvtx3.hpp>
 
 namespace dr_bcg::cuda {
 
-Handles::Handles() {
-    CUSPARSE_CHECK(cusparseCreate(&cusparse));
-    CUSOLVER_CHECK(cusolverDnCreate(&cusolver));
-    CUSOLVER_CHECK(cusolverDnCreateParams(&cusolver_params));
-    CUBLAS_CHECK(cublasCreate_v2(&cublas));
-}
-
-Handles::~Handles() {
-    CUSPARSE_CHECK(cusparseDestroy(cusparse));
-    CUSOLVER_CHECK(cusolverDnDestroy(cusolver));
-    CUSOLVER_CHECK(cusolverDnDestroyParams(cusolver_params));
-    CUBLAS_CHECK(cublasDestroy_v2(cublas));
-};
-
-void Handles::set_stream(cudaStream_t stream) {
-    CUSPARSE_CHECK(cusparseSetStream(cusparse, stream));
-    CUSOLVER_CHECK(cusolverDnSetStream(cusolver, stream));
-    CUBLAS_CHECK(cublasSetStream_v2(cublas, stream));
-}
-
-int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-          cusparseDnMatDescr_t B, double tolerance, int max_iterations,
-          cudaStream_t stream, QrBackend qr_backend) {
+inline int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+                 cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
+                 double tolerance, int max_iterations,
+                 cudaStream_t stream, QrBackend qr_backend) {
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
@@ -53,8 +38,21 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     void *d_scratch = nullptr;
 
     cusparseDnMatDescr_t temp;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, CUDA_R_64F,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, CUDA_R_64F, CUSPARSE_ORDER_COL));
+    cusparseDnMatDescr_t s_desc;
+    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, CUDA_R_64F,
                                        CUSPARSE_ORDER_COL));
+    cusparseDnMatDescr_t w_desc;
+    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, CUDA_R_64F,
+                                       CUSPARSE_ORDER_COL));
+
+    SpsmCache<double> spsm_nt;
+    spsm_nt.analyze(handles.cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, L,
+                    w_desc, temp);
+
+    SpsmCache<double> spsm_t;
+    spsm_t.analyze(handles.cusparse, CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
+                   temp);
 
     double *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
@@ -110,13 +108,24 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
     }
 
+    // We break [w sigma] = QR(L^-1 * R) into two steps for timing purposes:
+    // 1. temp = L^-1 * R
+    // 2. [w sigma] = QR(temp)
     {
-        nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(L^-1 * R)"};
-        CudaTimerRange er(g_event_timer, "[w sigma] = QR(L^-1 * R)", stream);
+        nvtx3::scoped_range w_sigma_initial_range{"temp = L^-1 * R"};
+        CudaTimerRange er(g_event_timer, "temp = L^-1 * R", stream);
 
-        // [w, sigma] = qr(R, 'econ')
-        qr.orthonormalize_block(handles.cublas, handles.cusolver, handles.cusolver_params,
-                                d.w, d.sigma, n, s, d_R, stream);
+        sptri_solve<double>(handles.cusparse, temp,
+                            CUSPARSE_OPERATION_NON_TRANSPOSE, L, R, spsm_nt);
+    }
+
+    {
+        nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(temp)"};
+        CudaTimerRange er(g_event_timer, "[w sigma] = QR(temp)", stream);
+
+        qr.orthonormalize_block(handles.cublas, handles.cusolver,
+                                handles.cusolver_params, d.w, d.sigma, n, s,
+                                d.temp, stream);
         qr.check_orthonormalization_status(static_cast<int>(s), stream,
                                            "initial orthonormalization");
     }
@@ -128,18 +137,13 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
         CudaTimerRange er(g_event_timer, "s = (L^-1)' * w", stream);
 
-        // s = w
+        // s = (L^-1)' * w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(double) * n * s,
                                    cudaMemcpyDeviceToDevice, stream));
+
+        sptri_solve<double>(handles.cusparse, s_desc,
+                            CUSPARSE_OPERATION_TRANSPOSE, L, w_desc, spsm_t);
     }
-
-    cusparseDnMatDescr_t s_desc;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, CUDA_R_64F,
-                                       CUSPARSE_ORDER_COL));
-
-    cusparseDnMatDescr_t w_desc;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, CUDA_R_64F,
-                                       CUSPARSE_ORDER_COL));
 
     cusparseDnVecDescr_t temp1;
     CUSPARSE_CHECK(cusparseCreateDnVec(&temp1, n, d.temp, CUDA_R_64F));
@@ -155,17 +159,13 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         constexpr cusparseOperation_t op_nt = CUSPARSE_OPERATION_NON_TRANSPOSE;
         std::size_t buf_xi = 0;
         std::size_t buf_rrn = 0;
-        std::size_t buf_w_zeta = 0;
         CUSPARSE_CHECK(cusparseSpMM_bufferSize(
             handles.cusparse, op_nt, op_nt, &alpha_pos, A, s_desc, &beta_zero,
             temp, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
         CUSPARSE_CHECK(cusparseSpMV_bufferSize(
             handles.cusparse, op_nt, &alpha_neg, A, X1, &beta_pos, temp1,
             CUDA_R_64F, CUSPARSE_SPMV_ALG_DEFAULT, &buf_rrn));
-        CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-            handles.cusparse, op_nt, op_nt, &alpha_neg, A, temp, &beta_pos,
-            w_desc, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT, &buf_w_zeta));
-        std::size_t scratch_size = std::max({buf_xi, buf_rrn, buf_w_zeta});
+        std::size_t scratch_size = std::max(buf_xi, buf_rrn);
         if (scratch_size > 0) {
             CUDA_CHECK(cudaMallocAsync(&d_scratch, scratch_size, stream));
         }
@@ -257,29 +257,39 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             break;
         }
 
+        // We break [w zeta] = QR(w - L^-1 * A * s * xi) into two steps for timing purposes:
+        // 1. w = w - L^-1 * A * s * xi
+        // 2. [w zeta] = QR(w)
         {
-            nvtx3::scoped_range w_zeta_range{
-                "[w zeta] = QR(w - L^{-1} * A * s * xi)"};
-            CudaTimerRange er(g_event_timer,
-                              "[w zeta] = QR(w - L^{-1} * A * s * xi)", stream);
+            nvtx3::scoped_range w_zeta_range{"w = w - L^-1 * A * s * xi"};
+            CudaTimerRange er(g_event_timer, "w = w - L^-1 * A * s * xi", stream);
 
-            // [w, zeta] = qr(w - A * s * xi, 'econ')
-            constexpr cublasOperation_t op = CUBLAS_OP_N;
-            CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op, op, n, s, s,
-                                        d.one, d.s, n, d.xi, s,
-                                        d.zero, d.temp, n));
-
-            constexpr cusparseOperation_t spmm_op =
-                CUSPARSE_OPERATION_NON_TRANSPOSE;
-            constexpr double spmm_alpha = -1.0;
-            constexpr double spmm_beta = 1.0;
-            constexpr cudaDataType_t compute_type = CUDA_R_64F;
+            // temp = A * s
+            constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
+            constexpr double alpha = 1.0;
+            constexpr double beta = 0.0;
+            constexpr cudaDataType compute_type = CUDA_R_64F;
             constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
-            CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, spmm_op, spmm_op,
-                                        &spmm_alpha, A, temp, &spmm_beta,
-                                        w_desc, compute_type, alg, d_scratch));
+            CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
+                                        s_desc, &beta, temp, compute_type, alg,
+                                        d_scratch));
 
+            // temp = L^-1 * temp
+            sptri_solve<double>(handles.cusparse, temp, op, L, temp, spsm_nt);
+
+            // w = w - temp * xi
+            constexpr cublasOperation_t sgemm_op = CUBLAS_OP_N;
+            CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, sgemm_op, sgemm_op, n,
+                                        s, s, d.neg_one, d.temp, n, d.xi, s,
+                                        d.one, d.w, n));
+        }
+
+        {
+            nvtx3::scoped_range w_zeta_range{"[w zeta] = QR(w)"};
+            CudaTimerRange er(g_event_timer, "[w zeta] = QR(w)", stream);
+
+            // [w, zeta] = qr(w)
             qr.orthonormalize_block(handles.cublas, handles.cusolver,
                                     handles.cusolver_params, d.w, d.zeta, n, s,
                                     d.w, stream);
@@ -292,7 +302,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
             CudaTimerRange er(g_event_timer, "s = (L^-1)' * w + s * zeta'",
                               stream);
 
-            // s = w + s * zeta'
+            // s = (L^-1)' * w + s * zeta'
             constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
             constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
             constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
@@ -302,10 +312,14 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         op_zeta, diag_type, n, s, d.one,
                                         d.zeta, s, d.s, n, d.s, n));
 
+            sptri_solve<double>(handles.cusparse, temp,
+                                CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
+                                spsm_t);
+
             constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
             CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
-                                     d.one, d.s, n, d.one, d.w, n,
-                                     d.s, n));
+                                     d.one, d.s, n, d.one, d.temp,
+                                     n, d.s, n));
         }
 
         {
@@ -326,8 +340,6 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     CUDA_CHECK(cudaFreeAsync(d_norm, stream));
     CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(s_desc));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(w_desc));
     CUSPARSE_CHECK(cusparseDestroyDnVec(temp1));
     CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
 

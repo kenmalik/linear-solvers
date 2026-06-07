@@ -4,6 +4,8 @@
 #include "common/cuda_event_timer.h"
 #include "common/type_info.h"
 
+#include <cuda_runtime.h>
+
 #include <concepts>
 
 template <typename W>

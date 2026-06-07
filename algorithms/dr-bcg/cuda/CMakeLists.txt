@@ -17,4 +17,5 @@ target_link_libraries(
     CUDA::cusolver
     CUDA::cusparse
 )
-target_link_libraries(cuda_dr_bcg PRIVATE nvtx3::nvtx3-cpp solver_config solvers_internal)
+target_link_libraries(cuda_dr_bcg PRIVATE solver_config)
+target_link_libraries(cuda_dr_bcg PUBLIC nvtx3::nvtx3-cpp solvers_internal)

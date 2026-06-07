@@ -12,7 +12,7 @@
 #endif
 
 #ifdef SOLVERS_BUILD_DR_BCG
-#include "dr_bcg/cuda.h"
+#include "dr_bcg/cuda.cuh"
 #endif
 
 namespace {

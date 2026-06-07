@@ -1,11 +1,14 @@
 #pragma once
 
-#include "common/type_info.h"
 #include "common/cuda_checks.h"
+#include "common/type_info.h"
 
 #include <cublas_v2.h>
 #include <cusolverDn.h>
 #include <cusparse_v2.h>
+
+#include <cstdint>
+#include <utility>
 
 namespace {
 /// Templated device pointers for reused device buffers.
@@ -81,6 +84,21 @@ struct DeviceBuffer {
         one = zero = neg_one = nullptr;
     }
 };
+
+inline std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
+    std::int64_t n = 0;
+    std::int64_t s = 0;
+    std::int64_t ld = 0;
+    void *vals = nullptr;
+    cudaDataType_t data_type;
+    cusparseOrder_t order;
+
+    CUSPARSE_CHECK(
+        cusparseDnMatGet(mat, &n, &s, &ld, &vals, &data_type, &order));
+
+    return {n, s};
+}
+
 } // namespace
 
 namespace dr_bcg::cuda {

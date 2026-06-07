@@ -1,8 +1,9 @@
 #pragma once
 
+#include <dr_bcg/cuda.h>
+
 #include <vector>
 
-#include <dr_bcg/cuda.h>
 #include <mat_utils/mat_reader.h>
 
 int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
