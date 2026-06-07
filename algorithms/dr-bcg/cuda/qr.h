@@ -4,6 +4,14 @@
 #include "common/cuda_event_timer.h"
 #include "common/type_info.h"
 
+#include <concepts>
+
+template <typename W>
+concept QrWorkspace = requires(W w, cusolverDnHandle_t cusolverH, cusolverDnParams_t params,
+                               int m, int n) {
+    W(cusolverH, params, m, n);
+};
+
 template <SupportedType T>
 struct HouseholderQrWorkspace {
     T *d_tau = nullptr;
@@ -21,8 +29,8 @@ struct HouseholderQrWorkspace {
     HouseholderQrWorkspace &operator=(const HouseholderQrWorkspace &) = delete;
 
     // m: rows of Q (problem size n), n: cols of Q (block size s)
-    void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-                  int m, int n) {
+    HouseholderQrWorkspace(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                           int m, int n) {
         CUDA_CHECK(cudaMalloc(&d_tau, sizeof(T) * n));
         CUDA_CHECK(cudaMalloc(&d_info, sizeof(int)));
         CUDA_CHECK(
@@ -87,8 +95,8 @@ struct CholQrWorkspace {
     CholQrWorkspace(const CholQrWorkspace &) = delete;
     CholQrWorkspace &operator=(const CholQrWorkspace &) = delete;
 
-    void allocate(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-                  int n) {
+    CholQrWorkspace(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                    int _, int n) {
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_gram),
                               sizeof(T) * n * n));
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int)));
@@ -134,7 +142,7 @@ struct CholQrWorkspace {
 
 template <SupportedType T>
 __global__ void copy_upper_triangular_kernel(T *dst, const T *src,
-                                                    const int ld_src, const int n) {
+                                             const int ld_src, const int n) {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -152,6 +160,62 @@ void copy_upper_triangular(T *dst, const T *src, int ld_src, int n,
     copy_upper_triangular_kernel<<<grid_dim, block_dim, 0, stream>>>(
         dst, src, ld_src, n);
 }
+
+template <SupportedType T, QrWorkspace W>
+class QrSolver {
+  public:
+    QrSolver(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+             int m, int n) : workspace(cusolverH, params, m, n) {};
+
+    void orthonormalize_block(
+        cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH,
+        cusolverDnParams_t &params, T *d_Q, T *d_R, const int m, const int n,
+        const T *d_A, cudaStream_t stream) {
+        NVTX3_FUNC_RANGE();
+
+        assert(n < m && "Expect cols to be less than rows for DR-BCG");
+
+        if constexpr (std::is_same_v<W, HouseholderQrWorkspace<T>>) {
+            householder_qr(d_Q, d_A, m, n, stream, cusolverH, params, workspace, d_R);
+        } else {
+            cholesky_qr(d_Q, d_A, m, n, stream, cublasH, workspace, cusolverH, params, d_R);
+        }
+    }
+
+    void check_orthonormalization_status(
+        int n, cudaStream_t stream, const char *stage) {
+        CUDA_CHECK(cudaStreamSynchronize(stream));
+
+        if constexpr (std::is_same_v<W, HouseholderQrWorkspace<T>>) {
+            if (*workspace.h_info < 0) {
+                throw std::runtime_error(std::string(stage) + ": " +
+                                         std::to_string(-*workspace.h_info) +
+                                         "-th parameter is wrong in QR");
+            }
+        } else {
+            for (int i = 0; i < n; ++i) {
+                if (workspace.h_factor[i + i * n] == T{0}) {
+                    throw std::runtime_error(std::string(stage) +
+                                             ": CholQR produced a zero diagonal in R");
+                }
+            }
+            if (*workspace.h_info < 0) {
+                throw std::runtime_error(std::string(stage) + ": " +
+                                         std::to_string(-*workspace.h_info) +
+                                         "-th parameter is wrong in CholQR");
+            }
+            if (*workspace.h_info > 0) {
+                throw std::runtime_error(
+                    std::string(stage) + ": CholQR failed, Gram matrix lost positive "
+                                         "definiteness at leading minor " +
+                    std::to_string(*workspace.h_info));
+            }
+        }
+    }
+
+  private:
+    W workspace;
+};
 
 template <SupportedType T>
 void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream,
@@ -254,62 +318,4 @@ void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStre
     CUDA_CHECK(cudaMemcpyAsync(householder_ws.h_info,
                                householder_ws.d_info, sizeof(int),
                                cudaMemcpyDeviceToHost, stream));
-}
-
-template <SupportedType T>
-void orthonormalize_block(
-    cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH,
-    cusolverDnParams_t &params, T *d_Q, T *d_R, const int m, const int n,
-    const T *d_A, dr_bcg::cuda::QrBackend backend,
-    HouseholderQrWorkspace<T> &householder_ws, CholQrWorkspace<T> &cholqr_ws,
-    cudaStream_t stream) {
-    NVTX3_FUNC_RANGE();
-
-    assert(n < m && "Expect cols to be less than rows for DR-BCG");
-
-    switch (backend) {
-    case dr_bcg::cuda::QrBackend::Householder:
-        householder_qr(d_Q, d_A, m, n, stream, cusolverH, params, householder_ws, d_R);
-        break;
-    case dr_bcg::cuda::QrBackend::CholQR:
-        cholesky_qr(d_Q, d_A, m, n, stream, cublasH, cholqr_ws, cusolverH, params, d_R);
-        break;
-    default:
-        throw std::runtime_error("Unknown QR backend");
-    }
-}
-
-template <SupportedType T>
-void check_orthonormalization_status(
-    dr_bcg::cuda::QrBackend backend,
-    HouseholderQrWorkspace<T> &householder_ws, CholQrWorkspace<T> &cholqr_ws,
-    int n, cudaStream_t stream, const char *stage) {
-    CUDA_CHECK(cudaStreamSynchronize(stream));
-
-    if (backend == dr_bcg::cuda::QrBackend::Householder) {
-        if (*householder_ws.h_info < 0) {
-            throw std::runtime_error(std::string(stage) + ": " +
-                                     std::to_string(-*householder_ws.h_info) +
-                                     "-th parameter is wrong in QR");
-        }
-        return;
-    }
-
-    if (*cholqr_ws.h_info < 0) {
-        throw std::runtime_error(std::string(stage) + ": " +
-                                 std::to_string(-*cholqr_ws.h_info) +
-                                 "-th parameter is wrong in CholQR");
-    }
-    if (*cholqr_ws.h_info > 0) {
-        throw std::runtime_error(
-            std::string(stage) + ": CholQR failed, Gram matrix lost positive "
-                                 "definiteness at leading minor " +
-            std::to_string(*cholqr_ws.h_info));
-    }
-    for (int i = 0; i < n; ++i) {
-        if (cholqr_ws.h_factor[i + i * n] == T{0}) {
-            throw std::runtime_error(std::string(stage) +
-                                     ": CholQR produced a zero diagonal in R");
-        }
-    }
 }
