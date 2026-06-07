@@ -83,7 +83,7 @@ struct HouseholderQrWorkspace {
 };
 
 template <SupportedType T>
-struct CholQrWorkspace {
+struct CholeskyQrWorkspace {
     T *d_gram = nullptr;
     int *d_info = nullptr;
     int *h_info = nullptr;
@@ -93,12 +93,12 @@ struct CholQrWorkspace {
     std::size_t h_work_size = 0;
     T *h_factor = nullptr;
 
-    CholQrWorkspace() = default;
-    CholQrWorkspace(const CholQrWorkspace &) = delete;
-    CholQrWorkspace &operator=(const CholQrWorkspace &) = delete;
+    CholeskyQrWorkspace() = default;
+    CholeskyQrWorkspace(const CholeskyQrWorkspace &) = delete;
+    CholeskyQrWorkspace &operator=(const CholeskyQrWorkspace &) = delete;
 
-    CholQrWorkspace(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-                    int _, int n) {
+    CholeskyQrWorkspace(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                        int _, int n) {
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_gram),
                               sizeof(T) * n * n));
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int)));
@@ -122,11 +122,11 @@ struct CholQrWorkspace {
             h_work = malloc(h_work_size);
             if (!h_work)
                 throw std::runtime_error(
-                    "Error: CholQrWorkspace h_work not allocated.");
+                    "Error: CholeskyQrWorkspace h_work not allocated.");
         }
     }
 
-    ~CholQrWorkspace() {
+    ~CholeskyQrWorkspace() {
         if (d_gram)
             CUDA_CHECK(cudaFree(d_gram));
         if (d_info)
@@ -163,161 +163,163 @@ void copy_upper_triangular(T *dst, const T *src, int ld_src, int n,
         dst, src, ld_src, n);
 }
 
-template <SupportedType T, QrWorkspace W>
-class QrSolver {
-  public:
-    QrSolver(cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-             int m, int n) : workspace(cusolverH, params, m, n) {};
-
-    void orthonormalize_block(
-        cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH,
-        cusolverDnParams_t &params, T *d_Q, T *d_R, const int m, const int n,
-        const T *d_A, cudaStream_t stream) {
-        NVTX3_FUNC_RANGE();
-
-        assert(n < m && "Expect cols to be less than rows for DR-BCG");
-
-        if constexpr (std::is_same_v<W, HouseholderQrWorkspace<T>>) {
-            householder_qr(d_Q, d_A, m, n, stream, cusolverH, params, workspace, d_R);
-        } else {
-            cholesky_qr(d_Q, d_A, m, n, stream, cublasH, workspace, cusolverH, params, d_R);
-        }
-    }
-
-    void check_orthonormalization_status(
-        int n, cudaStream_t stream, const char *stage) {
-        CUDA_CHECK(cudaStreamSynchronize(stream));
-
-        if constexpr (std::is_same_v<W, HouseholderQrWorkspace<T>>) {
-            if (*workspace.h_info < 0) {
-                throw std::runtime_error(std::string(stage) + ": " +
-                                         std::to_string(-*workspace.h_info) +
-                                         "-th parameter is wrong in QR");
-            }
-        } else {
-            for (int i = 0; i < n; ++i) {
-                if (workspace.h_factor[i + i * n] == T{0}) {
-                    throw std::runtime_error(std::string(stage) +
-                                             ": CholQR produced a zero diagonal in R");
-                }
-            }
-            if (*workspace.h_info < 0) {
-                throw std::runtime_error(std::string(stage) + ": " +
-                                         std::to_string(-*workspace.h_info) +
-                                         "-th parameter is wrong in CholQR");
-            }
-            if (*workspace.h_info > 0) {
-                throw std::runtime_error(
-                    std::string(stage) + ": CholQR failed, Gram matrix lost positive "
-                                         "definiteness at leading minor " +
-                    std::to_string(*workspace.h_info));
-            }
-        }
-    }
-
-  private:
-    W workspace;
+template <typename P, typename T>
+concept QrPolicy = requires(P p, T *&d_Q, T *&d_R, const T *d_A, const int &m, const int &n,
+                            cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                            P::Workspace &workspace, cudaStream_t &stream, const char *stage) {
+    typename P::Workspace;
+    requires QrWorkspace<typename P::Workspace>;
+    { p.orthonormalize_block(d_Q, d_R, d_A, m, n,
+                             cublasH, cusolverH, params,
+                             workspace, stream) } -> std::same_as<void>;
+    { p.check_orthonormalization_status(workspace, n, stage, stream) } -> std::same_as<void>;
 };
 
 template <SupportedType T>
-void cholesky_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream,
-                 cublasHandle_t &cublasH, CholQrWorkspace<T> &cholqr_ws,
-                 cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params, T *&d_R) {
-    CudaTimerRange rng{g_event_timer, "QR:func", stream};
+struct HouseholderQr {
+    using Workspace = HouseholderQrWorkspace<T>;
 
-    constexpr T alpha = 1;
-    constexpr T beta = 0;
-    CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
-                               cudaMemcpyDeviceToDevice, stream));
-    CUBLAS_CHECK(cublasSetPointerMode(cublasH, CUBLAS_POINTER_MODE_HOST));
+    static void orthonormalize_block(T *&d_Q, T *&d_R, const T *d_A, const int &m, const int &n,
+                                     cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                                     Workspace &workspace, cudaStream_t &stream) {
+        assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
-    if constexpr (std::is_same_v<T, float>) {
-        CudaTimerRange rng{g_event_timer, "QR:syrk", stream};
-        CUBLAS_CHECK(cublasSsyrk(cublasH, CUBLAS_FILL_MODE_UPPER,
-                                 CUBLAS_OP_T, n, m, &alpha, d_A, m, &beta,
-                                 cholqr_ws.d_gram, n));
-    } else {
-        CudaTimerRange rng{g_event_timer, "QR:syrk", stream};
-        CUBLAS_CHECK(cublasDsyrk(cublasH, CUBLAS_FILL_MODE_UPPER,
-                                 CUBLAS_OP_T, n, m, &alpha, d_A, m, &beta,
-                                 cholqr_ws.d_gram, n));
+        CudaTimerRange rng{g_event_timer, "QR:func", stream};
+
+        CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
+                                   cudaMemcpyDeviceToDevice, stream));
+
+        {
+            CudaTimerRange rng{g_event_timer, "QR:geqrf", stream};
+            CUSOLVER_CHECK(cusolverDnXgeqrf(
+                cusolverH, params, m, n, cuda_type<T>, d_Q, m, cuda_type<T>,
+                workspace.d_tau, cuda_type<T>, workspace.d_work,
+                workspace.d_lwork_geqrf, workspace.h_work,
+                workspace.h_lwork_geqrf, workspace.d_info));
+        }
+
+        {
+            CudaTimerRange rng{g_event_timer, "QR:copy_upper_triangular", stream};
+            copy_upper_triangular(d_R, d_Q, m, n, stream);
+        }
+
+        if constexpr (std::is_same_v<T, float>) {
+            CudaTimerRange rng{g_event_timer, "QR:orgqr", stream};
+            CUSOLVER_CHECK(cusolverDnSorgqr(
+                cusolverH, m, n, n, d_Q, m, workspace.d_tau,
+                reinterpret_cast<T *>(workspace.d_work),
+                workspace.d_numfloats_orgqr, workspace.d_info));
+        } else {
+            CudaTimerRange rng{g_event_timer, "QR:orgqr", stream};
+            CUSOLVER_CHECK(cusolverDnDorgqr(
+                cusolverH, m, n, n, d_Q, m, workspace.d_tau,
+                reinterpret_cast<T *>(workspace.d_work),
+                workspace.d_numfloats_orgqr, workspace.d_info));
+        }
+
+        CUDA_CHECK(cudaMemcpyAsync(workspace.h_info,
+                                   workspace.d_info, sizeof(int),
+                                   cudaMemcpyDeviceToHost, stream));
     }
 
-    {
-        CudaTimerRange rng{g_event_timer, "QR:potrf", stream};
-        CUSOLVER_CHECK(cusolverDnXpotrf(
-            cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, cuda_type<T>,
-            cholqr_ws.d_gram, n, cuda_type<T>, cholqr_ws.d_work,
-            cholqr_ws.d_work_size, cholqr_ws.h_work, cholqr_ws.h_work_size,
-            cholqr_ws.d_info));
-    }
+    static void check_orthonormalization_status(
+        Workspace &workspace, int n, const char *stage, cudaStream_t stream) {
+        CUDA_CHECK(cudaStreamSynchronize(stream));
 
-    {
-        CudaTimerRange rng{g_event_timer, "QR:copy_upper_triangular", stream};
-        copy_upper_triangular(d_R, cholqr_ws.d_gram, n, n, stream);
+        if (*workspace.h_info < 0) {
+            throw std::runtime_error(std::string(stage) + ": " +
+                                     std::to_string(-*workspace.h_info) +
+                                     "-th parameter is wrong in QR");
+        }
     }
-
-    if constexpr (std::is_same_v<T, float>) {
-        CudaTimerRange rng{g_event_timer, "QR:trsm", stream};
-        CUBLAS_CHECK(cublasStrsm_v2(
-            cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
-            CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, m, n, &alpha,
-            cholqr_ws.d_gram, n, d_Q, m));
-    } else {
-        CudaTimerRange rng{g_event_timer, "QR:trsm", stream};
-        CUBLAS_CHECK(cublasDtrsm_v2(
-            cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
-            CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, m, n, &alpha,
-            cholqr_ws.d_gram, n, d_Q, m));
-    }
-
-    CUDA_CHECK(cudaMemcpyAsync(cholqr_ws.h_info, cholqr_ws.d_info,
-                               sizeof(int), cudaMemcpyDeviceToHost,
-                               stream));
-    CUDA_CHECK(cudaMemcpyAsync(cholqr_ws.h_factor, cholqr_ws.d_gram,
-                               sizeof(T) * n * n, cudaMemcpyDeviceToHost,
-                               stream));
-    CUBLAS_CHECK(cublasSetPointerMode(cublasH, CUBLAS_POINTER_MODE_DEVICE));
-}
+};
 
 template <SupportedType T>
-void householder_qr(T *&d_Q, const T *&d_A, const int &m, const int &n, cudaStream_t &stream,
-                    cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-                    HouseholderQrWorkspace<T> &householder_ws, T *&d_R) {
-    CudaTimerRange rng{g_event_timer, "QR:func", stream};
+struct CholeskyQr {
+    using Workspace = CholeskyQrWorkspace<T>;
 
-    CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
-                               cudaMemcpyDeviceToDevice, stream));
+    static void orthonormalize_block(T *&d_Q, T *&d_R, const T *d_A, const int &m, const int &n,
+                                     cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                                     Workspace &workspace, cudaStream_t &stream) {
+        assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
-    {
-        CudaTimerRange rng{g_event_timer, "QR:geqrf", stream};
-        CUSOLVER_CHECK(cusolverDnXgeqrf(
-            cusolverH, params, m, n, cuda_type<T>, d_Q, m, cuda_type<T>,
-            householder_ws.d_tau, cuda_type<T>, householder_ws.d_work,
-            householder_ws.d_lwork_geqrf, householder_ws.h_work,
-            householder_ws.h_lwork_geqrf, householder_ws.d_info));
+        CudaTimerRange rng{g_event_timer, "QR:func", stream};
+
+        constexpr T alpha = 1;
+        constexpr T beta = 0;
+        CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
+                                   cudaMemcpyDeviceToDevice, stream));
+        CUBLAS_CHECK(cublasSetPointerMode(cublasH, CUBLAS_POINTER_MODE_HOST));
+
+        if constexpr (std::is_same_v<T, float>) {
+            CudaTimerRange rng{g_event_timer, "QR:syrk", stream};
+            CUBLAS_CHECK(cublasSsyrk(cublasH, CUBLAS_FILL_MODE_UPPER,
+                                     CUBLAS_OP_T, n, m, &alpha, d_A, m, &beta,
+                                     workspace.d_gram, n));
+        } else {
+            CudaTimerRange rng{g_event_timer, "QR:syrk", stream};
+            CUBLAS_CHECK(cublasDsyrk(cublasH, CUBLAS_FILL_MODE_UPPER,
+                                     CUBLAS_OP_T, n, m, &alpha, d_A, m, &beta,
+                                     workspace.d_gram, n));
+        }
+
+        {
+            CudaTimerRange rng{g_event_timer, "QR:potrf", stream};
+            CUSOLVER_CHECK(cusolverDnXpotrf(
+                cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, cuda_type<T>,
+                workspace.d_gram, n, cuda_type<T>, workspace.d_work,
+                workspace.d_work_size, workspace.h_work, workspace.h_work_size,
+                workspace.d_info));
+        }
+
+        {
+            CudaTimerRange rng{g_event_timer, "QR:copy_upper_triangular", stream};
+            copy_upper_triangular(d_R, workspace.d_gram, n, n, stream);
+        }
+
+        if constexpr (std::is_same_v<T, float>) {
+            CudaTimerRange rng{g_event_timer, "QR:trsm", stream};
+            CUBLAS_CHECK(cublasStrsm_v2(
+                cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, m, n, &alpha,
+                workspace.d_gram, n, d_Q, m));
+        } else {
+            CudaTimerRange rng{g_event_timer, "QR:trsm", stream};
+            CUBLAS_CHECK(cublasDtrsm_v2(
+                cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, m, n, &alpha,
+                workspace.d_gram, n, d_Q, m));
+        }
+
+        CUDA_CHECK(cudaMemcpyAsync(workspace.h_info, workspace.d_info,
+                                   sizeof(int), cudaMemcpyDeviceToHost,
+                                   stream));
+        CUDA_CHECK(cudaMemcpyAsync(workspace.h_factor, workspace.d_gram,
+                                   sizeof(T) * n * n, cudaMemcpyDeviceToHost,
+                                   stream));
+        CUBLAS_CHECK(cublasSetPointerMode(cublasH, CUBLAS_POINTER_MODE_DEVICE));
     }
 
-    {
-        CudaTimerRange rng{g_event_timer, "QR:copy_upper_triangular", stream};
-        copy_upper_triangular(d_R, d_Q, m, n, stream);
-    }
+    static void check_orthonormalization_status(
+        Workspace &workspace, int n, const char *stage, cudaStream_t stream) {
+        CUDA_CHECK(cudaStreamSynchronize(stream));
 
-    if constexpr (std::is_same_v<T, float>) {
-        CudaTimerRange rng{g_event_timer, "QR:orgqr", stream};
-        CUSOLVER_CHECK(cusolverDnSorgqr(
-            cusolverH, m, n, n, d_Q, m, householder_ws.d_tau,
-            reinterpret_cast<T *>(householder_ws.d_work),
-            householder_ws.d_numfloats_orgqr, householder_ws.d_info));
-    } else {
-        CudaTimerRange rng{g_event_timer, "QR:orgqr", stream};
-        CUSOLVER_CHECK(cusolverDnDorgqr(
-            cusolverH, m, n, n, d_Q, m, householder_ws.d_tau,
-            reinterpret_cast<T *>(householder_ws.d_work),
-            householder_ws.d_numfloats_orgqr, householder_ws.d_info));
+        for (int i = 0; i < n; ++i) {
+            if (workspace.h_factor[i + i * n] == T{0}) {
+                throw std::runtime_error(std::string(stage) +
+                                         ": CholeskyQR produced a zero diagonal in R");
+            }
+        }
+        if (*workspace.h_info < 0) {
+            throw std::runtime_error(std::string(stage) + ": " +
+                                     std::to_string(-*workspace.h_info) +
+                                     "-th parameter is wrong in CholeskyQR");
+        }
+        if (*workspace.h_info > 0) {
+            throw std::runtime_error(
+                std::string(stage) + ": CholeskyQR failed, Gram matrix lost positive "
+                                     "definiteness at leading minor " +
+                std::to_string(*workspace.h_info));
+        }
     }
-
-    CUDA_CHECK(cudaMemcpyAsync(householder_ws.h_info,
-                               householder_ws.d_info, sizeof(int),
-                               cudaMemcpyDeviceToHost, stream));
-}
+};

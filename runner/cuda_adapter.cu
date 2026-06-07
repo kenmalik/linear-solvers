@@ -140,9 +140,15 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     int iters = -1;
     try {
-        iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr,
-                                    L_mat.get(), tolerance, max_iterations,
-                                    stream, qr_backend);
+        if (qr_backend == dr_bcg::cuda::QrBackend::CholQR) {
+            iters = dr_bcg::cuda::solve<double, CholeskyQr<double>>(handles, A_mat.get(), x_descr, b_descr,
+                                                                    L_mat.get(), tolerance, max_iterations,
+                                                                    stream);
+        } else {
+            iters = dr_bcg::cuda::solve<double>(handles, A_mat.get(), x_descr, b_descr,
+                                                L_mat.get(), tolerance, max_iterations,
+                                                stream);
+        }
         CUDA_CHECK(cudaMemcpyAsync(x.data(), d_x, sizeof(double) * x.size(),
                                    cudaMemcpyDeviceToHost, stream));
         CUDA_CHECK(cudaStreamSynchronize(stream));
@@ -199,9 +205,13 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     int iters = -1;
     try {
-        iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr,
-                                    tolerance, max_iterations, stream,
-                                    qr_backend);
+        if (qr_backend == dr_bcg::cuda::QrBackend::CholQR) {
+            iters = dr_bcg::cuda::solve<double, CholeskyQr<double>>(handles, A_mat.get(), x_descr, b_descr,
+                                                                    tolerance, max_iterations, stream);
+        } else {
+            iters = dr_bcg::cuda::solve<double>(handles, A_mat.get(), x_descr, b_descr,
+                                                tolerance, max_iterations, stream);
+        }
         CUDA_CHECK(cudaMemcpyAsync(x.data(), d_x, sizeof(double) * x.size(),
                                    cudaMemcpyDeviceToHost, stream));
         CUDA_CHECK(cudaStreamSynchronize(stream));
