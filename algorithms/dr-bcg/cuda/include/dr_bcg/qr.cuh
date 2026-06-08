@@ -5,6 +5,7 @@
 #include "common/type_info.h"
 
 #include <cuda_runtime.h>
+#include <cusolverDn.h>
 
 #include <concepts>
 
@@ -169,19 +170,19 @@ concept QrPolicy = requires(P p, T *&d_Q, T *&d_R, const T *d_A, const int &m, c
                             P::Workspace &workspace, cudaStream_t &stream, const char *stage) {
     typename P::Workspace;
     requires QrWorkspace<typename P::Workspace>;
-    { p.orthonormalize_block(d_Q, d_R, d_A, m, n,
-                             cublasH, cusolverH, params,
-                             workspace, stream) } -> std::same_as<void>;
-    { p.check_orthonormalization_status(workspace, n, stage, stream) } -> std::same_as<void>;
+    { p.solve(d_Q, d_R, d_A, m, n,
+              cublasH, cusolverH, params,
+              workspace, stream) } -> std::same_as<void>;
+    { p.check(workspace, n, stage, stream) } -> std::same_as<void>;
 };
 
 template <SupportedType T>
 struct HouseholderQr {
     using Workspace = HouseholderQrWorkspace<T>;
 
-    static void orthonormalize_block(T *&d_Q, T *&d_R, const T *d_A, const int &m, const int &n,
-                                     cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-                                     Workspace &workspace, cudaStream_t &stream) {
+    static void solve(T *&d_Q, T *&d_R, const T *d_A, const int &m, const int &n,
+                      cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                      Workspace &workspace, cudaStream_t &stream) {
         assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
         CudaTimerRange rng{g_event_timer, "QR:func", stream};
@@ -222,7 +223,7 @@ struct HouseholderQr {
                                    cudaMemcpyDeviceToHost, stream));
     }
 
-    static void check_orthonormalization_status(
+    static void check(
         Workspace &workspace, int n, const char *stage, cudaStream_t stream) {
         CUDA_CHECK(cudaStreamSynchronize(stream));
 
@@ -238,9 +239,9 @@ template <SupportedType T>
 struct CholeskyQr {
     using Workspace = CholeskyQrWorkspace<T>;
 
-    static void orthonormalize_block(T *&d_Q, T *&d_R, const T *d_A, const int &m, const int &n,
-                                     cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
-                                     Workspace &workspace, cudaStream_t &stream) {
+    static void solve(T *&d_Q, T *&d_R, const T *d_A, const int &m, const int &n,
+                      cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH, cusolverDnParams_t &params,
+                      Workspace &workspace, cudaStream_t &stream) {
         assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
         CudaTimerRange rng{g_event_timer, "QR:func", stream};
@@ -300,7 +301,7 @@ struct CholeskyQr {
         CUBLAS_CHECK(cublasSetPointerMode(cublasH, CUBLAS_POINTER_MODE_DEVICE));
     }
 
-    static void check_orthonormalization_status(
+    static void check(
         Workspace &workspace, int n, const char *stage, cudaStream_t stream) {
         CUDA_CHECK(cudaStreamSynchronize(stream));
 
