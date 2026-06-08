@@ -31,7 +31,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     handles.set_stream(stream);
 
-    auto qr_ws = qr_workspace{handles.cusolver, handles.cusolver_params, n, s};
+    auto qr_ws = qr_workspace{handles.cusolver, handles.cusolver_params, static_cast<int>(n), static_cast<int>(s)};
 
     LuWorkspace<double> lu_ws;
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
@@ -336,7 +336,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     handles.set_stream(stream);
 
-    auto qr_ws = qr_workspace{handles.cusolver, handles.cusolver_params, n, s};
+    auto qr_ws = qr_workspace{handles.cusolver, handles.cusolver_params, static_cast<int>(n), static_cast<int>(s)};
 
     LuWorkspace<double> lu_ws;
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
