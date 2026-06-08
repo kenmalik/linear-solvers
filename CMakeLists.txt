@@ -46,6 +46,10 @@ if(SOLVERS_BUILD_DR_BCG)
     add_subdirectory(algorithms/dr-bcg)
 endif()
 
+if(SOLVERS_BUILD_CUDA OR SOLVERS_BUILD_MKL)
+    add_subdirectory(adapters)
+endif()
+
 if(SOLVERS_BUILD_RUNNER)
     add_subdirectory(runner)
 endif()
