@@ -1,7 +1,14 @@
+#include "config.h"
+
 #include "mkl_adapter.h"
 
-#include <cg/mkl.h>
-#include <dr_bcg/mkl.h>
+#ifdef SOLVERS_BUILD_CG
+#include "cg/mkl.h"
+#endif
+
+#ifdef SOLVERS_BUILD_DR_BCG
+#include "dr_bcg/mkl.h"
+#endif
 
 #include "common/mkl_matrices.h"
 
@@ -49,6 +56,8 @@ CSRMatrix read_mkl(const mat_utils::SpMatReader &reader) {
     return csr;
 }
 
+#ifdef SOLVERS_BUILD_CG
+
 int run_mkl_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
                std::vector<double> &x, const mat_utils::SpMatReader &L,
                double tolerance, int max_iterations) {
@@ -62,6 +71,10 @@ int run_mkl_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
 
     return cg::mkl::solve(A_csr, b, x, L_csr, tolerance, max_iterations);
 }
+
+#endif // SOLVERS_BUILD_CG
+
+#ifdef SOLVERS_BUILD_DR_BCG
 
 int run_mkl_dr_bcg(const mat_utils::SpMatReader &A,
                    const std::vector<double> &b, std::vector<double> &x,
@@ -82,3 +95,5 @@ int run_mkl_dr_bcg(const mat_utils::SpMatReader &A,
     return dr_bcg::mkl::solve(A_csr, L_csr, b_dm, x_dm, tolerance,
                               max_iterations);
 }
+
+#endif // SOLVERS_BUILD_DR_BCG
