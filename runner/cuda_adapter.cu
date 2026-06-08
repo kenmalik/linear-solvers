@@ -12,7 +12,7 @@
 #endif
 
 #ifdef SOLVERS_BUILD_DR_BCG
-#include "dr_bcg/cuda.h"
+#include "dr_bcg/cuda.cuh"
 #endif
 
 namespace {
@@ -24,11 +24,11 @@ void configure_cublas_math_mode(cublasHandle_t cublas,
     }
 }
 
-const char *qr_backend_name(dr_bcg::cuda::QrBackend qr_backend) {
+const char *qr_backend_name(QrBackend qr_backend) {
     switch (qr_backend) {
-    case dr_bcg::cuda::QrBackend::Householder:
+    case QrBackend::Householder:
         return "householder";
-    case dr_bcg::cuda::QrBackend::CholQR:
+    case QrBackend::CholQR:
         return "cholqr";
     default:
         return "unknown";
@@ -106,7 +106,7 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const mat_utils::SpMatReader &L, double tolerance,
                     int max_iterations, int block_size,
                     bool disable_tensor_cores,
-                    dr_bcg::cuda::QrBackend qr_backend) {
+                    QrBackend qr_backend) {
     auto n = A.rows();
 
     dr_bcg::cuda::Handles handles;
@@ -140,9 +140,15 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     int iters = -1;
     try {
-        iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr,
-                                    L_mat.get(), tolerance, max_iterations,
-                                    stream, qr_backend);
+        if (qr_backend == QrBackend::CholQR) {
+            iters = dr_bcg::cuda::solve<double, CholeskyQr<double>>(handles, A_mat.get(), x_descr, b_descr,
+                                                                    L_mat.get(), tolerance, max_iterations,
+                                                                    stream);
+        } else {
+            iters = dr_bcg::cuda::solve<double>(handles, A_mat.get(), x_descr, b_descr,
+                                                L_mat.get(), tolerance, max_iterations,
+                                                stream);
+        }
         CUDA_CHECK(cudaMemcpyAsync(x.data(), d_x, sizeof(double) * x.size(),
                                    cudaMemcpyDeviceToHost, stream));
         CUDA_CHECK(cudaStreamSynchronize(stream));
@@ -166,7 +172,7 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
                     double tolerance, int max_iterations, int block_size,
                     bool disable_tensor_cores,
-                    dr_bcg::cuda::QrBackend qr_backend) {
+                    QrBackend qr_backend) {
     auto n = A.rows();
 
     dr_bcg::cuda::Handles handles;
@@ -199,9 +205,13 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 
     int iters = -1;
     try {
-        iters = dr_bcg::cuda::solve(handles, A_mat.get(), x_descr, b_descr,
-                                    tolerance, max_iterations, stream,
-                                    qr_backend);
+        if (qr_backend == QrBackend::CholQR) {
+            iters = dr_bcg::cuda::solve<double, CholeskyQr<double>>(handles, A_mat.get(), x_descr, b_descr,
+                                                                    tolerance, max_iterations, stream);
+        } else {
+            iters = dr_bcg::cuda::solve<double>(handles, A_mat.get(), x_descr, b_descr,
+                                                tolerance, max_iterations, stream);
+        }
         CUDA_CHECK(cudaMemcpyAsync(x.data(), d_x, sizeof(double) * x.size(),
                                    cudaMemcpyDeviceToHost, stream));
         CUDA_CHECK(cudaStreamSynchronize(stream));

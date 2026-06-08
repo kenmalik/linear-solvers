@@ -3,12 +3,11 @@
 #include "common/cuda_checks.h"
 #include "common/type_info.h"
 
-#include "dr_bcg/cuda.h"
-
 #include <cassert>
 #include <vector>
 
 #include <cusolverDn.h>
+#include <cusparse_v2.h>
 #include <nvtx3/nvtx3.hpp>
 
 template <SupportedType T>
