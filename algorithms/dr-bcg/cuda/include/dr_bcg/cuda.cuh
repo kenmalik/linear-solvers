@@ -11,6 +11,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 #include <nvtx3/nvtx3.hpp>
 
@@ -20,6 +21,7 @@ template <SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, double tolerance, int max_iterations,
           cudaStream_t stream) {
+    static_assert(std::is_same_v<T, double>, "currently only double supported");
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
@@ -324,6 +326,7 @@ template <SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
           double tolerance, int max_iterations, cudaStream_t stream) {
+    static_assert(std::is_same_v<T, double>, "currently only double supported");
     NVTX3_FUNC_RANGE();
 
     auto [n, s] = get_size(B);
