@@ -31,7 +31,6 @@ struct DeviceBuffer {
     T *xi = nullptr;
     T *zeta = nullptr;
     T *temp = nullptr;
-    T *residual = nullptr;
     T *one = nullptr;
     T *zero = nullptr;
     T *neg_one = nullptr;
@@ -46,7 +45,6 @@ struct DeviceBuffer {
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&xi), sizeof(T) * s * s));
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&zeta), sizeof(T) * s * s));
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&temp), sizeof(T) * n * s));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&residual), sizeof(T) * n));
 
         const T h_one = 1;
         const T h_zero = 0;
@@ -72,9 +70,7 @@ struct DeviceBuffer {
             CUDA_CHECK(cudaFree(zeta));
         if (temp)
             CUDA_CHECK(cudaFree(temp));
-        if (residual)
-            CUDA_CHECK(cudaFree(residual));
-        w = sigma = s = xi = zeta = temp = residual = nullptr;
+        w = sigma = s = xi = zeta = temp = nullptr;
 
         if (one)
             CUDA_CHECK(cudaFree(one));
