@@ -1,3 +1,5 @@
+#pragma once
+
 #include "common/type_info.h"
 #include "cuda_checks.h"
 
@@ -108,6 +110,11 @@ class DeviceSparseMatrix {
             &A, ssm_A.rows(), ssm_A.cols(), ssm_A.nnz(), d_rowPtr, d_colInd,
             d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, cuda_type<T>));
     }
+
+    DeviceSparseMatrix(const DeviceSparseMatrix &) = delete;
+    DeviceSparseMatrix &operator=(const DeviceSparseMatrix &) = delete;
+    DeviceSparseMatrix(DeviceSparseMatrix &&) = delete;
+    DeviceSparseMatrix &operator=(DeviceSparseMatrix &&) = delete;
 
     ~DeviceSparseMatrix() {
         if (A) {
