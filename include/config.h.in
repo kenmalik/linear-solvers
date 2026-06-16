@@ -2,6 +2,7 @@
 
 #cmakedefine SOLVERS_BUILD_MKL
 #cmakedefine SOLVERS_BUILD_CUDA
+#cmakedefine SOLVERS_BUILD_MATHDX
 #cmakedefine SOLVERS_BUILD_CG
 #cmakedefine SOLVERS_BUILD_DR_BCG
 

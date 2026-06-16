@@ -1,10 +1,11 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.25)
 project(Solvers VERSION 0.1.0 LANGUAGES CXX CUDA)
 
 include(GNUInstallDirs)
 
 option(SOLVERS_BUILD_CUDA "Build CUDA implementations of solvers" ON)
 option(SOLVERS_BUILD_MKL "Build MKL implementations of solvers" OFF)
+option(SOLVERS_BUILD_MATHDX "Build MathDx-fused (cuBLASDx + cuSolverDx) DR-BCG variants" OFF)
 
 option(SOLVERS_BUILD_DR_BCG "Build DR-BCG implementations" ON)
 option(SOLVERS_BUILD_CG "Build CG implementations" OFF)
@@ -32,6 +33,16 @@ target_include_directories(solvers_internal INTERFACE
 if(SOLVERS_BUILD_CUDA)
     find_package(CUDAToolkit 12.0 REQUIRED)
     find_package(nvtx3 CONFIG REQUIRED)
+
+    if(SOLVERS_BUILD_MATHDX)
+        # MathDx API churn risk (FillMode defaults changed in cuSolverDx 0.2.0,
+        # TRSM conventions in 0.3.0).
+        find_package(mathdx 25.12 CONFIG REQUIRED COMPONENTS cublasdx cusolverdx)
+    endif()
+endif()
+
+if(SOLVERS_BUILD_MATHDX AND NOT SOLVERS_BUILD_CUDA)
+    message(FATAL_ERROR "SOLVERS_BUILD_MATHDX requires SOLVERS_BUILD_CUDA=ON")
 endif()
 
 if(SOLVERS_BUILD_MKL)

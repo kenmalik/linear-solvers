@@ -13,6 +13,9 @@
 
 #ifdef SOLVERS_BUILD_DR_BCG
 #include "dr_bcg/cuda.cuh"
+#ifdef SOLVERS_BUILD_MATHDX
+#include "dr_bcg/mathdx_solve.cuh"
+#endif
 #endif
 
 namespace {
@@ -30,6 +33,8 @@ const char *qr_backend_name(QrBackend qr_backend) {
         return "householder";
     case QrBackend::CholQR:
         return "cholqr";
+    case QrBackend::CholQRDx:
+        return "cholqr-dx";
     default:
         return "unknown";
     }
@@ -144,6 +149,14 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
             iters = dr_bcg::cuda::solve<double, CholeskyQr<double>>(handles, A_mat.get(), x_descr, b_descr,
                                                                     L_mat.get(), tolerance, max_iterations,
                                                                     stream);
+        } else if (qr_backend == QrBackend::CholQRDx) {
+#ifdef SOLVERS_BUILD_MATHDX
+            iters = dr_bcg::cuda::solve_cholqr_dx(handles, A_mat.get(), x_descr, b_descr,
+                                                  L_mat.get(), tolerance, max_iterations,
+                                                  stream);
+#else
+            throw std::runtime_error("QR backend 'cholqr-dx' requires building with SOLVERS_BUILD_MATHDX=ON");
+#endif
         } else {
             iters = dr_bcg::cuda::solve<double>(handles, A_mat.get(), x_descr, b_descr,
                                                 L_mat.get(), tolerance, max_iterations,
@@ -208,6 +221,13 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
         if (qr_backend == QrBackend::CholQR) {
             iters = dr_bcg::cuda::solve<double, CholeskyQr<double>>(handles, A_mat.get(), x_descr, b_descr,
                                                                     tolerance, max_iterations, stream);
+        } else if (qr_backend == QrBackend::CholQRDx) {
+#ifdef SOLVERS_BUILD_MATHDX
+            iters = dr_bcg::cuda::solve_cholqr_dx(handles, A_mat.get(), x_descr, b_descr,
+                                                  tolerance, max_iterations, stream);
+#else
+            throw std::runtime_error("QR backend 'cholqr-dx' requires building with SOLVERS_BUILD_MATHDX=ON");
+#endif
         } else {
             iters = dr_bcg::cuda::solve<double>(handles, A_mat.get(), x_descr, b_descr,
                                                 tolerance, max_iterations, stream);
