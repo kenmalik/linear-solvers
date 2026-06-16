@@ -46,7 +46,7 @@
 *.cubin
 *.fatbin
 
-build/
+build*/
 .claude/worktrees
 .cache
 
