@@ -27,6 +27,8 @@ static std::optional<QrBackend> parse_qr_backend(const std::string &s) {
         return QrBackend::Householder;
     if (s == "cholqr")
         return QrBackend::CholQR;
+    if (s == "cholqr-dx")
+        return QrBackend::CholQRDx;
     return std::nullopt;
 }
 
@@ -48,7 +50,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         ("t,tolerance", "Convergence tolerance", cxxopts::value<double>()->default_value("1e-6"))
         ("i,max-iterations", "Maximum number of iterations (default: n)", cxxopts::value<int>())
         ("s,block-size", "Block size (DR-BCG only)", cxxopts::value<int>()->default_value("1"))
-        ("qr-backend", "CUDA DR-BCG orthonormalization backend (householder, cholqr)",
+        ("qr-backend", "CUDA DR-BCG orthonormalization backend (householder, cholqr, cholqr-dx)",
          cxxopts::value<std::string>()->default_value("householder"))
         ("no-tensor-cores", "Disable tensor-core-eligible cuBLAS math for CUDA runs",
          cxxopts::value<bool>()->default_value("false")->implicit_value("true"));
@@ -112,7 +114,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         if (!qr_backend) {
             std::cerr << "Unknown QR backend: "
                       << result["qr-backend"].as<std::string>() << "\n"
-                      << "Available: householder, cholqr\n"
+                      << "Available: householder, cholqr, cholqr-dx\n"
                       << std::endl;
             std::cerr << options.help();
             return std::nullopt;

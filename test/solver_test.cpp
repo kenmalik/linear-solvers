@@ -428,6 +428,40 @@ TEST(DrBcgCuda, ConvergesOn1138Bus) {
     EXPECT_LT(iters, n) << "DR-BCG (CUDA) did not converge within " << n << " iterations";
 }
 
+#ifdef SOLVERS_BUILD_MATHDX
+
+// Validates the fused MathDx CholeskyQR2 orthonormalization policy (PLAN.md
+// Stage 2): it must converge on 1138_bus and do so comparably to the Householder
+// baseline, which is the regression proxy for QR orthogonality quality.
+TEST(DrBcgCuda, ConvergesOn1138BusCholQRDx) {
+    mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
+    mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
+
+    int n = A.rows();
+    std::vector<double> b(n * block_size, 1.0);
+
+    std::vector<double> x_dx(n * block_size, 0.0);
+    int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, tolerance, n, block_size,
+                                   false, QrBackend::CholQRDx);
+    EXPECT_GT(iters_dx, 0)
+        << "DR-BCG (CUDA, CholQR-Dx) failed before converging";
+    EXPECT_LT(iters_dx, n) << "DR-BCG (CUDA, CholQR-Dx) did not converge within "
+                           << n << " iterations";
+
+    std::vector<double> x_hh(n * block_size, 0.0);
+    int iters_hh = run_cuda_dr_bcg(A, b, x_hh, L, tolerance, n, block_size,
+                                   false, QrBackend::Householder);
+
+    // A valid QR yields essentially the same Krylov iteration count as the
+    // Householder baseline; allow a small slack for CholQR2 rounding.
+    EXPECT_NEAR(static_cast<double>(iters_dx), static_cast<double>(iters_hh),
+                0.1 * iters_hh + 2)
+        << "CholQR-Dx convergence (" << iters_dx << ") diverged from Householder ("
+        << iters_hh << ")";
+}
+
+#endif // SOLVERS_BUILD_MATHDX
+
 #endif // SOLVERS_BUILD_DR_BCG
 
 #endif // SOLVERS_BUILD_CUDA
