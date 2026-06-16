@@ -5,9 +5,11 @@
 #include <mat_utils/mat_reader.h>
 #include <mat_utils/mat_writer.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <unistd.h>
@@ -438,7 +440,18 @@ TEST(DrBcgCuda, ConvergesOn1138BusCholQRDx) {
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
 
     int n = A.rows();
-    std::vector<double> b(n * block_size, 1.0);
+
+    // Use a full-rank RHS (distinct columns). An all-ones b gives identical
+    // columns -> a rank-deficient block, which CholeskyQR cannot orthonormalize
+    // (unlike Householder). This mirrors real usage (runner/benchmark generate a
+    // random RHS).
+    std::vector<double> b(n * block_size);
+    {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::normal_distribution<double> dist(0.0, 1.0);
+        std::generate(b.begin(), b.end(), [&dist, &gen] { return dist(gen); });
+    }
 
     std::vector<double> x_dx(n * block_size, 0.0);
     int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, tolerance, n, block_size,
