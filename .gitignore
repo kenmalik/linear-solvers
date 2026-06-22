@@ -269,3 +269,7 @@ residuals_*.txt
 *.json
 
 !tasks.json
+
+# Test run matrix outputs
+*.mat
+!data/*.mat
