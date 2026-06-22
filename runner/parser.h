@@ -21,6 +21,7 @@ struct Args {
     std::optional<mat_utils::DnMatReader> x;
     std::optional<mat_utils::DnMatReader> X;
     std::string timer_out;
+    std::optional<std::string> output;
     double tolerance;
     std::optional<int> max_iterations;
     int block_size;

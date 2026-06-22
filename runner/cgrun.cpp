@@ -11,6 +11,8 @@
 #include "cuda_adapter.h"
 #endif
 
+#include <mat_utils/mat_writer.h>
+
 #include "common/cuda_event_timer.h"
 #include "common/timer.h"
 
@@ -71,23 +73,27 @@ int run_cg(const Args &args) {
 
     int max_iters = args.max_iterations.value_or(n);
 
+    int iters;
+
     switch (args.implementation) {
 #ifdef SOLVERS_BUILD_CG
 #ifdef SOLVERS_BUILD_MKL
     case Implementation::MKL: {
         if (args.L.has_value()) {
-            return run_mkl_cg(args.A, b, x, args.L.value(), args.tolerance,
-                              max_iters);
+            iters = run_mkl_cg(args.A, b, x, args.L.value(), args.tolerance,
+                               max_iters);
         } else {
             std::cerr << "Not implemented" << std::endl;
             return -1;
         }
+        break;
     }
 #endif // SOLVERS_BUILD_MKL
 #ifdef SOLVERS_BUILD_CUDA
     case Implementation::CUDA: {
-        return run_cuda_cg(args.A, b, x, args.L.value(), args.tolerance,
-                           max_iters, args.disable_tensor_cores);
+        iters = run_cuda_cg(args.A, b, x, args.L.value(), args.tolerance,
+                            max_iters, args.disable_tensor_cores);
+        break;
     }
 #endif // SOLVERS_BUILD_CUDA
 #endif // SOLVERS_BUILD_CG
@@ -96,6 +102,14 @@ int run_cg(const Args &args) {
                   << std::endl;
         return -1;
     }
+
+    if (iters >= 0 && args.output) {
+        mat_utils::MatWriter writer(*args.output);
+        writer.write_dense("X", x, n, 1);
+        writer.close();
+    }
+
+    return iters;
 }
 
 int run_dr_bcg(const Args &args) {
@@ -114,32 +128,36 @@ int run_dr_bcg(const Args &args) {
 
     int max_iters = args.max_iterations.value_or(n);
 
+    int iters;
+
     switch (args.implementation) {
 #ifdef SOLVERS_BUILD_DR_BCG
 #ifdef SOLVERS_BUILD_MKL
     case Implementation::MKL: {
         if (args.L.has_value()) {
-            return run_mkl_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
-                                  max_iters, s);
+            iters = run_mkl_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
+                                   max_iters, s);
         } else {
             std::cerr << "Not implemented" << std::endl;
             return -1;
         }
+        break;
     }
 #endif // SOLVERS_BUILD_MKL
 #ifdef SOLVERS_BUILD_CUDA
     case Implementation::CUDA: {
         if (args.L.has_value()) {
-            return run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
-                                   max_iters, args.block_size,
-                                   args.disable_tensor_cores,
-                                   args.qr_backend);
+            iters = run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
+                                    max_iters, args.block_size,
+                                    args.disable_tensor_cores,
+                                    args.qr_backend);
         } else {
-            return run_cuda_dr_bcg(args.A, b, x, args.tolerance, max_iters,
-                                   args.block_size,
-                                   args.disable_tensor_cores,
-                                   args.qr_backend);
+            iters = run_cuda_dr_bcg(args.A, b, x, args.tolerance, max_iters,
+                                    args.block_size,
+                                    args.disable_tensor_cores,
+                                    args.qr_backend);
         }
+        break;
     }
 #endif // SOLVERS_BUILD_CUDA
 #endif // SOLVERS_BUILD_DR_BCG
@@ -148,4 +166,12 @@ int run_dr_bcg(const Args &args) {
                   << std::endl;
         return -1;
     }
+
+    if (iters >= 0 && args.output) {
+        mat_utils::MatWriter writer(*args.output);
+        writer.write_dense("X", x, n, s);
+        writer.close();
+    }
+
+    return iters;
 }
