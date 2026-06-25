@@ -48,6 +48,8 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         ("X", "X matrix's .mat file containing top-level dense variable X", cxxopts::value<std::string>())
         ("timer-out", "Output file for timings CSV", cxxopts::value<std::string>()->default_value("timings.csv"))
         ("o,output", "Output .mat file for the solution X", cxxopts::value<std::string>())
+        ("output-b", "Also write the used B into the --output .mat file",
+         cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("t,tolerance", "Convergence tolerance", cxxopts::value<double>()->default_value("1e-6"))
         ("i,max-iterations", "Maximum number of iterations (default: n)", cxxopts::value<int>())
         ("s,block-size", "Block size (DR-BCG only)", cxxopts::value<int>()->default_value("1"))
@@ -148,21 +150,22 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
                 *output += ".mat";
             }
         }
+        bool output_b = result["output-b"].as<bool>();
 
         if (result.count("L")) {
             mat_utils::SpMatReader L_reader{
                 result["L"].as<std::string>(), {}, "L"};
             return Args{*algorithm, *implementation, std::move(A_reader), std::move(L_reader),
                         std::move(b_reader), std::move(B_reader), std::move(x_reader),
-                        std::move(X_reader), timer_out, std::move(output), tolerance,
-                        max_iterations, block_size, disable_tensor_cores,
+                        std::move(X_reader), timer_out, std::move(output), output_b,
+                        tolerance, max_iterations, block_size, disable_tensor_cores,
                         *qr_backend};
         }
 
         return Args{*algorithm, *implementation, std::move(A_reader), std::nullopt,
                     std::move(b_reader), std::move(B_reader), std::move(x_reader),
-                    std::move(X_reader), timer_out, std::move(output), tolerance,
-                    max_iterations, block_size, disable_tensor_cores,
+                    std::move(X_reader), timer_out, std::move(output), output_b,
+                    tolerance, max_iterations, block_size, disable_tensor_cores,
                     *qr_backend};
     } catch (const cxxopts::exceptions::exception &e) {
         std::cerr << e.what() << '\n'

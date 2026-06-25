@@ -106,6 +106,9 @@ int run_cg(const Args &args) {
     if (iters >= 0 && args.output) {
         mat_utils::MatWriter writer(*args.output);
         writer.write_dense("X", x, n, 1);
+        if (args.output_b) {
+            writer.write_dense("B", b, n, 1);
+        }
         writer.close();
     }
 
@@ -170,6 +173,9 @@ int run_dr_bcg(const Args &args) {
     if (iters >= 0 && args.output) {
         mat_utils::MatWriter writer(*args.output);
         writer.write_dense("X", x, n, s);
+        if (args.output_b) {
+            writer.write_dense("B", b, n, s);
+        }
         writer.close();
     }
 
