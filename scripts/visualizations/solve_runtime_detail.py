@@ -5,7 +5,7 @@ from itertools import product
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from parser_types import default_labeled_source, path_name_pair
+from parser_types import default_labeled_source, directory_name_pair
 from benchmark_file import read_file, process_dr_bcg_dirs, MS_PER_SEC
 
 
@@ -13,7 +13,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--output", type=Path)
     parser.add_argument("--cg", type=Path)
-    parser.add_argument("sources", type=path_name_pair, nargs="+")
+    parser.add_argument("sources", type=directory_name_pair, nargs="+")
     args = parser.parse_args()
 
     sources = default_labeled_source(args.sources)

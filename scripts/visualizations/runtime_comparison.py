@@ -12,7 +12,7 @@ from benchmark_file import (
     MS_PER_SEC,
 )
 from parser_types import (
-    path_name_pair,
+    directory_name_pair,
     existing_file,
     existing_parent,
     default_labeled_source,
@@ -31,7 +31,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "sources",
-        type=path_name_pair,
+        type=directory_name_pair,
         nargs="+",
         help="Directories containing DR-BCG timing outputs by block size",
     )
