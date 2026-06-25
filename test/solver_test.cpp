@@ -430,9 +430,6 @@ TEST(DrBcgCuda, ConvergesOn1138Bus) {
     EXPECT_LT(iters, n) << "DR-BCG (CUDA) did not converge within " << n << " iterations";
 }
 
-// Validates the CholeskyQR2 orthonormalization policy. The variant must do the following:
-// 1. Converge on 1138_bus
-// 2. Do so comparably to the Householder baseline
 TEST(DrBcgCuda, ConvergesOn1138BusCholQR) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
@@ -473,16 +470,14 @@ TEST(DrBcgCuda, ConvergesOn1138BusCholQR) {
 
 #ifdef SOLVERS_BUILD_MATHDX
 
+// TODO: Update other test fixtures to use normally-distributed b.
+
 TEST(DrBcgCuda, ConvergesOn1138BusCholQRDx) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
 
     int n = A.rows();
 
-    // Use a full-rank RHS (distinct columns). An all-ones b gives identical
-    // columns -> a rank-deficient block, which CholeskyQR cannot orthonormalize
-    // (unlike Householder). This mirrors real usage (runner/benchmark generate a
-    // random RHS).
     std::vector<double> b(n * block_size);
     {
         std::random_device rd;
@@ -508,6 +503,45 @@ TEST(DrBcgCuda, ConvergesOn1138BusCholQRDx) {
     EXPECT_NEAR(static_cast<double>(iters_dx), static_cast<double>(iters_hh),
                 0.1 * iters_hh + 2)
         << "CholQR-Dx convergence (" << iters_dx << ") diverged from Householder ("
+        << iters_hh << ")";
+}
+
+// Validates the fully fused MathDx variant (PLAN.md Stage 3): fused CholeskyQR2
+// plus the fused reduced-system xi chain (factor-once-apply-twice, AS kept once,
+// device-side G^-1). It must converge on 1138_bus and do so comparably to the
+// Householder baseline, which proves the restructured xi chain reproduces the
+// Krylov trajectory.
+TEST(DrBcgCuda, ConvergesOn1138BusFusedDx) {
+    mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
+    mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
+
+    int n = A.rows();
+
+    std::vector<double> b(n * block_size);
+    {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::normal_distribution<double> dist(0.0, 1.0);
+        std::generate(b.begin(), b.end(), [&dist, &gen] { return dist(gen); });
+    }
+
+    std::vector<double> x_dx(n * block_size, 0.0);
+    int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, tolerance, n, block_size,
+                                   false, QrBackend::FusedDx);
+    EXPECT_GT(iters_dx, 0)
+        << "DR-BCG (CUDA, Fused-Dx) failed before converging";
+    EXPECT_LT(iters_dx, n) << "DR-BCG (CUDA, Fused-Dx) did not converge within "
+                           << n << " iterations";
+
+    std::vector<double> x_hh(n * block_size, 0.0);
+    int iters_hh = run_cuda_dr_bcg(A, b, x_hh, L, tolerance, n, block_size,
+                                   false, QrBackend::Householder);
+
+    // A valid fused pipeline yields essentially the same Krylov iteration count
+    // as the Householder baseline; allow a small slack for CholQR2 rounding.
+    EXPECT_NEAR(static_cast<double>(iters_dx), static_cast<double>(iters_hh),
+                0.1 * iters_hh + 2)
+        << "Fused-Dx convergence (" << iters_dx << ") diverged from Householder ("
         << iters_hh << ")";
 }
 
