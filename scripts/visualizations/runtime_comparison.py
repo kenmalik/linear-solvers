@@ -1,4 +1,4 @@
-from benchmark_file import read_dir, process_dr_bcg
+from benchmark_file import read_dir, process_dr_bcg, read_file
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -17,14 +17,20 @@ class Args(argparse.Namespace):
     sources: list[NamedSource]
     output: Path | None
     title: str
+    cg: Path | None
 
 
 def existing_parent(arg: str) -> Path:
     p = Path(arg)
-
     if not p.parent.exists():
         raise argparse.ArgumentTypeError(f"parent directory does not exist: {arg}")
+    return p
 
+
+def existing_file(arg: str) -> Path:
+    p = Path(arg)
+    if not p.exists():
+        raise argparse.ArgumentTypeError(f"file not found: {arg}")
     return p
 
 
@@ -33,9 +39,7 @@ def path_name_pair(arg: str) -> NamedSource:
     if len(vals) > 2:
         raise argparse.ArgumentTypeError(f"too many segments in path-name pair: {arg}")
 
-    p = Path(vals[0])
-    if not p.exists():
-        raise argparse.ArgumentTypeError(f"file not found: {arg}")
+    p = existing_file(vals[0])
 
     if not p.is_dir():
         raise argparse.ArgumentTypeError(f"file is not a directory: {arg}")
@@ -62,7 +66,12 @@ def main():
         help="Output file for plot",
     )
     parser.add_argument("-t", "--title", help="Title of plot")
+    parser.add_argument(
+        "--cg", type=existing_file, help="CG timing output for comparison"
+    )
     args = parser.parse_args(namespace=Args())
+
+    cg_times = read_file(args.cg).set_index("Range") if args.cg else None
 
     skipped: list[Path] = []
 
@@ -80,7 +89,7 @@ def main():
 
         data[label] = process_dr_bcg(read_dir(source), ranges=("solve", "iteration"))
 
-    plot(data, args.output, args.title)
+    plot(data, cg_times, args.output, args.title)
 
     if skipped:
         print("skipped sources:", file=sys.stderr)
@@ -88,7 +97,12 @@ def main():
         print(source, file=sys.stderr)
 
 
-def plot(data: LabeledData, output: Path | None, title: str | None):
+def plot(
+    data: LabeledData,
+    cg_times: pd.DataFrame | None,
+    output: Path | None,
+    title: str | None,
+):
     x_labels = [str(idx) for idx in next(iter(data.values())).index]
 
     solve_times = {label: df["solve"] / MS_PER_SEC for label, df in data.items()}
@@ -100,6 +114,26 @@ def plot(data: LabeledData, output: Path | None, title: str | None):
     ax[0].grouped_bar(solve_times, tick_labels=x_labels, group_spacing=1)  # type: ignore
     ax[1].grouped_bar(iter_times, tick_labels=x_labels, group_spacing=1)  # type: ignore
     ax[2].grouped_bar(iterations, tick_labels=x_labels, group_spacing=1)  # type: ignore
+
+    if cg_times is not None:
+        ax[0].axhline(
+            y=cg_times.loc["solve"]["Avg (ms)"] / MS_PER_SEC,
+            color="mediumseagreen",
+            linestyle="--",
+            lw=1,
+        )
+        ax[1].axhline(
+            y=cg_times.loc["iteration"]["Avg (ms)"],
+            color="mediumseagreen",
+            linestyle="--",
+            lw=1,
+        )
+        ax[2].axhline(
+            y=cg_times.loc["iteration"]["Instances"],
+            color="mediumseagreen",
+            linestyle="--",
+            lw=1,
+        )
 
     ax[-1].set_xlabel("Block Size")
 
