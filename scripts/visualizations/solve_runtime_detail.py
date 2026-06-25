@@ -37,21 +37,30 @@ def plot(
     _, ax = plt.subplots(figsize=(11, 8.5))
 
     group_spacing = 1
-    # bar_width is derived from ax.grouped_bar's implementation (hard-coding
-    # defaulted values and replacing num_datasets); it is defined like so:
-    #
-    #   bar_width = (group_distance /
-    #                (num_datasets + (num_datasets - 1) * bar_spacing + group_spacing))
-    #
-    bar_width = 1 / (len(solve_times) + group_spacing)
     if cg_data is not None:
-        cg_index = -1
-        ax.bar(
-            cg_index,
-            cg_data.loc["solve"]["Avg (ms)"] / MS_PER_SEC,
-            bar_width,
+        cg_runtime = cg_data.loc["solve"]["Avg (ms)"] / MS_PER_SEC
+        cg_iters = cg_data.loc["iteration"]["Instances"]
+        ax.axhline(
+            cg_runtime,
+            color="darkslategrey",
             label="CG",
-            align="edge",
+            linestyle="--",
+        )
+        ax.text(
+            x=1.01,
+            y=cg_runtime,
+            s=f"{cg_runtime:.3f} s",
+            va="bottom",
+            ha="left",
+            transform=ax.get_yaxis_transform(),
+        )
+        ax.text(
+            x=1.01,
+            y=cg_runtime,
+            s=f"({cg_iters} iters)",
+            va="top",
+            ha="left",
+            transform=ax.get_yaxis_transform(),
         )
 
     bar_groups = ax.grouped_bar(
@@ -60,6 +69,8 @@ def plot(
         group_spacing=group_spacing,
     )
 
+    ax.set_axisbelow(True)
+    ax.grid(axis="y", alpha=0.5)
     ax.set_xticks([])
     ax.set_ylabel("Avg (s)")
     ax.set_title("Solve Runtime by Block Size")
@@ -78,13 +89,19 @@ def plot(
         cell_text.append(iters)
 
     # Position table
-    first_bar_xy = bar_groups.bar_containers[0][0].get_xy()  # type: ignore
-    x, _ = ax.transLimits.transform(first_bar_xy)
+    first_bar = bar_groups.bar_containers[0][0]  # type: ignore
+    x, _ = ax.transLimits.transform(first_bar.get_xy())
 
     x_min, x_max = ax.get_xlim()
-    bar_width_normalized = bar_width / (x_max - x_min)
+    bar_width_normalized = first_bar.get_width() / (x_max - x_min)
 
-    table_bbox = [x - bar_width_normalized / 2, -0.3, 1 - x, 0.3]
+    table_height = 0.3
+    table_bbox = [
+        x - bar_width_normalized / 2,
+        -table_height,
+        1 - x,
+        table_height,
+    ]
     table = ax.table(
         cellText=cell_text,
         rowLabels=row_labels,
@@ -93,7 +110,12 @@ def plot(
         cellLoc="center",
         bbox=table_bbox,  # type: ignore
     )
-    for (_, col), cell in table.get_celld().items():
+    for (row, col), cell in table.get_celld().items():
+        cell.set_linewidth(0.8)
+        if row == 0:
+            cell.set_facecolor("darkgrey")
+        if row > 0 and row % 2 != 0 and col >= 0:
+            cell.set_facecolor("gainsboro")
         if col == -1:
             cell.set_linewidth(0)
             cell.set_text_props(ha="right", weight="bold")
