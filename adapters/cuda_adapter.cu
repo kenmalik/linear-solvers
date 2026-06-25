@@ -35,6 +35,8 @@ const char *qr_backend_name(QrBackend qr_backend) {
         return "cholqr";
     case QrBackend::CholQRDx:
         return "cholqr-dx";
+    case QrBackend::FusedDx:
+        return "fused-dx";
     default:
         return "unknown";
     }
@@ -157,6 +159,14 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
 #else
             throw std::runtime_error("QR backend 'cholqr-dx' requires building with SOLVERS_BUILD_MATHDX=ON");
 #endif
+        } else if (qr_backend == QrBackend::FusedDx) {
+#ifdef SOLVERS_BUILD_MATHDX
+            iters = dr_bcg::cuda::solve_fused_dx(handles, A_mat.get(), x_descr, b_descr,
+                                                 L_mat.get(), tolerance, max_iterations,
+                                                 stream);
+#else
+            throw std::runtime_error("QR backend 'fused-dx' requires building with SOLVERS_BUILD_MATHDX=ON");
+#endif
         } else {
             iters = dr_bcg::cuda::solve<double>(handles, A_mat.get(), x_descr, b_descr,
                                                 L_mat.get(), tolerance, max_iterations,
@@ -227,6 +237,13 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                                                   tolerance, max_iterations, stream);
 #else
             throw std::runtime_error("QR backend 'cholqr-dx' requires building with SOLVERS_BUILD_MATHDX=ON");
+#endif
+        } else if (qr_backend == QrBackend::FusedDx) {
+#ifdef SOLVERS_BUILD_MATHDX
+            iters = dr_bcg::cuda::solve_fused_dx(handles, A_mat.get(), x_descr, b_descr,
+                                                 tolerance, max_iterations, stream);
+#else
+            throw std::runtime_error("QR backend 'fused-dx' requires building with SOLVERS_BUILD_MATHDX=ON");
 #endif
         } else {
             iters = dr_bcg::cuda::solve<double>(handles, A_mat.get(), x_descr, b_descr,
