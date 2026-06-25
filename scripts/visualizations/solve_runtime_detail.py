@@ -69,11 +69,13 @@ def plot(
         group_spacing=group_spacing,
     )
 
-    ax.set_axisbelow(True)
+    ax.set(
+        title="Solve Runtime by Block Size",
+        ylabel="Avg (s)",
+        xticks=[],
+        axisbelow=True,
+    )
     ax.grid(axis="y", alpha=0.5)
-    ax.set_xticks([])
-    ax.set_ylabel("Avg (s)")
-    ax.set_title("Solve Runtime by Block Size")
     ax.legend()
 
     # Populate table
@@ -90,16 +92,23 @@ def plot(
 
     # Position table
     first_bar = bar_groups.bar_containers[0][0]  # type: ignore
-    x, _ = ax.transLimits.transform(first_bar.get_xy())
+    x0 = first_bar.get_x()
+    x1 = x0 + first_bar.get_width()
 
-    x_min, x_max = ax.get_xlim()
-    bar_width_normalized = first_bar.get_width() / (x_max - x_min)
+    # Compose: data -> display -> axes
+    trans = ax.transData + ax.transAxes.inverted()
+
+    x0_axes, _ = trans.transform((x0, 0))
+    x1_axes, _ = trans.transform((x1, 0))
+
+    bar_width_axes = x1_axes - x0_axes
+    xmargin_axes = x0_axes
 
     table_height = 0.3
     table_bbox = [
-        x - bar_width_normalized / 2,
+        x0_axes - bar_width_axes / 2,
         -table_height,
-        1 - x,
+        1 - 2 * xmargin_axes + bar_width_axes,
         table_height,
     ]
     table = ax.table(
@@ -110,6 +119,8 @@ def plot(
         cellLoc="center",
         bbox=table_bbox,  # type: ignore
     )
+
+    # Style table
     for (row, col), cell in table.get_celld().items():
         cell.set_linewidth(0.8)
         if row == 0:
