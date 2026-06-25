@@ -19,11 +19,11 @@ def main() -> None:
         s.stem: process_dr_bcg(read_dir(s), ranges=("solve",)) for s in args.sources
     }
     cg_data = read_file(args.cg) if args.cg else None
-    plot(data, cg_data, args.output if args.output else "solve_runtimes.png")
+    plot(data, cg_data, args.output)
 
 
 def plot(
-    data: dict[str, pd.DataFrame], cg_data: pd.DataFrame | None, output: str
+    data: dict[str, pd.DataFrame], cg_data: pd.DataFrame | None, output: str | None
 ) -> None:
     assert data
     variants = list(data.keys())
@@ -97,14 +97,18 @@ def plot(
         cellLoc="center",
     )
     table.scale(1, 1.5)
-    for (row, col), cell in table.get_celld().items():
+    for (_, col), cell in table.get_celld().items():
         if col == -1:
             cell.set_linewidth(0)
             cell.get_text().set_ha("right")  # type: ignore
 
     plt.subplots_adjust(bottom=0.05 * (2 * len(variants) + 1))
-    plt.savefig(output)
-    print(output)
+
+    if output:
+        plt.savefig(output)
+        print(output)
+    else:
+        plt.show()
 
 
 if __name__ == "__main__":
