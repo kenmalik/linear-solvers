@@ -1,54 +1,32 @@
-from benchmark_file import read_dir, process_dr_bcg, read_file
-
-import pandas as pd
-import matplotlib.pyplot as plt
-
 from pathlib import Path
 import sys
 import argparse
 
-type NamedSource = tuple[Path, str | None]
-type LabeledData = dict[str, pd.DataFrame]
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from benchmark_file import (
+    process_dr_bcg_dirs,
+    read_file,
+    has_duplicate_names,
+)
+from parser_types import (
+    path_name_pair,
+    existing_file,
+    existing_parent,
+    default_labeled_source,
+    LabeledSource,
+)
+
 
 MS_PER_SEC: int = 1_000
 
 
 class Args(argparse.Namespace):
-    sources: list[NamedSource]
+    sources: list[LabeledSource]
     output: Path | None
     title: str
     cg: Path | None
-
-
-def existing_parent(arg: str) -> Path:
-    p = Path(arg)
-    if not p.parent.exists():
-        raise argparse.ArgumentTypeError(f"parent directory does not exist: {arg}")
-    return p
-
-
-def existing_file(arg: str) -> Path:
-    p = Path(arg)
-    if not p.exists():
-        raise argparse.ArgumentTypeError(f"file not found: {arg}")
-    return p
-
-
-def path_name_pair(arg: str) -> NamedSource:
-    vals = arg.split("=")
-    if len(vals) > 2:
-        raise argparse.ArgumentTypeError(f"too many segments in path-name pair: {arg}")
-
-    p = existing_file(vals[0])
-
-    if not p.is_dir():
-        raise argparse.ArgumentTypeError(f"file is not a directory: {arg}")
-
-    if len(vals) == 1:
-        return (p, None)
-
-    label = vals[1].replace("_", " ").capitalize()
-    return (p, label)
 
 
 def main():
@@ -73,32 +51,24 @@ def main():
 
     cg_times = read_file(args.cg).set_index("Range") if args.cg else None
 
-    skipped: list[Path] = []
+    if has_duplicate_names(args.sources):
+        print(
+            "error: duplicate label",
+            file=sys.stderr,
+        )
+        exit(-1)
 
-    data: dict[str, pd.DataFrame] = {}
-    for source, label in args.sources:
-        label = label if label else source.stem
-
-        if label in data:
-            print(
-                f"error when processing {source}: duplicate label {label}. skipping",
-                file=sys.stderr,
-            )
-            skipped.append(source)
-            continue
-
-        data[label] = process_dr_bcg(read_dir(source), ranges=("solve", "iteration"))
+    sources = default_labeled_source(args.sources)
+    data = {
+        label: data
+        for label, data in process_dr_bcg_dirs(sources, ranges=("solve", "iteration"))
+    }
 
     plot(data, cg_times, args.output, args.title)
 
-    if skipped:
-        print("skipped sources:", file=sys.stderr)
-    for source in skipped:
-        print(source, file=sys.stderr)
-
 
 def plot(
-    data: LabeledData,
+    data: dict[str, pd.DataFrame],
     cg_times: pd.DataFrame | None,
     output: Path | None,
     title: str | None,

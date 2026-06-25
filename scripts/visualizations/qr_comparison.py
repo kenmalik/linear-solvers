@@ -5,7 +5,7 @@ from sys import exit
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from benchmark_file import read_dir, read_file, process_dr_bcg
+from benchmark_file import read_dir, read_file, range_runtimes_by_block_size
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
 
     sources = {s.stem: s for s in args.sources}
     dr_bcg_data = {
-        algorithm: process_dr_bcg(
+        algorithm: range_runtimes_by_block_size(
             read_dir(bm_data),
             ranges=("solve", "iteration", "[w sigma] = QR(temp)", "[w zeta] = QR(w)"),
         )

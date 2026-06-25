@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from benchmark_file import read_dir, read_file, process_dr_bcg
+from benchmark_file import read_dir, read_file, range_runtimes_by_block_size
 
 
 def main() -> None:
@@ -16,7 +16,8 @@ def main() -> None:
 
     # Use directory name as name of "variant" that is being plotted
     data = {
-        s.stem: process_dr_bcg(read_dir(s), ranges=("solve",)) for s in args.sources
+        s.stem: range_runtimes_by_block_size(read_dir(s), ranges=("solve",))
+        for s in args.sources
     }
     cg_data = read_file(args.cg) if args.cg else None
     plot(data, cg_data, args.output)
