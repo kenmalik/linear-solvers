@@ -10,6 +10,7 @@ from parser_types import LabeledSource, LabeledData
 # timings_<implementation>_<algorithm>_s<block_size>.csv
 # _s<block_size> is optional
 FILE_PATTERN = re.compile(r"timings_(\w+)_([a-z-]+)(?:_s(\d+))?\.csv")
+MS_PER_SEC = 1000
 
 
 def read_file(file: Path) -> pd.DataFrame:

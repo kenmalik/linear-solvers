@@ -4,6 +4,7 @@ from collections.abc import Iterable, Iterator
 
 from pandas import DataFrame
 
+
 type OptionallyLabeledSource = tuple[Path, str | None]
 type LabeledSource = tuple[Path, str]
 type LabeledData = tuple[str, DataFrame]

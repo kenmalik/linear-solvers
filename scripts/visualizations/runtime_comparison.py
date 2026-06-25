@@ -9,6 +9,7 @@ from benchmark_file import (
     process_dr_bcg_dirs,
     read_file,
     has_duplicate_names,
+    MS_PER_SEC,
 )
 from parser_types import (
     path_name_pair,
@@ -17,9 +18,6 @@ from parser_types import (
     default_labeled_source,
     LabeledSource,
 )
-
-
-MS_PER_SEC: int = 1_000
 
 
 class Args(argparse.Namespace):

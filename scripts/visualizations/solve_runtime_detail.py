@@ -1,110 +1,104 @@
 import argparse
 from pathlib import Path
+from itertools import product
 
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from benchmark_file import read_dir, read_file, range_runtimes_by_block_size
+from parser_types import default_labeled_source, path_name_pair
+from benchmark_file import read_file, process_dr_bcg_dirs, MS_PER_SEC
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--output", type=Path)
     parser.add_argument("--cg", type=Path)
-    parser.add_argument("sources", type=Path, nargs="+")
+    parser.add_argument("sources", type=path_name_pair, nargs="+")
     args = parser.parse_args()
 
-    # Use directory name as name of "variant" that is being plotted
+    sources = default_labeled_source(args.sources)
     data = {
-        s.stem: range_runtimes_by_block_size(read_dir(s), ranges=("solve",))
-        for s in args.sources
+        label: data for label, data in process_dr_bcg_dirs(sources, ranges=("solve",))
     }
-    cg_data = read_file(args.cg) if args.cg else None
+
+    cg_data = read_file(args.cg).set_index("Range") if args.cg else None
+
     plot(data, cg_data, args.output)
 
 
 def plot(
     data: dict[str, pd.DataFrame], cg_data: pd.DataFrame | None, output: str | None
 ) -> None:
-    assert data
-    variants = list(data.keys())
+    x_labels = [str(idx) for idx in next(iter(data.values())).index]
 
-    block_sizes = sorted({int(bs) for df in data.values() for bs in df.index.tolist()})
-    x = list(range(len(block_sizes)))
-    width = 0.35
-
-    offsets = {
-        name: (index - (len(variants) - 1) / 2) * width
-        for index, name in enumerate(variants)
-    }
+    solve_times = {label: df["solve"] / MS_PER_SEC for label, df in data.items()}
+    solve_iters = {label: df["iterations"] for label, df in data.items()}
 
     _, ax = plt.subplots(figsize=(11, 8.5))
-    ax.set_box_aspect(1 / 1.5)
 
-    for name in variants:
-        df = data[name]
-        heights = [df.loc[bs, "solve"] if bs in df.index else 0 for bs in block_sizes]
-        ax.bar([v + offsets[name] for v in x], heights, width, label=name)  # type: ignore
-
-    col_labels: list[str]
-    cg_ms: float | None = None
-    cg_iters: int | None = None
-
+    group_spacing = 1
+    # bar_width is derived from ax.grouped_bar's implementation (hard-coding
+    # defaulted values and replacing num_datasets); it is defined like so:
+    #
+    #   bar_width = (group_distance /
+    #                (num_datasets + (num_datasets - 1) * bar_spacing + group_spacing))
+    #
+    bar_width = 1 / (len(solve_times) + group_spacing)
     if cg_data is not None:
-        cg_x = -1
+        cg_index = -1
         ax.bar(
-            cg_x,
-            cg_data.loc[cg_data["Range"] == "solve", "Avg (ms)"].iloc[0],
-            width,
+            cg_index,
+            cg_data.loc["solve"]["Avg (ms)"] / MS_PER_SEC,
+            bar_width,
             label="CG",
+            align="edge",
         )
-        cg_ms = float(cg_data.loc[cg_data["Range"] == "solve", "Avg (ms)"].iloc[0])
-        cg_iters = int(
-            cg_data.loc[cg_data["Range"] == "iteration", "Instances"].iloc[0]
-        )
-        col_labels = ["CG"] + [str(bs) for bs in block_sizes]
-    else:
-        col_labels = [str(bs) for bs in block_sizes]
+
+    bar_groups = ax.grouped_bar(
+        solve_times,  # type: ignore
+        tick_labels=x_labels,
+        group_spacing=group_spacing,
+    )
 
     ax.set_xticks([])
-    ax.set_ylabel("Avg (ms)")
+    ax.set_ylabel("Avg (s)")
     ax.set_title("Solve Runtime by Block Size")
     ax.legend()
 
-    row_labels: list[str] = []
+    # Populate table
+    row_labels = [
+        f"{label} ({metric})"
+        for label, metric in product(solve_times.keys(), ("s", "iters"))
+    ]
     cell_text: list[list[str]] = []
-    for name in variants:
-        df = data[name]
-        ms_row: list[str] = []
-        iters_row: list[str] = []
-        if cg_ms is not None and cg_iters is not None:
-            ms_row.append(str(int(round(cg_ms))))
-            iters_row.append(str(cg_iters))
-        for bs in block_sizes:
-            ms_row.append(
-                str(int(round(df.loc[bs, "solve"]))) if bs in df.index else ""  # type: ignore
-            )
-            iters_row.append(
-                str(int(round(df.loc[bs, "iterations"]))) if bs in df.index else ""  # type: ignore
-            )
-        row_labels += [f"{name} (ms)", f"{name} (iters)"]
-        cell_text += [ms_row, iters_row]
+    for label in solve_times:
+        times = ["%.3f" % x for x in solve_times[label]]
+        iters = [str(x) for x in solve_iters[label]]
+        cell_text.append(times)
+        cell_text.append(iters)
 
+    # Position table
+    first_bar_xy = bar_groups.bar_containers[0][0].get_xy()  # type: ignore
+    x, _ = ax.transLimits.transform(first_bar_xy)
+
+    x_min, x_max = ax.get_xlim()
+    bar_width_normalized = bar_width / (x_max - x_min)
+
+    table_bbox = [x - bar_width_normalized / 2, -0.3, 1 - x, 0.3]
     table = ax.table(
         cellText=cell_text,
         rowLabels=row_labels,
-        colLabels=col_labels,
+        colLabels=x_labels,
         loc="bottom",
         cellLoc="center",
+        bbox=table_bbox,  # type: ignore
     )
-    table.scale(1, 1.5)
     for (_, col), cell in table.get_celld().items():
         if col == -1:
             cell.set_linewidth(0)
-            cell.get_text().set_ha("right")  # type: ignore
+            cell.set_text_props(ha="right", weight="bold")
 
-    plt.subplots_adjust(bottom=0.05 * (2 * len(variants) + 1))
-
+    plt.tight_layout()
     if output:
         plt.savefig(output)
         print(output)
