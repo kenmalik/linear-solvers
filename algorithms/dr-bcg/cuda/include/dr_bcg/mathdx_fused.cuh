@@ -14,7 +14,7 @@
 //     (xi.check) and the QR (qr.check); there is no LU workspace.
 //
 // Everything else (DeviceBuffer, Handles, SpsmCache, sptri_solve, the s/sigma
-// updates, the ||sigma(:,1)|| convergence test, and all instrumentation) is
+// updates, the ||sigma_1|| convergence test, and all instrumentation) is
 // reused verbatim from the host-API path. Compiles only when
 // SOLVERS_BUILD_MATHDX is defined.
 
@@ -235,8 +235,8 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
         }
 
         {
-            nvtx3::scoped_range sigma_norm_range{"||sigma(:,1)||"};
-            CudaTimerRange er(g_event_timer, "||sigma(:,1)||", stream);
+            nvtx3::scoped_range sigma_norm_range{"||sigma_1||"};
+            CudaTimerRange er(g_event_timer, "||sigma_1||", stream);
 
             CUBLAS_CHECK(
                 cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
@@ -497,8 +497,8 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
         }
 
         {
-            nvtx3::scoped_range sigma_norm_range{"||sigma(:,1)||"};
-            CudaTimerRange er(g_event_timer, "||sigma(:,1)||", stream);
+            nvtx3::scoped_range sigma_norm_range{"||sigma_1||"};
+            CudaTimerRange er(g_event_timer, "||sigma_1||", stream);
 
             CUBLAS_CHECK(
                 cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
