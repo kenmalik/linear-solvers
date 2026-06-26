@@ -221,8 +221,8 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
         }
 
         {
-            nvtx3::scoped_range sigma_norm_range{"||sigma(:,1)||"};
-            CudaTimerRange er(g_event_timer, "||sigma(:,1)||", stream);
+            nvtx3::scoped_range sigma_norm_range{"||sigma_1||"};
+            CudaTimerRange er(g_event_timer, "||sigma_1||", stream);
 
             CUBLAS_CHECK(
                 cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
@@ -483,8 +483,8 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
         }
 
         {
-            nvtx3::scoped_range sigma_norm_range{"||sigma(:,1)||"};
-            CudaTimerRange er(g_event_timer, "||sigma(:,1)||", stream);
+            nvtx3::scoped_range sigma_norm_range{"||sigma_1||"};
+            CudaTimerRange er(g_event_timer, "||sigma_1||", stream);
 
             CUBLAS_CHECK(
                 cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
