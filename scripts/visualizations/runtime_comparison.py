@@ -77,40 +77,47 @@ def plot(
     iter_times = {label: df["iteration"] for label, df in data.items()}
     iterations = {label: df["iterations"] for label, df in data.items()}
 
-    fig, ax = plt.subplots(3, figsize=(8, 6))
+    fig, axs = plt.subplots(3, figsize=(8, 6))
 
-    ax[0].grouped_bar(solve_times, tick_labels=x_labels, group_spacing=1)  # type: ignore
-    ax[1].grouped_bar(iter_times, tick_labels=x_labels, group_spacing=1)  # type: ignore
-    ax[2].grouped_bar(iterations, tick_labels=x_labels, group_spacing=1)  # type: ignore
+    axs[0].grouped_bar(solve_times, tick_labels=x_labels, group_spacing=1)  # type: ignore
+    axs[1].grouped_bar(iter_times, tick_labels=x_labels, group_spacing=1)  # type: ignore
+    axs[2].grouped_bar(iterations, tick_labels=x_labels, group_spacing=1)  # type: ignore
 
     if cg_times is not None:
-        ax[0].axhline(
+        cg_color = "darkslategrey"
+        axs[0].axhline(
             y=cg_times.loc["solve"]["Avg (ms)"] / MS_PER_SEC,
-            color="mediumseagreen",
+            color=cg_color,
             linestyle="--",
             lw=1,
+            label="CG",
         )
-        ax[1].axhline(
+        axs[1].axhline(
             y=cg_times.loc["iteration"]["Avg (ms)"],
-            color="mediumseagreen",
+            color=cg_color,
             linestyle="--",
             lw=1,
         )
-        ax[2].axhline(
+        axs[2].axhline(
             y=cg_times.loc["iteration"]["Instances"],
-            color="mediumseagreen",
+            color=cg_color,
             linestyle="--",
             lw=1,
         )
 
-    ax[-1].set_xlabel("Block Size")
+    axs[-1].set_xlabel("Block Size")
 
-    ax[0].set_ylabel("Total (s)")
-    ax[1].set_ylabel("Iteration (ms)")
-    ax[2].set_ylabel("# Iterations")
+    axs[0].set_ylabel("Total (s)")
+    axs[1].set_ylabel("Iteration (ms)")
+    axs[2].set_ylabel("# Iterations")
 
-    handles, labels = ax[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="lower center", ncols=len(data))
+    for ax in axs:
+        ax.set_axisbelow(True)
+        ax.grid(axis="y", alpha=0.5)
+
+    handles, labels = axs[0].get_legend_handles_labels()
+    legend_cols = len(data) + 1 if cg_times is not None else len(data)
+    fig.legend(handles, labels, loc="lower center", ncols=legend_cols)
 
     fig.suptitle(title if title else "DR-BCG Runtime Comparison")
 
