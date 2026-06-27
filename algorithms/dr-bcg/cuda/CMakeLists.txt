@@ -35,7 +35,6 @@ if(SOLVERS_BUILD_MATHDX)
     add_library(dr_bcg::cuda_mathdx ALIAS cuda_dr_bcg_mathdx)
 
     target_compile_features(cuda_dr_bcg_mathdx PRIVATE cxx_std_20 cuda_std_20)
-    target_compile_definitions(cuda_dr_bcg_mathdx PRIVATE SOLVERS_BUILD_MATHDX)
     target_include_directories(cuda_dr_bcg_mathdx PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
     target_link_libraries(cuda_dr_bcg_mathdx
