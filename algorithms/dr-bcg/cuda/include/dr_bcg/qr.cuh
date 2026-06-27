@@ -215,16 +215,22 @@ class CholeskyQr {
                                    cudaMemcpyDeviceToDevice, stream));
         CUBLAS_CHECK(cublasSetPointerMode(cublasH, CUBLAS_POINTER_MODE_HOST));
 
+        // Gram = A^T * A via GEMM, not SYRK. cuBLAS {S,D}syrk picks a
+        // suboptimal kernel for this tall-skinny shape (small n, large
+        // k = m, OP_T): measured ~50x slower than the equivalent GEMM and the
+        // dominant cost of the whole QR. GEMM is far better tuned; computing
+        // the full n*n Gram instead of just the triangle is negligible at
+        // these n, and POTRF reads only the upper triangle anyway.
         if constexpr (std::is_same_v<T, float>) {
-            CudaTimerRange rng{g_event_timer, "QR:syrk", stream};
-            CUBLAS_CHECK(cublasSsyrk(cublasH, CUBLAS_FILL_MODE_UPPER,
-                                     CUBLAS_OP_T, n, m, &alpha, d_A, m, &beta,
-                                     d_gram, n));
+            CudaTimerRange rng{g_event_timer, "QR:gram", stream};
+            CUBLAS_CHECK(cublasSgemm_v2(cublasH, CUBLAS_OP_T, CUBLAS_OP_N, n, n,
+                                        m, &alpha, d_A, m, d_A, m, &beta, d_gram,
+                                        n));
         } else {
-            CudaTimerRange rng{g_event_timer, "QR:syrk", stream};
-            CUBLAS_CHECK(cublasDsyrk(cublasH, CUBLAS_FILL_MODE_UPPER,
-                                     CUBLAS_OP_T, n, m, &alpha, d_A, m, &beta,
-                                     d_gram, n));
+            CudaTimerRange rng{g_event_timer, "QR:gram", stream};
+            CUBLAS_CHECK(cublasDgemm_v2(cublasH, CUBLAS_OP_T, CUBLAS_OP_N, n, n,
+                                        m, &alpha, d_A, m, d_A, m, &beta, d_gram,
+                                        n));
         }
 
         {
