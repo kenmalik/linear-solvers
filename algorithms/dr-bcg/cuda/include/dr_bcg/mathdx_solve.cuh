@@ -14,6 +14,11 @@ namespace dr_bcg::cuda {
 
 struct Handles; // defined in dr_bcg/cuda.cuh
 
+// Orthonormalization policy used by the fused xi chain (solve_fused_dx). The
+// fused loop is QR-agnostic; this algorithm-layer selector lets the adapter
+// pick the QR without the algorithm layer depending on the adapter's QrBackend.
+enum class FusedXiQr { Householder, CholQR, CholQRDx };
+
 // Preconditioned (M = L L^T) DR-BCG with fused CholeskyQR2 orthonormalization.
 int solve_cholqr_dx(Handles &handles, cusparseSpMatDescr_t A,
                     cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
@@ -25,16 +30,17 @@ int solve_cholqr_dx(Handles &handles, cusparseSpMatDescr_t A,
                     cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
                     double tolerance, int max_iterations, cudaStream_t stream);
 
-// Preconditioned (M = L L^T) fully fused DR-BCG: fused CholeskyQR2 (Stage 2)
-// plus the fused reduced-system xi chain (Stage 3).
+// Preconditioned (M = L L^T) DR-BCG with the fused reduced-system xi chain
+// (Stage 3), layered on the orthonormalization selected by qr.
 int solve_fused_dx(Handles &handles, cusparseSpMatDescr_t A,
                    cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
                    cusparseSpMatDescr_t L, double tolerance, int max_iterations,
-                   cudaStream_t stream);
+                   FusedXiQr qr, cudaStream_t stream);
 
-// Unpreconditioned fully fused DR-BCG (fused CholeskyQR2 + fused xi chain).
+// Unpreconditioned DR-BCG with the fused xi chain, orthonormalization per qr.
 int solve_fused_dx(Handles &handles, cusparseSpMatDescr_t A,
                    cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
-                   double tolerance, int max_iterations, cudaStream_t stream);
+                   double tolerance, int max_iterations, FusedXiQr qr,
+                   cudaStream_t stream);
 
 } // namespace dr_bcg::cuda
