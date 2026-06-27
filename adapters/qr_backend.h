@@ -1,3 +1,3 @@
 #pragma once
 
-enum class QrBackend { Householder, CholQR, CholQRDx, FusedDx };
+enum class QrBackend { Householder, CholQR, CholQRDx };

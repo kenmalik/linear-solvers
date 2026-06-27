@@ -14,6 +14,11 @@ namespace dr_bcg::cuda {
 // TODO: Clean up configuration to avoid this forward declaration.
 struct Handles;
 
+// Orthonormalization policy used by the fused xi chain (solve_fused_dx). The
+// fused loop is QR-agnostic; this algorithm-layer selector lets the adapter
+// pick the QR without the algorithm layer depending on the adapter's QrBackend.
+enum class FusedXiQr { Householder, CholQR, CholQRDx };
+
 // Preconditioned (M = L L^T) DR-BCG with fused CholeskyQR2 orthonormalization.
 int solve_cholqr_dx(Handles &handles, cusparseSpMatDescr_t A,
                     cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
@@ -30,11 +35,12 @@ int solve_cholqr_dx(Handles &handles, cusparseSpMatDescr_t A,
 int solve_fused_dx(Handles &handles, cusparseSpMatDescr_t A,
                    cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
                    cusparseSpMatDescr_t L, double tolerance, int max_iterations,
-                   cudaStream_t stream);
+                   FusedXiQr qr, cudaStream_t stream);
 
 // Unpreconditioned fully fused DR-BCG (fused xi chain).
 int solve_fused_dx(Handles &handles, cusparseSpMatDescr_t A,
                    cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
-                   double tolerance, int max_iterations, cudaStream_t stream);
+                   double tolerance, int max_iterations, FusedXiQr qr,
+                   cudaStream_t stream);
 
 } // namespace dr_bcg::cuda
