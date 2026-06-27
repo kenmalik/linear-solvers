@@ -28,6 +28,7 @@ struct Args {
     int block_size;
     bool disable_tensor_cores;
     QrBackend qr_backend;
+    bool fused_xi;
 };
 
 std::optional<Args> parse_args(int argc, char *argv[]);

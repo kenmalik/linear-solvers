@@ -187,6 +187,34 @@ TEST(Parser, ParsesExplicitCholQrBackend) {
     EXPECT_EQ(parsed->qr_backend, QrBackend::CholQR);
 }
 
+TEST(Parser, DefaultsFusedXiToFalse) {
+    std::vector<std::string> args = {
+        "cgrun", "dr-bcg", "cuda", TEST_DATA_DIR "/1138_bus.mat"};
+    auto argv = argv_from(args);
+
+    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_FALSE(parsed->fused_xi);
+}
+
+TEST(Parser, ParsesFusedXiFlag) {
+    std::vector<std::string> args = {"cgrun",
+                                     "dr-bcg",
+                                     "cuda",
+                                     TEST_DATA_DIR "/1138_bus.mat",
+                                     "--qr-backend",
+                                     "cholqr-dx",
+                                     "--fused-xi"};
+    auto argv = argv_from(args);
+
+    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->qr_backend, QrBackend::CholQRDx);
+    EXPECT_TRUE(parsed->fused_xi);
+}
+
 TEST(Rhs, LoadsCgRhsFromMat) {
     std::optional<mat_utils::DnMatReader> reader;
     reader.emplace(TEST_DATA_DIR "/b_vec_test.mat", std::vector<std::string>{}, "b");
@@ -527,7 +555,7 @@ TEST(DrBcgCuda, ConvergesOn1138BusFusedDx) {
 
     std::vector<double> x_dx(n * block_size, 0.0);
     int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, tolerance, n, block_size,
-                                   false, QrBackend::FusedDx);
+                                   false, QrBackend::CholQRDx, /*fused_xi=*/true);
     EXPECT_GT(iters_dx, 0)
         << "DR-BCG (CUDA, Fused-Dx) failed before converging";
     EXPECT_LT(iters_dx, n) << "DR-BCG (CUDA, Fused-Dx) did not converge within "

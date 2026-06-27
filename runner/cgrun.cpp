@@ -153,12 +153,12 @@ int run_dr_bcg(const Args &args) {
             iters = run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
                                     max_iters, args.block_size,
                                     args.disable_tensor_cores,
-                                    args.qr_backend);
+                                    args.qr_backend, args.fused_xi);
         } else {
             iters = run_cuda_dr_bcg(args.A, b, x, args.tolerance, max_iters,
                                     args.block_size,
                                     args.disable_tensor_cores,
-                                    args.qr_backend);
+                                    args.qr_backend, args.fused_xi);
         }
         break;
     }
