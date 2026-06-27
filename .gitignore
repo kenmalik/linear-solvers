@@ -267,7 +267,9 @@ __marimo__/
 *.png
 residuals_*.txt
 *.json
+*.md
 
+!README.md
 !tasks.json
 
 # Test run matrix outputs
