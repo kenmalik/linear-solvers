@@ -71,7 +71,7 @@ def plot(
 
     ax.set(
         title="Solve Runtime by Block Size",
-        ylabel="Avg (s)",
+        ylabel="seconds",
         xticks=[],
         axisbelow=True,
     )

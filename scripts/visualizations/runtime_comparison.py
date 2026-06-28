@@ -86,7 +86,7 @@ def plot(
     if cg_times is not None:
         cg_color = "darkslategrey"
         axs[0].axhline(
-            y=cg_times.loc["solve"]["Avg (ms)"] / MS_PER_SEC,
+            y=cg_times.loc["solve"]["Avg (s)"] / MS_PER_SEC,
             color=cg_color,
             linestyle="--",
             lw=1,

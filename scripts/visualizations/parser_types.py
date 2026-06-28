@@ -37,7 +37,7 @@ def directory_name_pair(arg: str) -> OptionallyLabeledSource:
     if len(vals) == 1:
         return (p, None)
 
-    label = vals[1].replace("_", " ").capitalize()
+    label = vals[1].replace("_", " ")
     return (p, label)
 
 
