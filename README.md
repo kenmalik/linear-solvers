@@ -1,30 +1,47 @@
 # Linear Solvers
 
+> [!NOTE]
+> **This repo is currently under development**. The various solvers were initially
+> implemented in separate repos, and we are currently in the process of transferring
+> files and updating their documentation.
+
 ## Introduction
 
 This repo contains a collection of linear solver implementations. The primary
 solver of interest is [CUDA DR-BCG](algorithms/dr-bcg/cuda); the other
-solvers serve as points of comparison to evaluate DR-BCG's performance.
+solvers serve as baselines to evaluate DR-BCG's performance.
 
-Currently, there are two algorithms implemented:
+The project implements the following algorithms:
 
-- CG 
-- DR-BCG
+- (Preconditioned) CG 
+- (Preconditioned) DR-BCG
 
 Each algorithm has implementations using the following technologies:
 
 - Nvidia's CUDA APIs (cuBLAS, cuSOLVER, cuSPARSE)
 - Intel's Math Kernel Library (MKL)
 
-## Current Status
-
-**This repo is currently under development**. The various solvers were initially
-implemented in separate repos, and we are currently in the process of transferring
-files and updating them to work together.
-
 ## Building
 
-Building the project requires CMake. The following build options are provided:
+### Dependencies
+
+Building the project requires **CMake**.
+
+Depending on which parts of the project you would like to build, you would need the following dependencies:
+
+| Feature | Dependencies |
+| - | - |
+| CUDA solvers | [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit) 12.0 |
+| CUDA solvers (with fused kernels) | [NVIDIA MathDx](https://docs.nvidia.com/cuda/mathdx/) 25.12 |
+| MKL solvers | [Intel oneMKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html) |
+| Solver Runner CLI | [MatUtils](https://github.com/kenmalik/mat-utils), [cxxopts](https://github.com/jarro2783/cxxopts) |
+
+If building tests or benchmarks, CMake will automatically fetch [Google Test](https://github.com/google/googletest)
+and [Google Benchmark](https://github.com/google/benchmark), respectively.
+
+### Options
+
+The following build options are provided:
 
 | Build Option | Description |
 | - | - |
@@ -42,7 +59,8 @@ cmake -B build -S . -DSOLVERS_BUILD_CUDA=ON -DSOLVERS_BUILD_MKL=ON -DSOLVERS_BUI
 cmake --build build
 ```
 
-> **Note:** If building the CUDA implementations, you must also define the
+> [!IMPORTANT]
+> If building the CUDA implementations, you must also define the
 > `CMAKE_CUDA_ARCHITECTURES` option. For more information, see
 > [Nvidia's compute capability chart](https://developer.nvidia.com/cuda/gpus).
 
@@ -58,8 +76,7 @@ cmake --build build
 This project was developed on an HPC cluster using Lmod.
 
 Lmod's module system tends to break include paths and CUDA tends to break CMake's `compile_commands.json`.
-Hence, we have a script to manually set up VSCode's IntelliSense include paths.
-Use it like so:
+Hence, we have a script to set up VSCode's IntelliSense include paths. Use it like so:
 
 ```shell
 module load intel-oneapi-mkl  # Ensure the MKL module is loaded
