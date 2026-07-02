@@ -23,6 +23,7 @@ configure_file(
 )
 add_library(solver_config INTERFACE)
 target_include_directories(solver_config INTERFACE ${CMAKE_BINARY_DIR}/include)
+target_compile_features(solver_config INTERFACE cxx_std_20 cuda_std_20)
 
 add_library(solvers_internal INTERFACE)
 target_include_directories(solvers_internal INTERFACE

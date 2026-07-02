@@ -1,12 +1,19 @@
 #pragma once
 
-#ifdef SOLVERS_ENABLE_VERBOSE
+#include "config.h"
+
 #include <iostream>
 
-#define LOG_TRACE(v)                 \
-    do {                             \
-        std::cerr << v << std::endl; \
-    } while (0)
-#else
-#define LOG_TRACE(v)
-#endif
+namespace cils {
+
+template <typename T, bool Enabled = logging_enabled>
+    requires Enabled
+void log(T v) {
+    std::cerr << v << '\n';
+}
+
+template <typename T, bool Enabled = logging_enabled>
+    requires(!Enabled)
+void log(T v) {}
+
+}

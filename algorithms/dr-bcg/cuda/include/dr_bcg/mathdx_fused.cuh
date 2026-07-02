@@ -232,7 +232,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                                        cudaMemcpyDeviceToHost, stream));
             CUDA_CHECK(cudaStreamSynchronize(stream));
 
-            LOG_TRACE(sigma_norm / sigma_norm0);
+            cils::log(sigma_norm / sigma_norm0);
             if (sigma_norm / sigma_norm0 < tolerance)
                 break;
         }
@@ -494,7 +494,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                                        cudaMemcpyDeviceToHost, stream));
             CUDA_CHECK(cudaStreamSynchronize(stream));
 
-            LOG_TRACE(sigma_norm / sigma_norm0);
+            cils::log(sigma_norm / sigma_norm0);
             if (sigma_norm / sigma_norm0 < tolerance)
                 break;
         }

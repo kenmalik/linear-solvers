@@ -185,7 +185,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         CudaTimerRange iteration_event_range(g_event_timer, "iteration",
                                              stream);
 
-        LOG_TRACE(residual_norm / b_norm);
+        cils::log(residual_norm / b_norm);
 
         iterations += 1;
 

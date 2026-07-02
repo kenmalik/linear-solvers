@@ -288,7 +288,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                 throw std::runtime_error(std::to_string(-*lu_ws.h_info) +
                                          "-th parameter is wrong in LU\n");
 
-            LOG_TRACE(sigma_norm / sigma_norm0);
+            cils::log(sigma_norm / sigma_norm0);
             if (sigma_norm / sigma_norm0 < tolerance)
                 break;
         }
@@ -576,7 +576,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                 throw std::runtime_error(std::to_string(-*lu_ws.h_info) +
                                          "-th parameter is wrong in LU\n");
 
-            LOG_TRACE(sigma_norm / sigma_norm0);
+            cils::log(sigma_norm / sigma_norm0);
             if (sigma_norm / sigma_norm0 < tolerance)
                 break;
         }
