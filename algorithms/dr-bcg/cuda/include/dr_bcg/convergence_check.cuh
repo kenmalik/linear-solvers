@@ -23,7 +23,7 @@ bool check_convergence(Handles &handles, DeviceBuffer<T> &d, T tolerance,
     constexpr int incx = 1;
 
     nvtx3::scoped_range sigma_norm_range{"||sigma_1||"};
-    CudaTimerRange er(g_event_timer, "||sigma_1||", stream);
+    CudaTimerRange er{g_event_timer, "||sigma_1||", stream};
 
     CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
 

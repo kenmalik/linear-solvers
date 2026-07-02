@@ -25,7 +25,7 @@ void compute_xi(Handles &handles, cusparseSpMatDescr_t A,
                 DeviceBuffer<T> &d, LuWorkspace<T> &lu_ws, std::int64_t n,
                 std::int64_t s, void *d_scratch, cudaStream_t stream) {
     nvtx3::scoped_range xi_range{"xi = (s' * As)^-1"};
-    CudaTimerRange er(g_event_timer, "xi = (s' * As)^-1", stream);
+    CudaTimerRange er{g_event_timer, "xi = (s' * As)^-1", stream};
 
     constexpr T alpha = 1.0;
     constexpr T beta = 0.0;
@@ -50,7 +50,7 @@ template <SupportedType T>
 void update_X(Handles &handles, DeviceBuffer<T> &d, T *d_X, std::int64_t n,
               std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range X_range{"X = X + s * xi * sigma"};
-    CudaTimerRange er(g_event_timer, "X = X + s * xi * sigma", stream);
+    CudaTimerRange er{g_event_timer, "X = X + s * xi * sigma", stream};
 
     CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N, CUBLAS_OP_N, s, s,
                                 s, d.one, d.xi, s, d.sigma, s, d.zero, d.temp,
@@ -65,7 +65,7 @@ template <SupportedType T>
 void update_sigma(Handles &handles, DeviceBuffer<T> &d, std::int64_t s,
                   cudaStream_t stream) {
     nvtx3::scoped_range sigma_range{"sigma = zeta * sigma"};
-    CudaTimerRange er(g_event_timer, "sigma = zeta * sigma", stream);
+    CudaTimerRange er{g_event_timer, "sigma = zeta * sigma", stream};
 
     constexpr cublasSideMode_t side = CUBLAS_SIDE_LEFT;
     constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
@@ -84,8 +84,7 @@ void update_w_zeta(Handles &handles, Qr &qr, cusparseSpMatDescr_t A,
                    DeviceBuffer<T> &d, std::int64_t n, std::int64_t s,
                    void *d_scratch, cudaStream_t stream) {
     nvtx3::scoped_range w_zeta_range{"[w zeta] = QR(w - A * s * xi)"};
-    CudaTimerRange er(g_event_timer, "[w zeta] = QR(w - A * s * xi)",
-                      stream);
+    CudaTimerRange er{g_event_timer, "[w zeta] = QR(w - A * s * xi}", stream};
 
     constexpr cublasOperation_t op = CUBLAS_OP_N;
     CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op, op, n, s, s, d.one, d.s, n,
@@ -111,7 +110,7 @@ template <SupportedType T>
 void update_s(Handles &handles, DeviceBuffer<T> &d, std::int64_t n,
               std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range s_range{"s = w + s * zeta'"};
-    CudaTimerRange er(g_event_timer, "s = w + s * zeta'", stream);
+    CudaTimerRange er{g_event_timer, "s = w + s * zeta'", stream};
 
     constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
     constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
@@ -135,7 +134,7 @@ void update_w(Handles &handles, cusparseSpMatDescr_t A,
               const SpsmCache<T> &spsm_nt, std::int64_t n, std::int64_t s,
               void *d_scratch, cudaStream_t stream) {
     nvtx3::scoped_range w_zeta_range{"w = w - L^-1 * A * s * xi"};
-    CudaTimerRange er(g_event_timer, "w = w - L^-1 * A * s * xi", stream);
+    CudaTimerRange er{g_event_timer, "w = w - L^-1 * A * s * xi", stream};
 
     // temp = A * s
     constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
@@ -161,7 +160,7 @@ template <SupportedType T, QrPolicy<T> Qr>
 void orthonormalize_w(Qr &qr, Handles &handles, DeviceBuffer<T> &d,
                       std::int64_t n, std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range w_zeta_range{"[w zeta] = QR(w)"};
-    CudaTimerRange er(g_event_timer, "[w zeta] = QR(w)", stream);
+    CudaTimerRange er{g_event_timer, "[w zeta] = QR(w)", stream};
 
     qr.solve(d.w, d.zeta, d.w, n, s, handles.cublas, handles.cusolver,
              handles.cusolver_params, stream);
@@ -176,7 +175,7 @@ void update_s_preconditioned(Handles &handles, cusparseDnMatDescr_t temp,
                              std::int64_t n, std::int64_t s,
                              cudaStream_t stream) {
     nvtx3::scoped_range s_range{"s = (L^-1)' * w + s * zeta'"};
-    CudaTimerRange er(g_event_timer, "s = (L^-1)' * w + s * zeta'", stream);
+    CudaTimerRange er{g_event_timer, "s = (L^-1)' * w + s * zeta'", stream};
 
     constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
     constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;

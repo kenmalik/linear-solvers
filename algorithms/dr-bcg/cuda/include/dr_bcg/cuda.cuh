@@ -84,7 +84,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     {
         nvtx3::scoped_range R_range{"R = B - A * X"};
-        CudaTimerRange er(g_event_timer, "R = B - A * X", stream);
+        CudaTimerRange er{g_event_timer, "R = B - A * X", stream};
 
         // R = B - A * X
         std::size_t buffer_size;
@@ -113,7 +113,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     {
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(L^-1 * R)"};
-        CudaTimerRange er(g_event_timer, "[w sigma] = QR(L^-1 * R)", stream);
+        CudaTimerRange er{g_event_timer, "[w sigma] = QR(L^-1 * R)", stream};
 
         // [w, sigma] = qr(R, 'econ')
         qr.solve(d.w, d.sigma, d_R, n, s, handles.cublas,
@@ -132,7 +132,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     {
         nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
-        CudaTimerRange er(g_event_timer, "s = (L^-1)' * w", stream);
+        CudaTimerRange er{g_event_timer, "s = (L^-1)' * w", stream};
 
         // s = w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(T) * n * s,
@@ -171,7 +171,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     int iterations = 0;
     while (!converged && iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
-        CudaTimerRange iteration_event_range(g_event_timer, "iteration", stream);
+        CudaTimerRange er{g_event_timer, "iteration", stream};
 
         ++iterations;
 
@@ -251,7 +251,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     {
         nvtx3::scoped_range R_range{"R = B - A * X"};
-        CudaTimerRange er(g_event_timer, "R = B - A * X", stream);
+        CudaTimerRange er{g_event_timer, "R = B - A * X", stream};
 
         // R = B - A * X
         std::size_t buffer_size;
@@ -283,7 +283,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     // 2. [w sigma] = QR(temp)
     {
         nvtx3::scoped_range w_sigma_initial_range{"temp = L^-1 * R"};
-        CudaTimerRange er(g_event_timer, "temp = L^-1 * R", stream);
+        CudaTimerRange er{g_event_timer, "temp = L^-1 * R", stream};
 
         sptri_solve<T>(handles.cusparse, temp,
                        CUSPARSE_OPERATION_NON_TRANSPOSE, L, R, spsm_nt);
@@ -291,7 +291,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     {
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(temp)"};
-        CudaTimerRange er(g_event_timer, "[w sigma] = QR(temp)", stream);
+        CudaTimerRange er{g_event_timer, "[w sigma] = QR(temp)", stream};
 
         qr.solve(d.w, d.sigma, d.temp, n, s, handles.cublas,
                  handles.cusolver, handles.cusolver_params, stream);
@@ -309,7 +309,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     {
         nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
-        CudaTimerRange er(g_event_timer, "s = (L^-1)' * w", stream);
+        CudaTimerRange er{g_event_timer, "s = (L^-1)' * w", stream};
 
         // s = (L^-1)' * w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(T) * n * s,
@@ -336,8 +336,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     int iterations = 0;
     while (!converged && iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
-        CudaTimerRange iteration_event_range(g_event_timer, "iteration",
-                                             stream);
+        CudaTimerRange er{g_event_timer, "iteration", stream};
 
         ++iterations;
 
