@@ -1,13 +1,13 @@
 #pragma once
 
-#include "dr_bcg/handles.cuh"
+#include "dr_bcg/convergence_check.cuh"
 #include "dr_bcg/device_buffer.cuh"
+#include "dr_bcg/handles.cuh"
 #include "dr_bcg/math.h"
 #include "dr_bcg/qr.cuh"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
-#include "common/log.h"
 #include "common/type_info.h"
 
 #include <cublas_v2.h>
@@ -23,6 +23,8 @@
 #include <utility>
 
 #include <nvtx3/nvtx3.hpp>
+
+// TODO: Figure out why LU workspace check was in the sigma convergence block
 
 namespace dr_bcg::cuda {
 
@@ -164,8 +166,9 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
+    bool converged = false;
     int iterations = 0;
-    while (iterations < max_iterations) {
+    while (!converged && iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
         CudaTimerRange iteration_event_range(g_event_timer, "iteration", stream);
 
@@ -274,24 +277,8 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         d.zeta, s, d.sigma, s, d.sigma, s));
         }
 
-        {
-            nvtx3::scoped_range sigma_norm_range{"||sigma_1||"};
-            CudaTimerRange er(g_event_timer, "||sigma_1||", stream);
-
-            CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
-            T sigma_norm = 0;
-            CUDA_CHECK(cudaMemcpyAsync(&sigma_norm, d_sigma_norm, sizeof(T),
-                                       cudaMemcpyDeviceToHost, stream));
-            CUDA_CHECK(cudaStreamSynchronize(stream));
-
-            if (*lu_ws.h_info < 0)
-                throw std::runtime_error(std::to_string(-*lu_ws.h_info) +
-                                         "-th parameter is wrong in LU\n");
-
-            cils::log(sigma_norm / sigma_norm0);
-            if (sigma_norm / sigma_norm0 < tolerance)
-                break;
-        }
+        converged = check_convergence(handles, d, tolerance,
+                                      sigma_norm0, d_sigma_norm, s, stream);
     }
 
     CUDA_CHECK(cudaFreeAsync(d_sigma_norm, stream));
@@ -437,8 +424,9 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
+    bool converged = false;
     int iterations = 0;
-    while (iterations < max_iterations) {
+    while (!converged && iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
         CudaTimerRange iteration_event_range(g_event_timer, "iteration",
                                              stream);
@@ -562,24 +550,8 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                         d.zeta, s, d.sigma, s, d.sigma, s));
         }
 
-        {
-            nvtx3::scoped_range sigma_norm_range{"||sigma_1||"};
-            CudaTimerRange er(g_event_timer, "||sigma_1||", stream);
-
-            CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
-            T sigma_norm = 0;
-            CUDA_CHECK(cudaMemcpyAsync(&sigma_norm, d_sigma_norm, sizeof(T),
-                                       cudaMemcpyDeviceToHost, stream));
-            CUDA_CHECK(cudaStreamSynchronize(stream));
-
-            if (*lu_ws.h_info < 0)
-                throw std::runtime_error(std::to_string(-*lu_ws.h_info) +
-                                         "-th parameter is wrong in LU\n");
-
-            cils::log(sigma_norm / sigma_norm0);
-            if (sigma_norm / sigma_norm0 < tolerance)
-                break;
-        }
+        converged = check_convergence(handles, d, tolerance,
+                                      sigma_norm0, d_sigma_norm, s, stream);
     }
 
     CUDA_CHECK(cudaFreeAsync(d_sigma_norm, stream));
