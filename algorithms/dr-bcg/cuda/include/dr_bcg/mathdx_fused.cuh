@@ -1,12 +1,13 @@
 #pragma once
 
 // DR-BCG with MathDx-fused xi chain.
-// 
+//
 // TODO: Consider ways to reduce code duplication from original solver implementation.
 
 #ifdef SOLVERS_BUILD_MATHDX
 
-#include "dr_bcg/cuda.cuh"
+#include "dr_bcg/device_buffer.cuh"
+#include "dr_bcg/handles.cuh"
 #include "dr_bcg/mathdx_qr.cuh"
 #include "dr_bcg/mathdx_xi.cuh"
 

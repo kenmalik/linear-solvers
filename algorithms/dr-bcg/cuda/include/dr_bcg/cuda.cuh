@@ -1,11 +1,14 @@
 #pragma once
 
+#include "dr_bcg/handles.cuh"
+#include "dr_bcg/device_buffer.cuh"
+#include "dr_bcg/math.h"
+#include "dr_bcg/qr.cuh"
+
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
 #include "common/log.h"
 #include "common/type_info.h"
-#include "dr_bcg/math.h"
-#include "dr_bcg/qr.cuh"
 
 #include <cublas_v2.h>
 #include <cusolverDn.h>
@@ -22,92 +25,6 @@
 #include <nvtx3/nvtx3.hpp>
 
 namespace dr_bcg::cuda {
-
-template <SupportedType T>
-struct DeviceBuffer {
-    T *w = nullptr;
-    T *sigma = nullptr;
-    T *s = nullptr;
-    T *xi = nullptr;
-    T *zeta = nullptr;
-    T *temp = nullptr;
-    T *one = nullptr;
-    T *zero = nullptr;
-    T *neg_one = nullptr;
-
-    DeviceBuffer(int n, int s) { allocate(n, s); }
-    ~DeviceBuffer() { deallocate(); }
-
-    void allocate(int n, int s) {
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&w), sizeof(T) * n * s));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&sigma), sizeof(T) * s * s));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&(this->s)), sizeof(T) * n * s));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&xi), sizeof(T) * s * s));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&zeta), sizeof(T) * s * s));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&temp), sizeof(T) * n * s));
-
-        const T h_one = 1;
-        const T h_zero = 0;
-        const T h_neg_one = -1;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&one), sizeof(T)));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&zero), sizeof(T)));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&neg_one), sizeof(T)));
-        CUDA_CHECK(cudaMemcpy(one, &h_one, sizeof(T), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(zero, &h_zero, sizeof(T), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(neg_one, &h_neg_one, sizeof(T), cudaMemcpyHostToDevice));
-    }
-
-    void deallocate() {
-        if (w)
-            CUDA_CHECK(cudaFree(w));
-        if (sigma)
-            CUDA_CHECK(cudaFree(sigma));
-        if (s)
-            CUDA_CHECK(cudaFree(s));
-        if (xi)
-            CUDA_CHECK(cudaFree(xi));
-        if (zeta)
-            CUDA_CHECK(cudaFree(zeta));
-        if (temp)
-            CUDA_CHECK(cudaFree(temp));
-        w = sigma = s = xi = zeta = temp = nullptr;
-
-        if (one)
-            CUDA_CHECK(cudaFree(one));
-        if (zero)
-            CUDA_CHECK(cudaFree(zero));
-        if (neg_one)
-            CUDA_CHECK(cudaFree(neg_one));
-        one = zero = neg_one = nullptr;
-    }
-};
-
-struct Handles {
-    cusparseHandle_t cusparse;
-    cusolverDnHandle_t cusolver;
-    cusolverDnParams_t cusolver_params;
-    cublasHandle_t cublas;
-
-    Handles() {
-        CUSPARSE_CHECK(cusparseCreate(&cusparse));
-        CUSOLVER_CHECK(cusolverDnCreate(&cusolver));
-        CUSOLVER_CHECK(cusolverDnCreateParams(&cusolver_params));
-        CUBLAS_CHECK(cublasCreate_v2(&cublas));
-    }
-
-    ~Handles() {
-        CUSPARSE_CHECK(cusparseDestroy(cusparse));
-        CUSOLVER_CHECK(cusolverDnDestroy(cusolver));
-        CUSOLVER_CHECK(cusolverDnDestroyParams(cusolver_params));
-        CUBLAS_CHECK(cublasDestroy_v2(cublas));
-    }
-
-    void set_stream(cudaStream_t stream) {
-        CUSPARSE_CHECK(cusparseSetStream(cusparse, stream));
-        CUSOLVER_CHECK(cusolverDnSetStream(cusolver, stream));
-        CUBLAS_CHECK(cublasSetStream_v2(cublas, stream));
-    }
-};
 
 inline std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
     std::int64_t n = 0;
