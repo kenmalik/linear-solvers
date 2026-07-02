@@ -3,6 +3,7 @@
 #include "dr_bcg/convergence_check.cuh"
 #include "dr_bcg/device_buffer.cuh"
 #include "dr_bcg/handles.cuh"
+#include "dr_bcg/iteration.cuh"
 #include "dr_bcg/math.h"
 #include "dr_bcg/qr.cuh"
 
@@ -174,108 +175,15 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         ++iterations;
 
-        {
-            nvtx3::scoped_range xi_range{"xi = (s' * As)^-1"};
-            CudaTimerRange er(g_event_timer, "xi = (s' * As)^-1", stream);
+        compute_xi(handles, A, s_desc, temp, d, lu_ws, n, s, d_scratch, stream);
 
-            // xi = (s' * A * s)^-1
-            constexpr T alpha = 1.0;
-            constexpr T beta = 0.0;
-            constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-            constexpr cudaDataType_t compute_type = cuda_type<T>;
-            constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
+        update_X(handles, d, d_X, n, s, stream);
 
-            CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
-                                        s_desc, &beta, temp, compute_type, alg,
-                                        d_scratch));
+        update_w_zeta<T, Qr>(handles, qr, A, temp, w_desc, d, n, s, d_scratch, stream);
 
-            constexpr cublasOperation_t op_t = CUBLAS_OP_T;
-            constexpr cublasOperation_t op_n = CUBLAS_OP_N;
-            CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op_t, op_n, s, s, n,
-                                        d.one, d.s, n, d.temp, n, d.zero,
-                                        d.xi, s));
+        update_s(handles, d, n, s, stream);
 
-            invert_square_matrix(handles.cusolver, handles.cusolver_params,
-                                 d.xi, s, lu_ws, stream);
-        }
-
-        {
-            nvtx3::scoped_range X_range{"X = X + s * xi * sigma"};
-            CudaTimerRange er(g_event_timer, "X = X + s * xi * sigma", stream);
-
-            // X = X + s * xi * sigma
-            CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, s, s, s, d.one, d.xi, s,
-                                        d.sigma, s, d.zero, d.temp, n));
-
-            CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, n, s, s, d.one, d.s, n,
-                                        d.temp, n, d.one, d_X, n));
-        }
-
-        {
-            nvtx3::scoped_range w_zeta_range{
-                "[w zeta] = QR(w - L^{-1} * A * s * xi)"};
-            CudaTimerRange er(g_event_timer,
-                              "[w zeta] = QR(w - L^{-1} * A * s * xi)", stream);
-
-            // [w, zeta] = qr(w - A * s * xi, 'econ')
-            constexpr cublasOperation_t op = CUBLAS_OP_N;
-            CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op, op, n, s, s,
-                                        d.one, d.s, n, d.xi, s,
-                                        d.zero, d.temp, n));
-
-            constexpr cusparseOperation_t spmm_op =
-                CUSPARSE_OPERATION_NON_TRANSPOSE;
-            constexpr T spmm_alpha = -1.0;
-            constexpr T spmm_beta = 1.0;
-            constexpr cudaDataType_t compute_type = cuda_type<T>;
-            constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
-
-            CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, spmm_op, spmm_op,
-                                        &spmm_alpha, A, temp, &spmm_beta,
-                                        w_desc, compute_type, alg, d_scratch));
-
-            qr.solve(d.w, d.zeta, d.w, n, s, handles.cublas,
-                     handles.cusolver, handles.cusolver_params, stream);
-            qr.check(static_cast<int>(s), "iteration orthonormalization", stream);
-        }
-
-        {
-            nvtx3::scoped_range s_range{"s = (L^-1)' * w + s * zeta'"};
-            CudaTimerRange er(g_event_timer, "s = (L^-1)' * w + s * zeta'",
-                              stream);
-
-            // s = w + s * zeta'
-            constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
-            constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
-            constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
-            constexpr cublasOperation_t op_zeta = CUBLAS_OP_T;
-
-            CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, n, s, d.one,
-                                        d.zeta, s, d.s, n, d.s, n));
-
-            constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
-            CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
-                                     d.one, d.s, n, d.one, d.w, n,
-                                     d.s, n));
-        }
-
-        {
-            nvtx3::scoped_range sigma_range{"sigma = zeta * sigma"};
-            CudaTimerRange er(g_event_timer, "sigma = zeta * sigma", stream);
-
-            // sigma = zeta * sigma
-            constexpr cublasSideMode_t side = CUBLAS_SIDE_LEFT;
-            constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
-            constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
-            constexpr cublasOperation_t op_zeta = CUBLAS_OP_N;
-
-            CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, s, s, d.one,
-                                        d.zeta, s, d.sigma, s, d.sigma, s));
-        }
+        update_sigma(handles, d, s, stream);
 
         converged = check_convergence(handles, d, tolerance,
                                       sigma_norm0, d_sigma_norm, s, stream);
@@ -433,122 +341,20 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         ++iterations;
 
-        {
-            nvtx3::scoped_range xi_range{"xi = (s' * As)^-1"};
-            CudaTimerRange er(g_event_timer, "xi = (s' * As)^-1", stream);
+        compute_xi(handles, A, s_desc, temp, d, lu_ws, n, s, d_scratch, stream);
 
-            // xi = (s' * A * s)^-1
-            constexpr T alpha = 1.0;
-            constexpr T beta = 0.0;
-            constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-            constexpr cudaDataType_t compute_type = cuda_type<T>;
-            constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
-
-            CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
-                                        s_desc, &beta, temp, compute_type, alg,
-                                        d_scratch));
-
-            constexpr cublasOperation_t op_t = CUBLAS_OP_T;
-            constexpr cublasOperation_t op_n = CUBLAS_OP_N;
-            CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op_t, op_n, s, s, n,
-                                        d.one, d.s, n, d.temp, n, d.zero,
-                                        d.xi, s));
-
-            invert_square_matrix(handles.cusolver, handles.cusolver_params,
-                                 d.xi, s, lu_ws, stream);
-        }
-
-        {
-            nvtx3::scoped_range X_range{"X = X + s * xi * sigma"};
-            CudaTimerRange er(g_event_timer, "X = X + s * xi * sigma", stream);
-
-            // X = X + s * xi * sigma
-            CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, s, s, s, d.one, d.xi, s,
-                                        d.sigma, s, d.zero, d.temp, n));
-
-            CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N,
-                                        CUBLAS_OP_N, n, s, s, d.one, d.s, n,
-                                        d.temp, n, d.one, d_X, n));
-        }
+        update_X(handles, d, d_X, n, s, stream);
 
         // We break [w zeta] = QR(w - L^-1 * A * s * xi) into two steps for timing purposes:
         // 1. w = w - L^-1 * A * s * xi
         // 2. [w zeta] = QR(w)
-        {
-            nvtx3::scoped_range w_zeta_range{"w = w - L^-1 * A * s * xi"};
-            CudaTimerRange er(g_event_timer, "w = w - L^-1 * A * s * xi", stream);
+        update_w(handles, A, s_desc, temp, L, d, spsm_nt, n, s, d_scratch, stream);
+        orthonormalize_w<T, Qr>(qr, handles, d, n, s, stream);
 
-            // temp = A * s
-            constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-            constexpr T alpha = 1.0;
-            constexpr T beta = 0.0;
-            constexpr cudaDataType compute_type = cuda_type<T>;
-            constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
+        update_s_preconditioned(handles, temp, w_desc, L, d, spsm_t, n, s,
+                                stream);
 
-            CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
-                                        s_desc, &beta, temp, compute_type, alg,
-                                        d_scratch));
-
-            // temp = L^-1 * temp
-            sptri_solve<T>(handles.cusparse, temp, op, L, temp, spsm_nt);
-
-            // w = w - temp * xi
-            constexpr cublasOperation_t sgemm_op = CUBLAS_OP_N;
-            CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, sgemm_op, sgemm_op, n,
-                                        s, s, d.neg_one, d.temp, n, d.xi, s,
-                                        d.one, d.w, n));
-        }
-
-        {
-            nvtx3::scoped_range w_zeta_range{"[w zeta] = QR(w)"};
-            CudaTimerRange er(g_event_timer, "[w zeta] = QR(w)", stream);
-
-            // [w, zeta] = qr(w)
-            qr.solve(d.w, d.zeta, d.w, n, s, handles.cublas,
-                     handles.cusolver, handles.cusolver_params, stream);
-            qr.check(static_cast<int>(s), "iteration orthonormalization", stream);
-        }
-
-        {
-            nvtx3::scoped_range s_range{"s = (L^-1)' * w + s * zeta'"};
-            CudaTimerRange er(g_event_timer, "s = (L^-1)' * w + s * zeta'",
-                              stream);
-
-            // s = (L^-1)' * w + s * zeta'
-            constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
-            constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
-            constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
-            constexpr cublasOperation_t op_zeta = CUBLAS_OP_T;
-
-            CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, n, s, d.one,
-                                        d.zeta, s, d.s, n, d.s, n));
-
-            sptri_solve<T>(handles.cusparse, temp,
-                           CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
-                           spsm_t);
-
-            constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
-            CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
-                                     d.one, d.s, n, d.one, d.temp,
-                                     n, d.s, n));
-        }
-
-        {
-            nvtx3::scoped_range sigma_range{"sigma = zeta * sigma"};
-            CudaTimerRange er(g_event_timer, "sigma = zeta * sigma", stream);
-
-            // sigma = zeta * sigma
-            constexpr cublasSideMode_t side = CUBLAS_SIDE_LEFT;
-            constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
-            constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
-            constexpr cublasOperation_t op_zeta = CUBLAS_OP_N;
-
-            CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode,
-                                        op_zeta, diag_type, s, s, d.one,
-                                        d.zeta, s, d.sigma, s, d.sigma, s));
-        }
+        update_sigma(handles, d, s, stream);
 
         converged = check_convergence(handles, d, tolerance,
                                       sigma_norm0, d_sigma_norm, s, stream);
