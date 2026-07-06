@@ -1,7 +1,9 @@
 #pragma once
 
-#include "common/type_info.h"
 #include "dr_bcg/math.h"
+
+#include "common/cuda_event_timer.h"
+#include "common/type_info.h"
 
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>

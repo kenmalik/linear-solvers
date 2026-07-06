@@ -8,6 +8,7 @@
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
 #include "common/type_info.h"
+#include "common/log.h"
 
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
@@ -17,6 +18,105 @@
 #include <cstdint>
 
 namespace dr_bcg::cuda {
+
+template <SupportedType T>
+class RelativeResidualNormConvergence {
+  public:
+    [[nodiscard]] RelativeResidualNormConvergence(Handles &handles,
+                                                  cusparseSpMatDescr_t A, cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
+                                                  T tolerance, std::int64_t n, cudaStream_t stream) noexcept
+        : handles{handles}, A{A}, tolerance{tolerance}, n{n}, stream{stream} {
+        CUDA_CHECK(cudaMallocAsync(&d_norm, sizeof(T), stream));
+
+        CUDA_CHECK(cudaMallocAsync(&d_r, sizeof(T) * n, stream));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&temp, n, d_r, compute_type));
+
+        CUSPARSE_CHECK(cusparseDnMatGetValues(B, reinterpret_cast<void **>(&d_B)));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&B1, n, d_B, compute_type));
+
+        T *d_X = nullptr;
+        CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&X1, n, d_X, compute_type));
+
+        // Precalculate B1 norm for conversion checks
+        CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d_B, incx, d_norm));
+        CUDA_CHECK(cudaMemcpyAsync(&B1_norm, d_norm, sizeof(T), cudaMemcpyDeviceToHost, stream));
+
+        std::size_t bufsize = 0;
+        CUSPARSE_CHECK(cusparseSpMV_bufferSize(handles.cusparse, op, &alpha, A, X1, &beta, B1,
+                                               compute_type, alg, &bufsize));
+        CUDA_CHECK(cudaMallocAsync(&buffer, bufsize, stream));
+
+        CUSPARSE_CHECK(cusparseSpMV_preprocess(handles.cusparse, op, &alpha, A, X1, &beta, B1,
+                                               compute_type, alg, buffer));
+    }
+
+    RelativeResidualNormConvergence(const RelativeResidualNormConvergence &) = delete;
+    RelativeResidualNormConvergence &operator=(const RelativeResidualNormConvergence &) = delete;
+
+    ~RelativeResidualNormConvergence() noexcept {
+        CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
+        CUSPARSE_CHECK(cusparseDestroyDnVec(B1));
+        CUSPARSE_CHECK(cusparseDestroyDnVec(temp));
+
+        CUDA_CHECK(cudaFreeAsync(buffer, stream));
+        CUDA_CHECK(cudaFreeAsync(d_r, stream));
+        CUDA_CHECK(cudaFreeAsync(d_norm, stream));
+    }
+
+    [[nodiscard]] bool check() noexcept {
+        nvtx3::scoped_range rrn_range{"norm(B1 - A * X1) / norm(B1)"};
+        CudaTimerRange er(g_event_timer, "norm(B1 - A * X1) / norm(B1)", stream);
+
+        T relative_residual_norm = 0;
+
+        // temp = norm(B(:,1) - A * X(:,1))
+        CUDA_CHECK(cudaMemcpyAsync(d_r, d_B, sizeof(T) * n,
+                                   cudaMemcpyDeviceToDevice, stream));
+
+        CUSPARSE_CHECK(cusparseSpMV(handles.cusparse, op, &alpha, A, X1,
+                                    &beta, temp, compute_type, alg, buffer));
+
+        // r_norm = norm(temp)
+        CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d_r, incx, d_norm));
+
+        T residual_norm = 0;
+        CUDA_CHECK(cudaMemcpyAsync(&residual_norm, d_norm, sizeof(T),
+                                   cudaMemcpyDeviceToHost, stream));
+
+        // rrn = r_norm / B1_norm
+        CUDA_CHECK(cudaStreamSynchronize(stream));
+        relative_residual_norm = residual_norm / B1_norm;
+
+        cils::log(relative_residual_norm);
+        return relative_residual_norm < tolerance;
+    }
+
+  private:
+    static constexpr cudaDataType_t compute_type = cuda_type<T>;
+    static constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
+    static constexpr T alpha = -1.0;
+    static constexpr T beta = 1.0;
+    static constexpr cusparseSpMVAlg_t alg = CUSPARSE_SPMV_ALG_DEFAULT;
+
+    static constexpr int incx = 1;
+
+    Handles &handles;
+    const T tolerance;
+    const std::int64_t n;
+    const cudaStream_t stream;
+
+    cusparseSpMatDescr_t A;
+    cusparseDnVecDescr_t X1;
+    cusparseDnVecDescr_t B1;
+    cusparseDnVecDescr_t temp;
+
+    void *buffer = nullptr;
+    T *d_B = nullptr;
+    T *d_norm = nullptr;
+    T *d_r = nullptr;
+    T B1_norm{};
+};
 
 // xi = (s' * A * s)^-1
 template <SupportedType T>

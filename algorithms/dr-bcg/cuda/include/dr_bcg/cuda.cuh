@@ -1,6 +1,5 @@
 #pragma once
 
-#include "dr_bcg/convergence_check.cuh"
 #include "dr_bcg/device_buffer.cuh"
 #include "dr_bcg/handles.cuh"
 #include "dr_bcg/initialization.cuh"
@@ -84,15 +83,6 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     }
     R_calculator.release();
 
-    constexpr int incx = 1;
-    T *d_sigma_norm = nullptr;
-    CUDA_CHECK(cudaMallocAsync(&d_sigma_norm, sizeof(T), stream));
-
-    CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
-    T sigma_norm0 = 0;
-    CUDA_CHECK(cudaMemcpyAsync(&sigma_norm0, d_sigma_norm, sizeof(T),
-                               cudaMemcpyDeviceToHost, stream));
-
     {
         nvtx3::scoped_range s_initial_range{"s = w"};
         CudaTimerRange er{g_event_timer, "s = w", stream};
@@ -130,9 +120,10 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
-    bool converged = false;
+    RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
+
     int iterations = 0;
-    while (!converged && iterations < max_iterations) {
+    while (iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
         CudaTimerRange er{g_event_timer, "iteration", stream};
 
@@ -142,17 +133,17 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
         update_X(handles, d, d_X, n, s, stream);
 
+        if (convergence.check()) {
+            break;
+        }
+
         update_w_zeta<T, Qr>(handles, qr, A, temp, w_desc, d, n, s, d_scratch, stream);
 
         update_s(handles, d, n, s, stream);
 
         update_sigma(handles, d, s, stream);
-
-        converged = check_convergence(handles, d, tolerance,
-                                      sigma_norm0, d_sigma_norm, s, stream);
     }
 
-    CUDA_CHECK(cudaFreeAsync(d_sigma_norm, stream));
     CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
     CUSPARSE_CHECK(cusparseDestroyDnMat(s_desc));
     CUSPARSE_CHECK(cusparseDestroyDnMat(w_desc));
@@ -226,15 +217,6 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     R_calculator.release();
 
-    constexpr int incx = 1;
-    T *d_sigma_norm = nullptr;
-    CUDA_CHECK(cudaMallocAsync(&d_sigma_norm, sizeof(T), stream));
-
-    CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
-    T sigma_norm0 = 0;
-    CUDA_CHECK(cudaMemcpyAsync(&sigma_norm0, d_sigma_norm, sizeof(T),
-                               cudaMemcpyDeviceToHost, stream));
-
     initialize_preconditioned_s(handles.cusparse, n, s, s_desc, w_desc, L, spsm_t, stream);
 
     {
@@ -250,9 +232,10 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
-    bool converged = false;
+    RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
+
     int iterations = 0;
-    while (!converged && iterations < max_iterations) {
+    while (iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
         CudaTimerRange er{g_event_timer, "iteration", stream};
 
@@ -261,6 +244,10 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         compute_xi(handles, A, s_desc, temp, d, lu_ws, n, s, d_scratch, stream);
 
         update_X(handles, d, d_X, n, s, stream);
+
+        if (convergence.check()) {
+            break;
+        }
 
         // We break [w zeta] = QR(w - L^-1 * A * s * xi) into two steps for timing purposes:
         // 1. w = w - L^-1 * A * s * xi
@@ -271,12 +258,8 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         update_s_preconditioned(handles, temp, w_desc, L, d, spsm_t, n, s, stream);
 
         update_sigma(handles, d, s, stream);
-
-        converged = check_convergence(handles, d, tolerance,
-                                      sigma_norm0, d_sigma_norm, s, stream);
     }
 
-    CUDA_CHECK(cudaFreeAsync(d_sigma_norm, stream));
     CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
 
     return iterations;
