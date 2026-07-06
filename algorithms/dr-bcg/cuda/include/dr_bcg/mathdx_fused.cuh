@@ -9,6 +9,7 @@
 #include "dr_bcg/convergence_check.cuh"
 #include "dr_bcg/device_buffer.cuh"
 #include "dr_bcg/handles.cuh"
+#include "dr_bcg/initialization.cuh"
 #include "dr_bcg/iteration.cuh"
 #include "dr_bcg/mathdx_qr.cuh"
 #include "dr_bcg/mathdx_xi.cuh"
@@ -57,48 +58,16 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     T *d_sigma_norm = nullptr;
     CUDA_CHECK(cudaMallocAsync(&d_sigma_norm, sizeof(T), stream));
 
-    T *d_R = nullptr;
-    CUDA_CHECK(cudaMallocAsync(&d_R, sizeof(T) * n * s, stream));
-    cusparseDnMatDescr_t R;
-    CUSPARSE_CHECK(
-        cusparseCreateDnMat(&R, n, s, n, d_R, cuda_type<T>, CUSPARSE_ORDER_COL));
-
-    {
-        nvtx3::scoped_range R_range{"R = B - A * X"};
-        CudaTimerRange er{g_event_timer, "R = B - A * X", stream};
-
-        // R = B - A * X
-        std::size_t buffer_size;
-        constexpr T alpha = -1.0;
-        constexpr T beta = 1.0;
-        constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-        constexpr cudaDataType_t compute_type = cuda_type<T>;
-        constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
-
-        void *d_B_ptr = nullptr;
-        CUSPARSE_CHECK(cusparseDnMatGetValues(B, &d_B_ptr));
-        CUDA_CHECK(cudaMemcpyAsync(d_R, d_B_ptr, sizeof(T) * n * s,
-                                   cudaMemcpyDeviceToDevice, stream));
-
-        CUSPARSE_CHECK(cusparseSpMM_bufferSize(handles.cusparse, op, op, &alpha,
-                                               A, X, &beta, B, compute_type,
-                                               alg, &buffer_size));
-
-        CUDA_CHECK(cudaMallocAsync(&d_scratch, buffer_size, stream));
-
-        CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A, X,
-                                    &beta, R, compute_type, alg, d_scratch));
-
-        CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
-    }
+    RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
+    R_calculator.calculate(B, A, X);
 
     {
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(L^-1 * R)"};
         CudaTimerRange er{g_event_timer, "[w sigma] = QR(L^-1 * R)", stream};
 
         // [w, sigma] = qr(R, 'econ')
-        qr.solve(d.w, d.sigma, d_R, n, s, handles.cublas, handles.cusolver,
-                 handles.cusolver_params, stream);
+        qr.solve(d.w, d.sigma, R_calculator.R_memory(), n, s, handles.cublas,
+                 handles.cusolver, handles.cusolver_params, stream);
         qr.check(static_cast<int>(s), "initial orthonormalization", stream);
     }
 
@@ -108,8 +77,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                                cudaMemcpyDeviceToHost, stream));
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
-    CUDA_CHECK(cudaFreeAsync(d_R, stream));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(R));
+    R_calculator.release();
 
     {
         nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
@@ -260,40 +228,8 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     T *d_sigma_norm = nullptr;
     CUDA_CHECK(cudaMallocAsync(&d_sigma_norm, sizeof(T), stream));
 
-    T *d_R = nullptr;
-    CUDA_CHECK(cudaMallocAsync(&d_R, sizeof(T) * n * s, stream));
-    cusparseDnMatDescr_t R;
-    CUSPARSE_CHECK(
-        cusparseCreateDnMat(&R, n, s, n, d_R, cuda_type<T>, CUSPARSE_ORDER_COL));
-
-    {
-        nvtx3::scoped_range R_range{"R = B - A * X"};
-        CudaTimerRange er{g_event_timer, "R = B - A * X", stream};
-
-        // R = B - A * X
-        std::size_t buffer_size;
-        constexpr T alpha = -1.0;
-        constexpr T beta = 1.0;
-        constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-        constexpr cudaDataType_t compute_type = cuda_type<T>;
-        constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
-
-        void *d_B_ptr = nullptr;
-        CUSPARSE_CHECK(cusparseDnMatGetValues(B, &d_B_ptr));
-        CUDA_CHECK(cudaMemcpyAsync(d_R, d_B_ptr, sizeof(T) * n * s,
-                                   cudaMemcpyDeviceToDevice, stream));
-
-        CUSPARSE_CHECK(cusparseSpMM_bufferSize(handles.cusparse, op, op, &alpha,
-                                               A, X, &beta, B, compute_type,
-                                               alg, &buffer_size));
-
-        CUDA_CHECK(cudaMallocAsync(&d_scratch, buffer_size, stream));
-
-        CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A, X,
-                                    &beta, R, compute_type, alg, d_scratch));
-
-        CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
-    }
+    RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
+    R_calculator.calculate(B, A, X);
 
     // [w sigma] = QR(L^-1 * R) split for timing: temp = L^-1 R; QR(temp).
     {
@@ -301,7 +237,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
         CudaTimerRange er{g_event_timer, "temp = L^-1 * R", stream};
 
         sptri_solve<T>(handles.cusparse, temp, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                       L, R, spsm_nt);
+                       L, R_calculator.R_descriptor(), spsm_nt);
     }
 
     {
@@ -319,8 +255,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                                cudaMemcpyDeviceToHost, stream));
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
-    CUDA_CHECK(cudaFreeAsync(d_R, stream));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(R));
+    R_calculator.release();
 
     {
         nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
