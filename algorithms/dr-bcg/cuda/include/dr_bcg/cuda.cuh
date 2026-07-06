@@ -94,8 +94,8 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                cudaMemcpyDeviceToHost, stream));
 
     {
-        nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
-        CudaTimerRange er{g_event_timer, "s = (L^-1)' * w", stream};
+        nvtx3::scoped_range s_initial_range{"s = w"};
+        CudaTimerRange er{g_event_timer, "s = w", stream};
 
         // s = w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(T) * n * s,
@@ -235,17 +235,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUDA_CHECK(cudaMemcpyAsync(&sigma_norm0, d_sigma_norm, sizeof(T),
                                cudaMemcpyDeviceToHost, stream));
 
-    {
-        nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
-        CudaTimerRange er{g_event_timer, "s = (L^-1)' * w", stream};
-
-        // s = (L^-1)' * w
-        CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(T) * n * s,
-                                   cudaMemcpyDeviceToDevice, stream));
-
-        sptri_solve<T>(handles.cusparse, s_desc,
-                       CUSPARSE_OPERATION_TRANSPOSE, L, w_desc, spsm_t);
-    }
+    initialize_preconditioned_s(handles.cusparse, n, s, s_desc, w_desc, L, spsm_t, stream);
 
     {
         constexpr T alpha_pos = 1.0;
@@ -278,8 +268,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         update_w(handles, A, s_desc, temp, L, d, spsm_nt, n, s, d_scratch, stream);
         orthonormalize_w<T, Qr>(qr, handles, d, n, s, stream);
 
-        update_s_preconditioned(handles, temp, w_desc, L, d, spsm_t, n, s,
-                                stream);
+        update_s_preconditioned(handles, temp, w_desc, L, d, spsm_t, n, s, stream);
 
         update_sigma(handles, d, s, stream);
 

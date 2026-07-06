@@ -20,7 +20,6 @@
 
 namespace dr_bcg::cuda {
 
-// X += s * G^-1 * sigma; U(=d.temp) = AS * G^-1
 template <SupportedType T>
 void apply_xi_chain(MathDxXiChain<T> &xi, DeviceBuffer<T> &d, T *d_AS, T *d_X,
                     std::int64_t n, std::int64_t s, cudaStream_t stream) {
@@ -81,8 +80,8 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                                cudaMemcpyDeviceToHost, stream));
 
     {
-        nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
-        CudaTimerRange er{g_event_timer, "s = (L^-1)' * w", stream};
+        nvtx3::scoped_range s_initial_range{"s = w"};
+        CudaTimerRange er{g_event_timer, "s = w", stream};
 
         // s = w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(T) * n * s,
@@ -217,17 +216,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     CUDA_CHECK(cudaMemcpyAsync(&sigma_norm0, d_sigma_norm, sizeof(T),
                                cudaMemcpyDeviceToHost, stream));
 
-    {
-        nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
-        CudaTimerRange er{g_event_timer, "s = (L^-1)' * w", stream};
-
-        // s = (L^-1)' * w
-        CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(T) * n * s,
-                                   cudaMemcpyDeviceToDevice, stream));
-
-        sptri_solve<T>(handles.cusparse, s_desc, CUSPARSE_OPERATION_TRANSPOSE, L,
-                       w_desc, spsm_t);
-    }
+    initialize_preconditioned_s(handles.cusparse, n, s, s_desc, w_desc, L, spsm_t, stream);
 
     AsCalculator<T> As_calculator{handles.cusparse, n, s, A, s_desc, stream};
 
@@ -264,8 +253,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                      stream);
         }
 
-        update_s_preconditioned(handles, temp, w_desc, L, d, spsm_t, n, s,
-                                stream);
+        update_s_preconditioned(handles, temp, w_desc, L, d, spsm_t, n, s, stream);
 
         update_sigma(handles, d, s, stream);
 

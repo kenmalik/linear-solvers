@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/type_info.h"
+#include "dr_bcg/math.h"
 
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>
@@ -84,5 +85,26 @@ class [[nodiscard]] RCalculator {
     T *d_R = nullptr;
     cusparseDnMatDescr_t R = nullptr;
 };
+
+template <SupportedType T>
+void initialize_preconditioned_s(
+    const cusparseHandle_t cusparse, std::int64_t n, std::int64_t s,
+    cusparseDnMatDescr_t s_desc, cusparseDnMatDescr_t w_desc, cusparseSpMatDescr_t L_desc,
+    const SpsmCache<T> &spsm_transpose, const cudaStream_t stream) {
+    nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
+    CudaTimerRange er{g_event_timer, "s = (L^-1)' * w", stream};
+
+    T *d_s = nullptr;
+    T *d_w = nullptr;
+
+    CUSPARSE_CHECK(cusparseDnMatGetValues(s_desc, reinterpret_cast<void **>(&d_s)));
+    CUSPARSE_CHECK(cusparseDnMatGetValues(w_desc, reinterpret_cast<void **>(&d_w)));
+
+    CUDA_CHECK(cudaMemcpyAsync(d_s, d_w, sizeof(T) * n * s,
+                               cudaMemcpyDeviceToDevice, stream));
+
+    sptri_solve<T>(cusparse, s_desc, CUSPARSE_OPERATION_TRANSPOSE,
+                   L_desc, w_desc, spsm_transpose);
+}
 
 } // namespace dr_bcg::cuda
