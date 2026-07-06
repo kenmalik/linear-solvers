@@ -21,11 +21,14 @@ struct Args {
     std::optional<mat_utils::DnMatReader> x;
     std::optional<mat_utils::DnMatReader> X;
     std::string timer_out;
+    std::optional<std::string> output;
+    bool output_b;
     double tolerance;
     std::optional<int> max_iterations;
     int block_size;
     bool disable_tensor_cores;
     QrBackend qr_backend;
+    bool fused_xi;
 };
 
 std::optional<Args> parse_args(int argc, char *argv[]);

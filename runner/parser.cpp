@@ -27,6 +27,8 @@ static std::optional<QrBackend> parse_qr_backend(const std::string &s) {
         return QrBackend::Householder;
     if (s == "cholqr")
         return QrBackend::CholQR;
+    if (s == "cholqr-dx")
+        return QrBackend::CholQRDx;
     return std::nullopt;
 }
 
@@ -45,11 +47,16 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         ("x", "x matrix's .mat file containing top-level dense variable x", cxxopts::value<std::string>())
         ("X", "X matrix's .mat file containing top-level dense variable X", cxxopts::value<std::string>())
         ("timer-out", "Output file for timings CSV", cxxopts::value<std::string>()->default_value("timings.csv"))
+        ("o,output", "Output .mat file for the solution X", cxxopts::value<std::string>())
+        ("output-b", "Also write the used B into the --output .mat file",
+         cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("t,tolerance", "Convergence tolerance", cxxopts::value<double>()->default_value("1e-6"))
         ("i,max-iterations", "Maximum number of iterations (default: n)", cxxopts::value<int>())
         ("s,block-size", "Block size (DR-BCG only)", cxxopts::value<int>()->default_value("1"))
-        ("qr-backend", "CUDA DR-BCG orthonormalization backend (householder, cholqr)",
+        ("qr-backend", "CUDA DR-BCG orthonormalization backend (householder, cholqr, cholqr-dx)",
          cxxopts::value<std::string>()->default_value("householder"))
+        ("fused-xi", "Enable the fused MathDx reduced-system (xi) chain for CUDA DR-BCG (requires SOLVERS_BUILD_MATHDX)",
+         cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("no-tensor-cores", "Disable tensor-core-eligible cuBLAS math for CUDA runs",
          cxxopts::value<bool>()->default_value("false")->implicit_value("true"));
     // clang-format on
@@ -108,11 +115,12 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
             max_iterations = result["max-iterations"].as<int>();
         int block_size = result["block-size"].as<int>();
         bool disable_tensor_cores = result["no-tensor-cores"].as<bool>();
+        bool fused_xi = result["fused-xi"].as<bool>();
         auto qr_backend = parse_qr_backend(result["qr-backend"].as<std::string>());
         if (!qr_backend) {
             std::cerr << "Unknown QR backend: "
                       << result["qr-backend"].as<std::string>() << "\n"
-                      << "Available: householder, cholqr\n"
+                      << "Available: householder, cholqr, cholqr-dx\n"
                       << std::endl;
             std::cerr << options.help();
             return std::nullopt;
@@ -138,21 +146,30 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
             timer_out += ".csv";
         }
 
+        std::optional<std::string> output;
+        if (result.count("output")) {
+            output = result["output"].as<std::string>();
+            if (!output->ends_with(".mat")) {
+                *output += ".mat";
+            }
+        }
+        bool output_b = result["output-b"].as<bool>();
+
         if (result.count("L")) {
             mat_utils::SpMatReader L_reader{
                 result["L"].as<std::string>(), {}, "L"};
             return Args{*algorithm, *implementation, std::move(A_reader), std::move(L_reader),
                         std::move(b_reader), std::move(B_reader), std::move(x_reader),
-                        std::move(X_reader), timer_out, tolerance,
-                        max_iterations, block_size, disable_tensor_cores,
-                        *qr_backend};
+                        std::move(X_reader), timer_out, std::move(output), output_b,
+                        tolerance, max_iterations, block_size, disable_tensor_cores,
+                        *qr_backend, fused_xi};
         }
 
         return Args{*algorithm, *implementation, std::move(A_reader), std::nullopt,
                     std::move(b_reader), std::move(B_reader), std::move(x_reader),
-                    std::move(X_reader), timer_out, tolerance,
-                    max_iterations, block_size, disable_tensor_cores,
-                    *qr_backend};
+                    std::move(X_reader), timer_out, std::move(output), output_b,
+                    tolerance, max_iterations, block_size, disable_tensor_cores,
+                    *qr_backend, fused_xi};
     } catch (const cxxopts::exceptions::exception &e) {
         std::cerr << e.what() << '\n'
                   << std::endl;

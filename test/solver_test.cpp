@@ -5,9 +5,11 @@
 #include <mat_utils/mat_reader.h>
 #include <mat_utils/mat_writer.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <unistd.h>
@@ -183,6 +185,34 @@ TEST(Parser, ParsesExplicitCholQrBackend) {
 
     ASSERT_TRUE(parsed.has_value());
     EXPECT_EQ(parsed->qr_backend, QrBackend::CholQR);
+}
+
+TEST(Parser, DefaultsFusedXiToFalse) {
+    std::vector<std::string> args = {
+        "cgrun", "dr-bcg", "cuda", TEST_DATA_DIR "/1138_bus.mat"};
+    auto argv = argv_from(args);
+
+    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_FALSE(parsed->fused_xi);
+}
+
+TEST(Parser, ParsesFusedXiFlag) {
+    std::vector<std::string> args = {"cgrun",
+                                     "dr-bcg",
+                                     "cuda",
+                                     TEST_DATA_DIR "/1138_bus.mat",
+                                     "--qr-backend",
+                                     "cholqr-dx",
+                                     "--fused-xi"};
+    auto argv = argv_from(args);
+
+    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->qr_backend, QrBackend::CholQRDx);
+    EXPECT_TRUE(parsed->fused_xi);
 }
 
 TEST(Rhs, LoadsCgRhsFromMat) {
@@ -427,6 +457,123 @@ TEST(DrBcgCuda, ConvergesOn1138Bus) {
 
     EXPECT_LT(iters, n) << "DR-BCG (CUDA) did not converge within " << n << " iterations";
 }
+
+TEST(DrBcgCuda, ConvergesOn1138BusCholQR) {
+    mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
+    mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
+
+    int n = A.rows();
+
+    // Use a full-rank RHS (distinct columns). An all-ones b gives identical
+    // columns -> a rank-deficient block, which CholeskyQR cannot orthonormalize
+    // (unlike Householder). This mirrors real usage (runner/benchmark generate a
+    // random RHS).
+    std::vector<double> b(n * block_size);
+    {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::normal_distribution<double> dist(0.0, 1.0);
+        std::generate(b.begin(), b.end(), [&dist, &gen] { return dist(gen); });
+    }
+
+    std::vector<double> x_dx(n * block_size, 0.0);
+    int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, tolerance, n, block_size,
+                                   false, QrBackend::CholQR);
+    EXPECT_GT(iters_dx, 0)
+        << "DR-BCG (CUDA, CholQR) failed before converging";
+    EXPECT_LT(iters_dx, n) << "DR-BCG (CUDA, CholQR) did not converge within "
+                           << n << " iterations";
+
+    std::vector<double> x_hh(n * block_size, 0.0);
+    int iters_hh = run_cuda_dr_bcg(A, b, x_hh, L, tolerance, n, block_size,
+                                   false, QrBackend::Householder);
+
+    // A valid QR yields essentially the same Krylov iteration count as the
+    // Householder baseline; allow a small slack for CholQR2 rounding.
+    EXPECT_NEAR(static_cast<double>(iters_dx), static_cast<double>(iters_hh),
+                0.1 * iters_hh + 2)
+        << "CholQR-Dx convergence (" << iters_dx << ") diverged from Householder ("
+        << iters_hh << ")";
+}
+
+#ifdef SOLVERS_BUILD_MATHDX
+
+// TODO: Update other test fixtures to use normally-distributed b.
+
+TEST(DrBcgCuda, ConvergesOn1138BusCholQRDx) {
+    mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
+    mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
+
+    int n = A.rows();
+
+    std::vector<double> b(n * block_size);
+    {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::normal_distribution<double> dist(0.0, 1.0);
+        std::generate(b.begin(), b.end(), [&dist, &gen] { return dist(gen); });
+    }
+
+    std::vector<double> x_dx(n * block_size, 0.0);
+    int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, tolerance, n, block_size,
+                                   false, QrBackend::CholQRDx);
+    EXPECT_GT(iters_dx, 0)
+        << "DR-BCG (CUDA, CholQR-Dx) failed before converging";
+    EXPECT_LT(iters_dx, n) << "DR-BCG (CUDA, CholQR-Dx) did not converge within "
+                           << n << " iterations";
+
+    std::vector<double> x_hh(n * block_size, 0.0);
+    int iters_hh = run_cuda_dr_bcg(A, b, x_hh, L, tolerance, n, block_size,
+                                   false, QrBackend::Householder);
+
+    // A valid QR yields essentially the same Krylov iteration count as the
+    // Householder baseline; allow a small slack for CholQR2 rounding.
+    EXPECT_NEAR(static_cast<double>(iters_dx), static_cast<double>(iters_hh),
+                0.1 * iters_hh + 2)
+        << "CholQR-Dx convergence (" << iters_dx << ") diverged from Householder ("
+        << iters_hh << ")";
+}
+
+// Validates the fully fused MathDx variant (PLAN.md Stage 3): fused CholeskyQR2
+// plus the fused reduced-system xi chain (factor-once-apply-twice, AS kept once,
+// device-side G^-1). It must converge on 1138_bus and do so comparably to the
+// Householder baseline, which proves the restructured xi chain reproduces the
+// Krylov trajectory.
+TEST(DrBcgCuda, ConvergesOn1138BusFusedDx) {
+    mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
+    mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
+
+    int n = A.rows();
+
+    std::vector<double> b(n * block_size);
+    {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::normal_distribution<double> dist(0.0, 1.0);
+        std::generate(b.begin(), b.end(), [&dist, &gen] { return dist(gen); });
+    }
+
+    std::vector<double> x_dx(n * block_size, 0.0);
+    int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, tolerance, n, block_size,
+                                   false, QrBackend::CholQRDx, /*fused_xi=*/true);
+    EXPECT_GT(iters_dx, 0)
+        << "DR-BCG (CUDA, Fused-Dx) failed before converging";
+    EXPECT_LT(iters_dx, n) << "DR-BCG (CUDA, Fused-Dx) did not converge within "
+                           << n << " iterations";
+
+    std::vector<double> x_hh(n * block_size, 0.0);
+    int iters_hh = run_cuda_dr_bcg(A, b, x_hh, L, tolerance, n, block_size,
+                                   false, QrBackend::Householder);
+
+    // A valid fused pipeline yields essentially the same Krylov iteration count
+    // as the Householder baseline; allow a small slack for CholQR2 rounding.
+    EXPECT_NEAR(static_cast<double>(iters_dx), static_cast<double>(iters_hh),
+                0.1 * iters_hh + 2)
+        << "Fused-Dx convergence (" << iters_dx << ") diverged from Householder ("
+        << iters_hh << ")";
+}
+
+#endif // SOLVERS_BUILD_MATHDX
 
 #endif // SOLVERS_BUILD_DR_BCG
 

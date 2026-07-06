@@ -46,7 +46,7 @@
 *.cubin
 *.fatbin
 
-build/
+build*/
 .claude/worktrees
 .cache
 
@@ -267,5 +267,11 @@ __marimo__/
 *.png
 residuals_*.txt
 *.json
+*.md
 
+!README.md
 !tasks.json
+
+# Test run matrix outputs
+*.mat
+!data/*.mat
