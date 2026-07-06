@@ -194,4 +194,87 @@ void update_s_preconditioned(Handles &handles, cusparseDnMatDescr_t temp,
                              d.s, n, d.one, d.temp, n, d.s, n));
 }
 
+#ifdef SOLVERS_BUILD_MATHDX
+
+// As = A * s
+template <SupportedType T>
+class [[nodiscard]] AsCalculator {
+  public:
+    AsCalculator(cusparseHandle_t cusparse, std::int64_t n, std::int64_t s,
+                 cusparseSpMatDescr_t A_desc, cusparseDnMatDescr_t s_desc, cudaStream_t stream) noexcept
+        : cusparse{cusparse}, n{n}, s{s}, A_desc{A_desc}, s_desc{s_desc}, stream{stream} {
+        CUDA_CHECK(cudaMallocAsync(&d_As, sizeof(T) * n * s, stream));
+        CUSPARSE_CHECK(cusparseCreateDnMat(&As_desc, n, s, n, d_As, compute_type,
+                                           CUSPARSE_ORDER_COL));
+
+        std::size_t buffer_size = 0;
+        CUSPARSE_CHECK(cusparseSpMM_bufferSize(
+            cusparse, op, op, &alpha, A_desc, s_desc, &beta,
+            As_desc, compute_type, alg, &buffer_size));
+        if (buffer_size > 0) {
+            CUDA_CHECK(cudaMallocAsync(&d_buffer, buffer_size, stream));
+        }
+    }
+
+    AsCalculator(const AsCalculator &) = delete;
+    AsCalculator &operator=(const AsCalculator &) = delete;
+
+    ~AsCalculator() noexcept {
+        release();
+    }
+
+    void update() noexcept {
+        nvtx3::scoped_range as_range{"AS = A * s"};
+        CudaTimerRange er{g_event_timer, "AS = A * s", stream};
+
+        CUSPARSE_CHECK(cusparseSpMM(cusparse, op, op, &alpha, A_desc, s_desc,
+                                    &beta, As_desc, compute_type, alg, d_buffer));
+    }
+
+    void release() noexcept {
+        if (As_desc) {
+            CUSPARSE_CHECK(cusparseDestroyDnMat(As_desc));
+        }
+        As_desc = nullptr;
+
+        if (d_As) {
+            CUDA_CHECK(cudaFreeAsync(d_As, stream));
+        }
+        d_As = nullptr;
+
+        if (d_buffer) {
+            CUDA_CHECK(cudaFreeAsync(d_buffer, stream));
+        }
+        d_buffer = nullptr;
+    }
+
+    [[nodiscard]] cusparseDnMatDescr_t As_descriptor() const noexcept {
+        return As_desc;
+    }
+
+    [[nodiscard]] T *As_memory() const noexcept {
+        return d_As;
+    }
+
+  private:
+    static constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
+    static constexpr T alpha = 1.0;
+    static constexpr T beta = 0.0;
+    static constexpr cudaDataType_t compute_type = cuda_type<T>;
+    static constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
+
+    const cusparseHandle_t cusparse;
+    const std::int64_t n;
+    const std::int64_t s;
+    const cusparseSpMatDescr_t A_desc;
+    const cusparseDnMatDescr_t s_desc;
+    const cudaStream_t stream;
+
+    T *d_As = nullptr;
+    cusparseDnMatDescr_t As_desc = nullptr;
+    void *d_buffer = nullptr;
+};
+
+#endif // SOLVERS_BUILD_MATHDX
+
 } // namespace dr_bcg::cuda

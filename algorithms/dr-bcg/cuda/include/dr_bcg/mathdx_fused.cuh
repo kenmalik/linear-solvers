@@ -15,9 +15,22 @@
 #include "dr_bcg/mathdx_xi.cuh"
 
 #include <algorithm>
+#include <cstdint>
 #include <type_traits>
 
 namespace dr_bcg::cuda {
+
+// X += s * G^-1 * sigma; U(=d.temp) = AS * G^-1
+template <SupportedType T>
+void apply_xi_chain(MathDxXiChain<T> &xi, DeviceBuffer<T> &d, T *d_AS, T *d_X,
+                    std::int64_t n, std::int64_t s, cudaStream_t stream) {
+    nvtx3::scoped_range xi_range{"xi chain: X += s*xi*sigma; U = AS*xi"};
+    CudaTimerRange er{g_event_timer, "xi chain", stream};
+
+    xi.apply(d.s, d_AS, d.sigma, d_X, d.temp, static_cast<int>(n),
+             static_cast<int>(s), stream);
+    xi.check(static_cast<int>(s), "xi chain", stream);
+}
 
 // Unpreconditioned (L = I) fully fused DR-BCG.
 template <SupportedType T, QrPolicy<T> Qr = MathDxCholeskyQr2<T>>
@@ -38,16 +51,8 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
           static_cast<int>(n), static_cast<int>(s)};
     MathDxXiChain<T> xi{static_cast<int>(s)};
 
-    void *d_scratch = nullptr;
-
     cusparseDnMatDescr_t temp;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>,
-                                       CUSPARSE_ORDER_COL));
-
-    T *d_AS = nullptr;
-    CUDA_CHECK(cudaMallocAsync(&d_AS, sizeof(T) * n * s, stream));
-    cusparseDnMatDescr_t as_desc;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&as_desc, n, s, n, d_AS, cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
     T *d_X = nullptr;
@@ -92,19 +97,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
-    {
-        // Scratch for AS = A * s
-        constexpr T alpha_pos = 1.0;
-        constexpr T beta_zero = 0.0;
-        constexpr cusparseOperation_t op_nt = CUSPARSE_OPERATION_NON_TRANSPOSE;
-        std::size_t buf_as = 0;
-        CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-            handles.cusparse, op_nt, op_nt, &alpha_pos, A, s_desc, &beta_zero,
-            as_desc, cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_as));
-        if (buf_as > 0) {
-            CUDA_CHECK(cudaMallocAsync(&d_scratch, buf_as, stream));
-        }
-    }
+    AsCalculator<T> As_calculator{handles.cusparse, n, s, A, s_desc, stream};
 
     bool converged = false;
     int iterations = 0;
@@ -114,31 +107,9 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
 
         ++iterations;
 
-        {
-            nvtx3::scoped_range as_range{"AS = A * s"};
-            CudaTimerRange er{g_event_timer, "AS = A * s", stream};
+        As_calculator.update();
 
-            // AS = A * s
-            constexpr T alpha = 1.0;
-            constexpr T beta = 0.0;
-            constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-            constexpr cudaDataType_t compute_type = cuda_type<T>;
-            constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
-
-            CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
-                                        s_desc, &beta, as_desc, compute_type,
-                                        alg, d_scratch));
-        }
-
-        {
-            nvtx3::scoped_range xi_range{"xi chain: X += s*xi*sigma; U = AS*xi"};
-            CudaTimerRange er{g_event_timer, "xi chain", stream};
-
-            // X += s * G^-1 * sigma; U(=d.temp) = AS * G^-1
-            xi.apply(d.s, d_AS, d.sigma, d_X, d.temp, static_cast<int>(n),
-                     static_cast<int>(s), stream);
-            xi.check(static_cast<int>(s), "xi chain", stream);
-        }
+        apply_xi_chain<T>(xi, d, As_calculator.As_memory(), d_X, n, s, stream);
 
         {
             nvtx3::scoped_range w_zeta_range{"[w zeta] = QR(w - A * s * xi)"};
@@ -165,9 +136,6 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     }
 
     CUDA_CHECK(cudaFreeAsync(d_sigma_norm, stream));
-    CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
-    CUDA_CHECK(cudaFreeAsync(d_AS, stream));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(as_desc));
     CUSPARSE_CHECK(cusparseDestroyDnMat(s_desc));
     CUSPARSE_CHECK(cusparseDestroyDnMat(temp));
 
@@ -193,8 +161,6 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     Qr qr{handles.cusolver, handles.cusolver_params,
           static_cast<int>(n), static_cast<int>(s)};
     MathDxXiChain<T> xi{static_cast<int>(s)};
-
-    void *d_scratch = nullptr;
 
     cusparseDnMatDescr_t temp;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>,
@@ -269,19 +235,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                        w_desc, spsm_t);
     }
 
-    {
-        // Scratch for AS = A * s
-        constexpr T alpha_pos = 1.0;
-        constexpr T beta_zero = 0.0;
-        constexpr cusparseOperation_t op_nt = CUSPARSE_OPERATION_NON_TRANSPOSE;
-        std::size_t buf_as = 0;
-        CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-            handles.cusparse, op_nt, op_nt, &alpha_pos, A, s_desc, &beta_zero,
-            as_desc, cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_as));
-        if (buf_as > 0) {
-            CUDA_CHECK(cudaMallocAsync(&d_scratch, buf_as, stream));
-        }
-    }
+    AsCalculator<T> As_calculator{handles.cusparse, n, s, A, s_desc, stream};
 
     bool converged = false;
     int iterations = 0;
@@ -291,31 +245,9 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
 
         ++iterations;
 
-        {
-            nvtx3::scoped_range as_range{"AS = A * s"};
-            CudaTimerRange er{g_event_timer, "AS = A * s", stream};
+        As_calculator.update();
 
-            // AS = A * s
-            constexpr T alpha = 1.0;
-            constexpr T beta = 0.0;
-            constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-            constexpr cudaDataType_t compute_type = cuda_type<T>;
-            constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
-
-            CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A,
-                                        s_desc, &beta, as_desc, compute_type,
-                                        alg, d_scratch));
-        }
-
-        {
-            nvtx3::scoped_range xi_range{"xi chain: X += s*xi*sigma; U = AS*xi"};
-            CudaTimerRange er{g_event_timer, "xi chain", stream};
-
-            // X += s * G^-1 * sigma; U(=d.temp) = AS * G^-1
-            xi.apply(d.s, d_AS, d.sigma, d_X, d.temp, static_cast<int>(n),
-                     static_cast<int>(s), stream);
-            xi.check(static_cast<int>(s), "xi chain", stream);
-        }
+        apply_xi_chain<T>(xi, d, As_calculator.As_memory(), d_X, n, s, stream);
 
         {
             nvtx3::scoped_range w_zeta_range{
@@ -348,9 +280,6 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     }
 
     CUDA_CHECK(cudaFreeAsync(d_sigma_norm, stream));
-    CUDA_CHECK(cudaFreeAsync(d_scratch, stream));
-    CUDA_CHECK(cudaFreeAsync(d_AS, stream));
-    CUSPARSE_CHECK(cusparseDestroyDnMat(as_desc));
     CUSPARSE_CHECK(cusparseDestroyDnMat(s_desc));
     CUSPARSE_CHECK(cusparseDestroyDnMat(w_desc));
     CUSPARSE_CHECK(cusparseDestroyDnMat(temp));
