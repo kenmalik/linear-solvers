@@ -39,13 +39,13 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                 int max_iterations, cudaStream_t stream) {
     static_assert(std::is_same_v<T, double>, "currently only double supported");
     NVTX3_FUNC_RANGE();
+    CudaTimerRange solve_range{g_event_timer, "solve", stream};
+
+    CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
+    handles.set_stream(stream);
 
     auto [n, s] = get_size(B);
     DeviceBuffer<T> d(n, s);
-
-    CudaTimerRange solve_range{g_event_timer, "solve", stream};
-
-    handles.set_stream(stream);
 
     Qr qr{handles.cusolver, handles.cusolver_params,
           static_cast<int>(n), static_cast<int>(s)};
@@ -58,31 +58,27 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     T *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
 
-    CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
     constexpr int incx = 1;
     T *d_sigma_norm = nullptr;
     CUDA_CHECK(cudaMallocAsync(&d_sigma_norm, sizeof(T), stream));
 
     RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
     R_calculator.calculate(B, A, X);
-
     {
-        nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(L^-1 * R)"};
-        CudaTimerRange er{g_event_timer, "[w sigma] = QR(L^-1 * R)", stream};
+        nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(R)"};
+        CudaTimerRange er{g_event_timer, "[w sigma] = QR(R)", stream};
 
         // [w, sigma] = qr(R, 'econ')
         qr.solve(d.w, d.sigma, R_calculator.R_memory(), n, s, handles.cublas,
                  handles.cusolver, handles.cusolver_params, stream);
         qr.check(static_cast<int>(s), "initial orthonormalization", stream);
     }
+    R_calculator.release();
 
     CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
     T sigma_norm0 = 0;
     CUDA_CHECK(cudaMemcpyAsync(&sigma_norm0, d_sigma_norm, sizeof(T),
                                cudaMemcpyDeviceToHost, stream));
-    CUDA_CHECK(cudaStreamSynchronize(stream));
-
-    R_calculator.release();
 
     {
         nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
@@ -150,13 +146,13 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                 cudaStream_t stream) {
     static_assert(std::is_same_v<T, double>, "currently only double supported");
     NVTX3_FUNC_RANGE();
+    CudaTimerRange solve_range{g_event_timer, "solve", stream};
+
+    CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
+    handles.set_stream(stream);
 
     auto [n, s] = get_size(B);
     DeviceBuffer<T> d(n, s);
-
-    CudaTimerRange solve_range{g_event_timer, "solve", stream};
-
-    handles.set_stream(stream);
 
     Qr qr{handles.cusolver, handles.cusolver_params,
           static_cast<int>(n), static_cast<int>(s)};
@@ -189,7 +185,6 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     T *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
 
-    CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
     constexpr int incx = 1;
     T *d_sigma_norm = nullptr;
     CUDA_CHECK(cudaMallocAsync(&d_sigma_norm, sizeof(T), stream));
@@ -215,13 +210,12 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
         qr.check(static_cast<int>(s), "initial orthonormalization", stream);
     }
 
+    R_calculator.release();
+
     CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, s, d.sigma, incx, d_sigma_norm));
     T sigma_norm0 = 0;
     CUDA_CHECK(cudaMemcpyAsync(&sigma_norm0, d_sigma_norm, sizeof(T),
                                cudaMemcpyDeviceToHost, stream));
-    CUDA_CHECK(cudaStreamSynchronize(stream));
-
-    R_calculator.release();
 
     {
         nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};

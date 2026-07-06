@@ -92,7 +92,6 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     T sigma_norm0 = 0;
     CUDA_CHECK(cudaMemcpyAsync(&sigma_norm0, d_sigma_norm, sizeof(T),
                                cudaMemcpyDeviceToHost, stream));
-    CUDA_CHECK(cudaStreamSynchronize(stream));
 
     {
         nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
@@ -235,7 +234,6 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     T sigma_norm0 = 0;
     CUDA_CHECK(cudaMemcpyAsync(&sigma_norm0, d_sigma_norm, sizeof(T),
                                cudaMemcpyDeviceToHost, stream));
-    CUDA_CHECK(cudaStreamSynchronize(stream));
 
     {
         nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
