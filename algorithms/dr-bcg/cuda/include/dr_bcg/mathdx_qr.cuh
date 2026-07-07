@@ -168,9 +168,9 @@ __global__ void trinv_kernel(const T *__restrict__ R, T *__restrict__ Rinv) {
 // C[TILE,N] = A_panel[TILE,N] * Rinv[N,N]. Q may alias A (in-place second pass)
 // since each panel is staged through shared memory before being overwritten.
 //
-template <typename T, int N, int TILE>
-__global__ void apply_kernel(const T *__restrict__ A, T *__restrict__ Q, int m,
-                             int ldA, const T *__restrict__ Rinv) {
+template <class T, int N, int TILE>
+__global__ void apply_kernel(const T *A, T *Q, int m, int ldA,
+                             const T *__restrict__ Rinv) {
     using GEMM = GemmOp<T, TILE, N, N>;
 
     extern __shared__ __align__(16) char smem[]; // NOLINT
