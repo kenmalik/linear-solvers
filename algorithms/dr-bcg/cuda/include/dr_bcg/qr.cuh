@@ -105,7 +105,7 @@ class HouseholderQr {
     }
 
     void solve(T *&d_Q, T *&d_R, const T *d_A, const int &m, const int &n,
-               cublasHandle_t &cublasH, cusolverDnHandle_t &cusolverH,
+               cublasHandle_t & /*cublasH*/, cusolverDnHandle_t &cusolverH,
                cusolverDnParams_t &params, cudaStream_t &stream) {
         assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
@@ -143,7 +143,7 @@ class HouseholderQr {
                                    cudaMemcpyDeviceToHost, stream));
     }
 
-    void check(int n, const char *stage, cudaStream_t stream) {
+    void check(int /*n*/, const char *stage, cudaStream_t stream) {
         CUDA_CHECK(cudaStreamSynchronize(stream));
 
         if (*h_info < 0) {
