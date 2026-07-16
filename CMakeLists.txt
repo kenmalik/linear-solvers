@@ -30,6 +30,13 @@ else()
     message(WARNING "clang-tidy not found. Skipping static analysis.")
 endif()
 
+find_program(CPPCHECK_EXE NAMES "cppcheck")
+if(CPPCHECK_EXE)
+    set(CMAKE_CXX_CPPCHECK "${CPPCHECK_EXE}")
+else()
+    message(WARNING "cppcheck not found. Skipping static analysis.")
+endif()
+
 configure_file(
     ${CMAKE_SOURCE_DIR}/include/config.h.in
     ${CMAKE_BINARY_DIR}/include/config.h
