@@ -8,6 +8,13 @@
 #include <mkl_types.h>
 
 namespace cg::mkl {
+
+struct Config {
+    double tolerance = 1e-6;  // NOLINT
+    int max_iterations = 100; // NOLINT
+    bool real_residual = false;
+};
+
 /// Preconditioned Conjugate Gradient solver for sparse A with incomplete
 /// Cholesky factor L (preconditioner M = L * L^T).
 /// Solves Ax = b for symmetric positive-definite matrix A.
@@ -23,6 +30,6 @@ namespace cg::mkl {
 ///                       instead of updating r = r - alpha*q (avoids drift)
 /// @return number of iterations performed
 int solve(const CSRMatrix &A, const std::vector<double> &b,
-          std::vector<double> &x, const CSRMatrix &L, double tolerance = 1e-6,
-          int max_iterations = 100, bool real_residual = false);
+          std::vector<double> &x, const CSRMatrix &L, Config config);
+
 } // namespace cg::mkl

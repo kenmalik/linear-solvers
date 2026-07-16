@@ -22,12 +22,14 @@ class CpuTimer<true> {
             timer_.start(name_);
         }
 
+        ScopedRange(const ScopedRange &) = delete;
+        ScopedRange &operator=(const ScopedRange &) = delete;
+        ScopedRange(ScopedRange &&) = delete;
+        ScopedRange &operator=(ScopedRange &&) = delete;
+
         ~ScopedRange() {
             timer_.stop(name_);
         }
-
-        ScopedRange(const ScopedRange &) = delete;
-        ScopedRange &operator=(const ScopedRange &) = delete;
 
       private:
         CpuTimer &timer_;
@@ -88,9 +90,13 @@ class CpuTimer<false> {
   public:
     struct ScopedRange {
         ScopedRange(CpuTimer &timer, const char *name) {}
-        ~ScopedRange() {}
+
         ScopedRange(const ScopedRange &) = delete;
         ScopedRange &operator=(const ScopedRange &) = delete;
+        ScopedRange(ScopedRange &&) = delete;
+        ScopedRange &operator=(ScopedRange &&) = delete;
+
+        ~ScopedRange() = default;
     };
 
     void start(const std::string &fname) {}
@@ -99,7 +105,7 @@ class CpuTimer<false> {
     void reset() {}
 };
 
-inline CpuTimer<timer_enabled> g_timer;
+inline CpuTimer<timer_enabled> g_timer; // NOLINT
 using CpuTimerRange = CpuTimer<timer_enabled>::ScopedRange;
 
 static_assert(timer_enabled || sizeof(g_timer) == 1, "disabled CPU timer should have size of 1 byte");

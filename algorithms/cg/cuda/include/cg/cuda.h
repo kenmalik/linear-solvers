@@ -9,6 +9,7 @@
 #include <cusparse_v2.h>
 
 namespace {
+
 template <SupportedType T>
 struct DeviceBuffers {
     DeviceBuffers(std::int64_t n) noexcept {
@@ -23,6 +24,11 @@ struct DeviceBuffers {
         CUSPARSE_CHECK(cusparseCreateDnVec(&q, n, d_q, cuda_type<T>));
     }
 
+    DeviceBuffers(const DeviceBuffers &) = delete;
+    DeviceBuffers(DeviceBuffers &&) = delete;
+    DeviceBuffers &operator=(const DeviceBuffers &) = delete;
+    DeviceBuffers &operator=(DeviceBuffers &&) = delete;
+
     ~DeviceBuffers() noexcept {
         CUDA_CHECK(cudaFree(d_r));
         CUDA_CHECK(cudaFree(d_s));
@@ -35,22 +41,31 @@ struct DeviceBuffers {
         CUSPARSE_CHECK(cusparseDestroyDnVec(q));
     }
 
-    cusparseDnVecDescr_t r;
-    cusparseDnVecDescr_t s;
-    cusparseDnVecDescr_t d;
-    cusparseDnVecDescr_t q;
+    cusparseDnVecDescr_t r{};
+    cusparseDnVecDescr_t s{};
+    cusparseDnVecDescr_t d{};
+    cusparseDnVecDescr_t q{};
 
     T *d_r;
     T *d_s;
     T *d_d;
     T *d_q;
 };
+
 } // namespace
 
 namespace cg::cuda {
+
+struct Config {
+    double tolerance = 1e-6;  // NOLINT
+    int max_iterations = 100; // NOLINT
+    bool real_residual = false;
+    cudaStream_t stream = nullptr;
+};
+
 int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
           cusparseSpMatDescr_t A, cusparseDnVecDescr_t b,
           cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
-          double tolerance = 1e-6, int max_iterations = 1,
-          bool real_residual = true, cudaStream_t stream = nullptr);
-}
+          Config config);
+
+} // namespace cg::cuda

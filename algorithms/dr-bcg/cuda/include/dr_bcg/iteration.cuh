@@ -7,8 +7,8 @@
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
-#include "common/type_info.h"
 #include "common/log.h"
+#include "common/type_info.h"
 
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
@@ -53,6 +53,8 @@ class RelativeResidualNormConvergence {
 
     RelativeResidualNormConvergence(const RelativeResidualNormConvergence &) = delete;
     RelativeResidualNormConvergence &operator=(const RelativeResidualNormConvergence &) = delete;
+    RelativeResidualNormConvergence(RelativeResidualNormConvergence &&) = delete;
+    RelativeResidualNormConvergence &operator=(RelativeResidualNormConvergence &&) = delete;
 
     ~RelativeResidualNormConvergence() noexcept {
         CUSPARSE_CHECK(cusparseDestroyDnVec(X1));
@@ -107,9 +109,9 @@ class RelativeResidualNormConvergence {
     const cudaStream_t stream;
 
     cusparseSpMatDescr_t A;
-    cusparseDnVecDescr_t X1;
-    cusparseDnVecDescr_t B1;
-    cusparseDnVecDescr_t temp;
+    cusparseDnVecDescr_t X1{};
+    cusparseDnVecDescr_t B1{};
+    cusparseDnVecDescr_t temp{};
 
     void *buffer = nullptr;
     T *d_B = nullptr;
@@ -318,6 +320,8 @@ class [[nodiscard]] AsCalculator {
 
     AsCalculator(const AsCalculator &) = delete;
     AsCalculator &operator=(const AsCalculator &) = delete;
+    AsCalculator(AsCalculator &&) = delete;
+    AsCalculator &operator=(AsCalculator &&) = delete;
 
     ~AsCalculator() noexcept {
         release();
@@ -332,17 +336,17 @@ class [[nodiscard]] AsCalculator {
     }
 
     void release() noexcept {
-        if (As_desc) {
+        if (As_desc != nullptr) {
             CUSPARSE_CHECK(cusparseDestroyDnMat(As_desc));
         }
         As_desc = nullptr;
 
-        if (d_As) {
+        if (d_As != nullptr) {
             CUDA_CHECK(cudaFreeAsync(d_As, stream));
         }
         d_As = nullptr;
 
-        if (d_buffer) {
+        if (d_buffer != nullptr) {
             CUDA_CHECK(cudaFreeAsync(d_buffer, stream));
         }
         d_buffer = nullptr;

@@ -16,31 +16,13 @@
 #include <cusparse_v2.h>
 
 #include <algorithm>
-#include <cstdint>
-#include <iostream>
-#include <stdexcept>
-#include <string>
 #include <type_traits>
-#include <utility>
 
 #include <nvtx3/nvtx3.hpp>
 
 // TODO: Figure out why LU workspace check was in the sigma convergence block
 
 namespace dr_bcg::cuda {
-
-inline std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) {
-    std::int64_t n = 0;
-    std::int64_t s = 0;
-    std::int64_t ld = 0;
-    void *vals = nullptr;
-    cudaDataType_t data_type;
-    cusparseOrder_t order;
-
-    CUSPARSE_CHECK(cusparseDnMatGet(mat, &n, &s, &ld, &vals, &data_type, &order));
-
-    return {n, s};
-}
 
 template <SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
@@ -55,8 +37,8 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     auto [n, s] = get_size(B);
     DeviceBuffer<T> d(n, s);
 
-    Qr qr{handles.cusolver, handles.cusolver_params,
-          static_cast<int>(n), static_cast<int>(s)};
+    const QrDimensions qr_dims{.m = static_cast<int>(n), .n = static_cast<int>(s)};
+    Qr qr{handles.cusolver, handles.cusolver_params, qr_dims};
 
     LuWorkspace<T> lu_ws;
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
@@ -64,7 +46,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     void *d_scratch = nullptr;
 
-    cusparseDnMatDescr_t temp;
+    cusparseDnMatDescr_t temp = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>, CUSPARSE_ORDER_COL));
 
     T *d_X = nullptr;
@@ -92,11 +74,11 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
                                    cudaMemcpyDeviceToDevice, stream));
     }
 
-    cusparseDnMatDescr_t s_desc;
+    cusparseDnMatDescr_t s_desc = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
-    cusparseDnMatDescr_t w_desc;
+    cusparseDnMatDescr_t w_desc = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
@@ -165,8 +147,8 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     auto [n, s] = get_size(B);
     DeviceBuffer<T> d(n, s);
 
-    Qr qr{handles.cusolver, handles.cusolver_params,
-          static_cast<int>(n), static_cast<int>(s)};
+    const QrDimensions qr_dims{.m = static_cast<int>(n), .n = static_cast<int>(s)};
+    Qr qr{handles.cusolver, handles.cusolver_params, qr_dims};
 
     LuWorkspace<T> lu_ws;
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
@@ -174,11 +156,11 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     void *d_scratch = nullptr;
 
-    cusparseDnMatDescr_t temp;
+    cusparseDnMatDescr_t temp = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>, CUSPARSE_ORDER_COL));
-    cusparseDnMatDescr_t s_desc;
+    cusparseDnMatDescr_t s_desc = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>, CUSPARSE_ORDER_COL));
-    cusparseDnMatDescr_t w_desc;
+    cusparseDnMatDescr_t w_desc = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cuda_type<T>, CUSPARSE_ORDER_COL));
 
     SpsmCache<T> spsm_nt;

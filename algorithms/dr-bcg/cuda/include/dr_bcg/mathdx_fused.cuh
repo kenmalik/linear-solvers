@@ -4,6 +4,8 @@
 //
 // TODO: Consider ways to reduce code duplication from original solver implementation.
 
+#include "config.h"
+
 #ifdef SOLVERS_BUILD_MATHDX
 
 #include "dr_bcg/device_buffer.cuh"
@@ -12,7 +14,6 @@
 #include "dr_bcg/mathdx_qr.cuh"
 #include "dr_bcg/mathdx_xi.cuh"
 
-#include <algorithm>
 #include <cstdint>
 #include <type_traits>
 
@@ -44,11 +45,11 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     auto [n, s] = get_size(B);
     DeviceBuffer<T> d(n, s);
 
-    Qr qr{handles.cusolver, handles.cusolver_params,
-          static_cast<int>(n), static_cast<int>(s)};
+    const QrDimensions qr_dims{.m = static_cast<int>(n), .n = static_cast<int>(s)};
+    Qr qr{handles.cusolver, handles.cusolver_params, qr_dims};
     MathDxXiChain<T> xi{static_cast<int>(s)};
 
-    cusparseDnMatDescr_t temp;
+    cusparseDnMatDescr_t temp = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
@@ -77,7 +78,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                                    cudaMemcpyDeviceToDevice, stream));
     }
 
-    cusparseDnMatDescr_t s_desc;
+    cusparseDnMatDescr_t s_desc = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
@@ -143,17 +144,17 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     auto [n, s] = get_size(B);
     DeviceBuffer<T> d(n, s);
 
-    Qr qr{handles.cusolver, handles.cusolver_params,
-          static_cast<int>(n), static_cast<int>(s)};
+    const QrDimensions qr_dims{.m = static_cast<int>(n), .n = static_cast<int>(s)};
+    Qr qr{handles.cusolver, handles.cusolver_params, qr_dims};
     MathDxXiChain<T> xi{static_cast<int>(s)};
 
-    cusparseDnMatDescr_t temp;
+    cusparseDnMatDescr_t temp = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
-    cusparseDnMatDescr_t s_desc;
+    cusparseDnMatDescr_t s_desc = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
-    cusparseDnMatDescr_t w_desc;
+    cusparseDnMatDescr_t w_desc = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 

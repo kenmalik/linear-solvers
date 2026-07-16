@@ -1,3 +1,7 @@
 #pragma once
 
-enum class QrBackend { Householder, CholQR, CholQRDx };
+#include <cstdint>
+
+enum class QrBackend : std::uint8_t { Householder,
+                                      CholQR,
+                                      CholQRDx };

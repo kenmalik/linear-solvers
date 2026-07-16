@@ -12,9 +12,9 @@
 #include <mkl_spblas.h>
 
 namespace cg::mkl {
+
 int solve(const CSRMatrix &A, const std::vector<double> &b,
-          std::vector<double> &x, const CSRMatrix &L, double tolerance,
-          int max_iterations, bool real_residual) {
+          std::vector<double> &x, const CSRMatrix &L, Config config) {
     CpuTimerRange solve_range{g_timer, "solve"};
 
     assert(A.descr.type == SPARSE_MATRIX_TYPE_GENERAL);
@@ -26,7 +26,7 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
 
     // Relative residual threshold: ||r||^2 <= tol^2 * ||b||^2
     double norm_b_sq = cblas_ddot(n, b.data(), 1, b.data(), 1);
-    double tol_sq = tolerance * tolerance * norm_b_sq;
+    double tol_sq = config.tolerance * config.tolerance * norm_b_sq;
 
     // Working vectors
     std::vector<double> r(n);   // residual
@@ -62,8 +62,8 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
     double delta_new = cblas_ddot(n, r.data(), 1, d.data(), 1);
     double residual_sq = cblas_ddot(n, r.data(), 1, r.data(), 1);
 
-    int iter;
-    for (iter = 0; iter < max_iterations; ++iter) {
+    int iter = 0;
+    for (iter = 0; iter < config.max_iterations; ++iter) {
 #ifdef SOLVERS_ENABLE_VERBOSE
         cils::log(std::sqrt(residual_sq / norm_b_sq));
 #endif
@@ -89,7 +89,7 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
         cblas_daxpy(n, alpha, d.data(), 1, x.data(), 1);
         g_timer.stop("x = x + alpha * d");
 
-        if (real_residual) {
+        if (config.real_residual) {
             // r = b - A * x
             g_timer.start("r = b - A * x");
             cblas_dcopy(n, b.data(), 1, r.data(), 1);
@@ -129,4 +129,5 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
 
     return iter;
 }
+
 } // namespace cg::mkl

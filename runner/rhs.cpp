@@ -8,14 +8,14 @@
 
 namespace {
 
-constexpr std::uint32_t rhs_seed = 0x5EED1234u;
+constexpr std::uint32_t rhs_seed = 0x5EED1234U;
 
 std::vector<double> generate_random_rhs(std::size_t size) {
-    std::mt19937 gen(rhs_seed);
+    std::mt19937 gen(rhs_seed); // NOLINT
     std::normal_distribution<double> dist(0.0, 1.0);
 
     std::vector<double> rhs(size);
-    std::generate(rhs.begin(), rhs.end(), [&] { return dist(gen); });
+    std::ranges::generate(rhs, [&] { return dist(gen); });
     return rhs;
 }
 
@@ -39,7 +39,7 @@ prepare_dense_input(const std::optional<mat_utils::DnMatReader> &reader,
     }
 
     auto *data = reader->data();
-    return std::vector<double>(data, data + reader->size());
+    return {data, data + reader->size()};
 }
 
 void validate_dense_input(const mat_utils::DnMatReader &reader,
@@ -102,7 +102,7 @@ std::vector<double> prepare_split_dense_input(
                   dense_input.begin());
     } else {
         auto first_column = fallback(expected_rows);
-        std::copy(first_column.begin(), first_column.end(), dense_input.begin());
+        std::ranges::copy(first_column, dense_input.begin());
     }
 
     if (rest_reader.has_value()) {
@@ -111,8 +111,8 @@ std::vector<double> prepare_split_dense_input(
                   dense_input.begin() + static_cast<std::ptrdiff_t>(expected_rows));
     } else {
         auto remaining_columns = fallback(expected_rows * (expected_cols - 1));
-        std::copy(remaining_columns.begin(), remaining_columns.end(),
-                  dense_input.begin() + static_cast<std::ptrdiff_t>(expected_rows));
+        std::ranges::copy(remaining_columns,
+                          dense_input.begin() + static_cast<std::ptrdiff_t>(expected_rows));
     }
 
     return dense_input;

@@ -1,19 +1,8 @@
 #include "config.h"
-
-#include <gtest/gtest.h>
+#include "qr_backend.h"
 
 #include <mat_utils/mat_reader.h>
 #include <mat_utils/mat_writer.h>
-
-#include <algorithm>
-#include <filesystem>
-#include <fstream>
-#include <optional>
-#include <random>
-#include <stdexcept>
-#include <string>
-#include <unistd.h>
-#include <vector>
 
 #ifndef TEST_DATA_DIR
 #define TEST_DATA_DIR "."
@@ -31,8 +20,20 @@
 #include "cuda_adapter.h"
 #endif
 
+#include <algorithm>
+#include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <gtest/gtest.h>
+#include <optional>
+#include <random>
+#include <stdexcept>
+#include <string>
+#include <unistd.h>
+#include <vector>
+
 static constexpr double tolerance = 1e-6;
-static constexpr int block_size = 4;
+static constexpr std::size_t block_size = 4;
 
 namespace {
 
@@ -167,16 +168,16 @@ TEST(Parser, DefaultsQrBackendToHouseholder) {
     auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
 
     ASSERT_TRUE(parsed.has_value());
-    EXPECT_EQ(parsed->algorithm, Algorithm::DR_BCG);
-    EXPECT_EQ(parsed->implementation, Implementation::CUDA);
-    EXPECT_EQ(parsed->qr_backend, QrBackend::Householder);
+    EXPECT_EQ(parsed->algorithm, Algorithm::DR_BCG);         // NOLINT
+    EXPECT_EQ(parsed->implementation, Implementation::CUDA); // NOLINT
+    EXPECT_EQ(parsed->qr_backend, QrBackend::Householder);   // NOLINT
 }
 
 TEST(Parser, ParsesExplicitCholQrBackend) {
     std::vector<std::string> args = {"cgrun",
                                      "dr-bcg",
                                      "cuda",
-                                     TEST_DATA_DIR "/1138_bus.mat",
+                                     TEST_DATA_DIR "/1138_bus.mat", // NOLINT
                                      "--qr-backend",
                                      "cholqr"};
     auto argv = argv_from(args);
@@ -184,7 +185,7 @@ TEST(Parser, ParsesExplicitCholQrBackend) {
     auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
 
     ASSERT_TRUE(parsed.has_value());
-    EXPECT_EQ(parsed->qr_backend, QrBackend::CholQR);
+    EXPECT_EQ(parsed->qr_backend, QrBackend::CholQR); // NOLINT
 }
 
 TEST(Parser, DefaultsFusedXiToFalse) {
@@ -195,14 +196,14 @@ TEST(Parser, DefaultsFusedXiToFalse) {
     auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
 
     ASSERT_TRUE(parsed.has_value());
-    EXPECT_FALSE(parsed->fused_xi);
+    EXPECT_FALSE(parsed->fused_xi); // NOLINT
 }
 
 TEST(Parser, ParsesFusedXiFlag) {
     std::vector<std::string> args = {"cgrun",
                                      "dr-bcg",
                                      "cuda",
-                                     TEST_DATA_DIR "/1138_bus.mat",
+                                     TEST_DATA_DIR "/1138_bus.mat", // NOLINT
                                      "--qr-backend",
                                      "cholqr-dx",
                                      "--fused-xi"};
@@ -211,8 +212,8 @@ TEST(Parser, ParsesFusedXiFlag) {
     auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
 
     ASSERT_TRUE(parsed.has_value());
-    EXPECT_EQ(parsed->qr_backend, QrBackend::CholQRDx);
-    EXPECT_TRUE(parsed->fused_xi);
+    EXPECT_EQ(parsed->qr_backend, QrBackend::CholQRDx); // NOLINT
+    EXPECT_TRUE(parsed->fused_xi);                      // NOLINT
 }
 
 TEST(Rhs, LoadsCgRhsFromMat) {
@@ -252,9 +253,11 @@ TEST(Rhs, CombinesVectorRhsWithSeededDefaultMatrixForDrBcg) {
     auto fallback = prepare_rhs(std::optional<mat_utils::DnMatReader>{},
                                 std::optional<mat_utils::DnMatReader>{}, 3, 2);
 
+    // NOLINTBEGIN
     EXPECT_EQ(b, (std::vector<double>{1.0, 2.0, 3.0,
                                       fallback[0], fallback[1], fallback[2],
                                       fallback[3], fallback[4], fallback[5]}));
+    // NOLINTEND
 }
 
 TEST(Rhs, CombinesSeededDefaultVectorWithMatrixRhsForDrBcg) {
@@ -265,8 +268,10 @@ TEST(Rhs, CombinesSeededDefaultVectorWithMatrixRhsForDrBcg) {
     auto fallback = prepare_rhs(std::optional<mat_utils::DnMatReader>{},
                                 std::optional<mat_utils::DnMatReader>{}, 3, 1);
 
+    // NOLINTBEGIN
     EXPECT_EQ(b, (std::vector<double>{fallback[0], fallback[1], fallback[2],
                                       1.0, 2.0, 3.0, 4.0, 5.0, 6.0}));
+    // NOLINTEND
 }
 
 TEST(Rhs, RejectsDimensionMismatch) {
@@ -394,11 +399,11 @@ TEST(CgMkl, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
 
-    int n = A.rows();
+    std::size_t n = A.rows();
     std::vector<double> b(n, 1.0);
     std::vector<double> x(n, 0.0);
 
-    int iters = run_mkl_cg(A, b, x, L, tolerance, n);
+    int iters = run_mkl_cg(A, b, x, L, tolerance, static_cast<int>(n));
 
     EXPECT_LT(iters, n) << "CG (MKL) did not converge within " << n << " iterations";
 }
@@ -411,11 +416,15 @@ TEST(DrBcgMkl, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
 
-    int n = A.rows();
+    std::size_t n = A.rows();
     std::vector<double> b(n * block_size, 1.0);
     std::vector<double> x(n * block_size, 0.0);
 
-    int iters = run_mkl_dr_bcg(A, b, x, L, tolerance, n, block_size);
+    MklDrBcgConfig config{
+        .tolerance = tolerance,
+        .max_iterations = static_cast<int>(n),
+        .block_size = block_size};
+    int iters = run_mkl_dr_bcg(A, b, x, L, config);
 
     EXPECT_LT(iters, n) << "DR-BCG (MKL) did not converge within " << n << " iterations";
 }
@@ -432,11 +441,11 @@ TEST(CgCuda, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
 
-    int n = A.rows();
+    std::size_t n = A.rows();
     std::vector<double> b(n, 1.0);
     std::vector<double> x(n, 0.0);
 
-    int iters = run_cuda_cg(A, b, x, L, tolerance, n);
+    int iters = run_cuda_cg(A, b, x, L, tolerance, static_cast<int>(n));
 
     EXPECT_LT(iters, n) << "CG (CUDA) did not converge within " << n << " iterations";
 }
@@ -449,11 +458,19 @@ TEST(DrBcgCuda, ConvergesOn1138Bus) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
 
-    int n = A.rows();
+    std::size_t n = A.rows();
     std::vector<double> b(n * block_size, 1.0);
     std::vector<double> x(n * block_size, 0.0);
 
-    int iters = run_cuda_dr_bcg(A, b, x, L, tolerance, n, block_size);
+    CudaDrBcgConfig config{
+        .tolerance = tolerance,
+        .max_iterations = static_cast<int>(n),
+        .block_size = block_size,
+        .disable_tensor_cores = false,
+        .qr_backend = QrBackend::Householder,
+        .fused_xi = false};
+
+    int iters = run_cuda_dr_bcg(A, b, x, L, config);
 
     EXPECT_LT(iters, n) << "DR-BCG (CUDA) did not converge within " << n << " iterations";
 }
@@ -462,38 +479,48 @@ TEST(DrBcgCuda, ConvergesOn1138BusCholQR) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
 
-    int n = A.rows();
+    std::size_t n = A.rows();
 
     // Use a full-rank RHS (distinct columns). An all-ones b gives identical
     // columns -> a rank-deficient block, which CholeskyQR cannot orthonormalize
     // (unlike Householder). This mirrors real usage (runner/benchmark generate a
     // random RHS).
     std::vector<double> b(n * block_size);
-    {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::normal_distribution<double> dist(0.0, 1.0);
-        std::generate(b.begin(), b.end(), [&dist, &gen] { return dist(gen); });
-    }
 
-    std::vector<double> x_dx(n * block_size, 0.0);
-    int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, tolerance, n, block_size,
-                                   false, QrBackend::CholQR);
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<double> dist(0.0, 1.0);
+    std::ranges::generate(b, [&dist, &gen] { return dist(gen); });
+
+    std::vector<double> x_cholqr(n * block_size, 0.0);
+    CudaDrBcgConfig config{
+        .tolerance = tolerance,
+        .max_iterations = static_cast<int>(n),
+        .block_size = block_size,
+        .disable_tensor_cores = false,
+        .qr_backend = QrBackend::CholQR,
+        .fused_xi = false};
+
+    int iters_dx = run_cuda_dr_bcg(A, b, x_cholqr, L, config);
     EXPECT_GT(iters_dx, 0)
         << "DR-BCG (CUDA, CholQR) failed before converging";
     EXPECT_LT(iters_dx, n) << "DR-BCG (CUDA, CholQR) did not converge within "
                            << n << " iterations";
 
-    std::vector<double> x_hh(n * block_size, 0.0);
-    int iters_hh = run_cuda_dr_bcg(A, b, x_hh, L, tolerance, n, block_size,
-                                   false, QrBackend::Householder);
+    std::vector<double> x_householder(n * block_size, 0.0);
+    config.qr_backend = QrBackend::Householder;
+
+    int iters_householder = run_cuda_dr_bcg(A, b, x_householder, L, config);
 
     // A valid QR yields essentially the same Krylov iteration count as the
     // Householder baseline; allow a small slack for CholQR2 rounding.
-    EXPECT_NEAR(static_cast<double>(iters_dx), static_cast<double>(iters_hh),
-                0.1 * iters_hh + 2)
-        << "CholQR-Dx convergence (" << iters_dx << ") diverged from Householder ("
-        << iters_hh << ")";
+    constexpr double error_multiplier = 0.1;
+    const double abs_error = (error_multiplier * iters_householder) + 2;
+    EXPECT_NEAR(static_cast<double>(iters_dx),
+                static_cast<double>(iters_householder),
+                abs_error)
+        << "CholQR convergence (" << iters_dx << ") diverged from Householder ("
+        << iters_householder << ")";
 }
 
 #ifdef SOLVERS_BUILD_MATHDX
@@ -504,34 +531,45 @@ TEST(DrBcgCuda, ConvergesOn1138BusCholQRDx) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
 
-    int n = A.rows();
+    std::size_t n = A.rows();
 
     std::vector<double> b(n * block_size);
     {
         std::random_device rd;
         std::mt19937 gen(rd());
         std::normal_distribution<double> dist(0.0, 1.0);
-        std::generate(b.begin(), b.end(), [&dist, &gen] { return dist(gen); });
+        std::ranges::generate(b, [&dist, &gen] { return dist(gen); });
     }
 
-    std::vector<double> x_dx(n * block_size, 0.0);
-    int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, tolerance, n, block_size,
-                                   false, QrBackend::CholQRDx);
+    std::vector<double> x_cholqrdx(n * block_size, 0.0);
+    CudaDrBcgConfig config{
+        .tolerance = tolerance,
+        .max_iterations = static_cast<int>(n),
+        .block_size = block_size,
+        .disable_tensor_cores = false,
+        .qr_backend = QrBackend::CholQRDx,
+        .fused_xi = false};
+
+    int iters_dx = run_cuda_dr_bcg(A, b, x_cholqrdx, L, config);
     EXPECT_GT(iters_dx, 0)
         << "DR-BCG (CUDA, CholQR-Dx) failed before converging";
     EXPECT_LT(iters_dx, n) << "DR-BCG (CUDA, CholQR-Dx) did not converge within "
                            << n << " iterations";
 
-    std::vector<double> x_hh(n * block_size, 0.0);
-    int iters_hh = run_cuda_dr_bcg(A, b, x_hh, L, tolerance, n, block_size,
-                                   false, QrBackend::Householder);
+    std::vector<double> x_householder(n * block_size, 0.0);
+    config.qr_backend = QrBackend::Householder;
+
+    int iters_householder = run_cuda_dr_bcg(A, b, x_householder, L, config);
 
     // A valid QR yields essentially the same Krylov iteration count as the
     // Householder baseline; allow a small slack for CholQR2 rounding.
-    EXPECT_NEAR(static_cast<double>(iters_dx), static_cast<double>(iters_hh),
-                0.1 * iters_hh + 2)
+    constexpr double error_multiplier = 0.1;
+    const double abs_error = (error_multiplier * iters_householder) + 2;
+    EXPECT_NEAR(static_cast<double>(iters_dx),
+                static_cast<double>(iters_householder),
+                abs_error)
         << "CholQR-Dx convergence (" << iters_dx << ") diverged from Householder ("
-        << iters_hh << ")";
+        << iters_householder << ")";
 }
 
 // Validates the fully fused MathDx variant (PLAN.md Stage 3): fused CholeskyQR2
@@ -543,34 +581,45 @@ TEST(DrBcgCuda, ConvergesOn1138BusFusedDx) {
     mat_utils::SpMatReader A{TEST_DATA_DIR "/1138_bus.mat", {"Problem"}, "A"};
     mat_utils::SpMatReader L{TEST_DATA_DIR "/1138_bus_ichol.mat", {}, "L"};
 
-    int n = A.rows();
+    std::size_t n = A.rows();
 
     std::vector<double> b(n * block_size);
     {
         std::random_device rd;
         std::mt19937 gen(rd());
         std::normal_distribution<double> dist(0.0, 1.0);
-        std::generate(b.begin(), b.end(), [&dist, &gen] { return dist(gen); });
+        std::ranges::generate(b, [&dist, &gen] { return dist(gen); });
     }
 
     std::vector<double> x_dx(n * block_size, 0.0);
-    int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, tolerance, n, block_size,
-                                   false, QrBackend::CholQRDx, /*fused_xi=*/true);
+    CudaDrBcgConfig config{
+        .tolerance = tolerance,
+        .max_iterations = static_cast<int>(n),
+        .block_size = block_size,
+        .disable_tensor_cores = false,
+        .qr_backend = QrBackend::CholQRDx,
+        .fused_xi = true};
+
+    int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, config);
     EXPECT_GT(iters_dx, 0)
         << "DR-BCG (CUDA, Fused-Dx) failed before converging";
     EXPECT_LT(iters_dx, n) << "DR-BCG (CUDA, Fused-Dx) did not converge within "
                            << n << " iterations";
 
-    std::vector<double> x_hh(n * block_size, 0.0);
-    int iters_hh = run_cuda_dr_bcg(A, b, x_hh, L, tolerance, n, block_size,
-                                   false, QrBackend::Householder);
+    std::vector<double> x_householder(n * block_size, 0.0);
+    config.qr_backend = QrBackend::Householder;
+
+    int iters_householder = run_cuda_dr_bcg(A, b, x_householder, L, config);
 
     // A valid fused pipeline yields essentially the same Krylov iteration count
     // as the Householder baseline; allow a small slack for CholQR2 rounding.
-    EXPECT_NEAR(static_cast<double>(iters_dx), static_cast<double>(iters_hh),
-                0.1 * iters_hh + 2)
+    constexpr double error_multiplier = 0.1;
+    const double abs_error = (error_multiplier * iters_householder) + 2;
+    EXPECT_NEAR(static_cast<double>(iters_dx),
+                static_cast<double>(iters_householder),
+                abs_error)
         << "Fused-Dx convergence (" << iters_dx << ") diverged from Householder ("
-        << iters_hh << ")";
+        << iters_householder << ")";
 }
 
 #endif // SOLVERS_BUILD_MATHDX

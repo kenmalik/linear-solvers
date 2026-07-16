@@ -11,6 +11,8 @@
 //     C = G^-1 * sigma -> X += s*C     (X update)
 //     U = AS * G^-1                    (feeds the w update; = A*s*xi)
 
+#include "config.h"
+
 #ifdef SOLVERS_BUILD_MATHDX
 
 #include <cuda_runtime.h>
@@ -35,34 +37,34 @@ namespace dr_bcg::mathdx_detail {
 // GEMM to form the partial N*N Gram, then atomically reduces it into the global
 // accumulator (pre-zeroed by the launcher).
 //
-template <class T, int N, int TILE>
+template <typename T, int N, int TILE>
 __global__ void gram2_kernel(const T *__restrict__ S, const T *__restrict__ AS,
                              int m, int ld, T *__restrict__ G) {
     using GEMM = GemmOp<T, N, N, TILE>;
 
-    extern __shared__ __align__(16) char smem[];
+    extern __shared__ __align__(16) char smem[]; // NOLINT
     auto [smem_a, smem_b, smem_c] = cublasdx::slice_shared_memory<GEMM>(smem);
     auto st = cublasdx::make_tensor(smem_a, GEMM::get_layout_smem_a()); // N*TILE
     auto as = cublasdx::make_tensor(smem_b, GEMM::get_layout_smem_b()); // TILE*N
     auto g = cublasdx::make_tensor(smem_c, GEMM::get_layout_smem_c());  // N*N
 
     const int row0 = blockIdx.x * TILE;
-    for (int e = threadIdx.x; e < TILE * N; e += blockDim.x) {
+    for (unsigned int e = threadIdx.x; e < TILE * N; e += blockDim.x) {
         const int r = e % TILE;
         const int col = e / TILE;
         const int gr = row0 + r;
-        st(col, r) = (gr < m) ? S[gr + col * ld] : T{0};  // s^T : (N x TILE)
-        as(r, col) = (gr < m) ? AS[gr + col * ld] : T{0}; // AS  : (TILE x N)
+        st(col, r) = (gr < m) ? S[gr + (col * ld)] : T{0};  // s^T : (N x TILE)
+        as(r, col) = (gr < m) ? AS[gr + (col * ld)] : T{0}; // AS  : (TILE x N)
     }
     __syncthreads();
 
     GEMM().execute(T{1}, st, as, T{0}, g);
     __syncthreads();
 
-    for (int e = threadIdx.x; e < N * N; e += blockDim.x) {
+    for (unsigned int e = threadIdx.x; e < N * N; e += blockDim.x) {
         const int i = e % N;
         const int j = e / N;
-        atomicAdd(&G[i + j * N], g(i, j));
+        atomicAdd(&G[i + (j * N)], g(i, j));
     }
 }
 
@@ -70,28 +72,28 @@ __global__ void gram2_kernel(const T *__restrict__ S, const T *__restrict__ AS,
 // where Finv is the upper-triangular inverse of F (G = F^T F). Single block,
 // small N*N cuBLASDx GEMM.
 //
-template <class T, int N>
+template <typename T, int N>
 __global__ void ginv_kernel(const T *__restrict__ Finv, T *__restrict__ Ginv) {
     using GEMM = GemmOp<T, N, N, N>;
 
-    extern __shared__ __align__(16) char smem[];
+    extern __shared__ __align__(16) char smem[]; // NOLINT
     auto [smem_a, smem_b, smem_c] = cublasdx::slice_shared_memory<GEMM>(smem);
     auto a = cublasdx::make_tensor(smem_a, GEMM::get_layout_smem_a()); // Finv
     auto b = cublasdx::make_tensor(smem_b, GEMM::get_layout_smem_b()); // Finv^T
     auto c = cublasdx::make_tensor(smem_c, GEMM::get_layout_smem_c());
 
-    for (int e = threadIdx.x; e < N * N; e += blockDim.x) {
+    for (unsigned int e = threadIdx.x; e < N * N; e += blockDim.x) {
         const int i = e % N;
         const int j = e / N;
-        a(i, j) = Finv[i + j * N]; // Finv
-        b(i, j) = Finv[j + i * N]; // Finv^T
+        a(i, j) = Finv[i + (j * N)]; // Finv
+        b(i, j) = Finv[j + (i * N)]; // Finv^T
     }
     __syncthreads();
 
     GEMM().execute(T{1}, a, b, T{0}, c);
     __syncthreads();
 
-    for (int e = threadIdx.x; e < N * N; e += blockDim.x) {
+    for (unsigned int e = threadIdx.x; e < N * N; e += blockDim.x) {
         Ginv[e] = c(e % N, e / N);
     }
 }
@@ -101,26 +103,26 @@ __global__ void ginv_kernel(const T *__restrict__ Finv, T *__restrict__ Ginv) {
 // apply_kernel (mathdx_qr.cuh) with beta=1: the TILE*N result is added into the
 // existing C_out panel rather than overwriting it, so X += s*C lands in place.
 //
-template <class T, int N, int TILE>
+template <typename T, int N, int TILE>
 __global__ void apply_accum_kernel(const T *__restrict__ A,
                                    T *__restrict__ C_out, int m, int ld,
                                    const T *__restrict__ Op) {
     using GEMM = GemmOp<T, TILE, N, N>;
 
-    extern __shared__ __align__(16) char smem[];
+    extern __shared__ __align__(16) char smem[]; // NOLINT
     auto [smem_a, smem_b, smem_c] = cublasdx::slice_shared_memory<GEMM>(smem);
     auto a = cublasdx::make_tensor(smem_a, GEMM::get_layout_smem_a());  // TILE*N
     auto op = cublasdx::make_tensor(smem_b, GEMM::get_layout_smem_b()); // N*N
     auto c = cublasdx::make_tensor(smem_c, GEMM::get_layout_smem_c());  // TILE*N
 
     const int row0 = blockIdx.x * TILE;
-    for (int e = threadIdx.x; e < TILE * N; e += blockDim.x) {
+    for (unsigned int e = threadIdx.x; e < TILE * N; e += blockDim.x) {
         const int r = e % TILE;
         const int col = e / TILE;
         const int gr = row0 + r;
-        a(r, col) = (gr < m) ? A[gr + col * ld] : T{0};
+        a(r, col) = (gr < m) ? A[gr + (col * ld)] : T{0};
     }
-    for (int e = threadIdx.x; e < N * N; e += blockDim.x) {
+    for (unsigned int e = threadIdx.x; e < N * N; e += blockDim.x) {
         op(e % N, e / N) = Op[e];
     }
     __syncthreads();
@@ -128,12 +130,12 @@ __global__ void apply_accum_kernel(const T *__restrict__ A,
     GEMM().execute(T{1}, a, op, T{0}, c);
     __syncthreads();
 
-    for (int e = threadIdx.x; e < TILE * N; e += blockDim.x) {
+    for (unsigned int e = threadIdx.x; e < TILE * N; e += blockDim.x) {
         const int r = e % TILE;
         const int col = e / TILE;
         const int gr = row0 + r;
         if (gr < m) {
-            C_out[gr + col * ld] += c(r, col);
+            C_out[gr + (col * ld)] += c(r, col);
         }
     }
 }
@@ -143,7 +145,7 @@ __global__ void apply_accum_kernel(const T *__restrict__ A,
 //   in place, X += s*G^-1*sigma). d_U: m*N output (= AS*G^-1, feeds w update).
 // Workspaces (all N*N, single allocation each): d_G, d_F, d_Finv, d_Ginv, d_C.
 //
-template <class T, int N>
+template <typename T, int N>
 void launch_xi(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, int m, int ld,
                T *d_G, T *d_F, T *d_Finv, T *d_Ginv, T *d_C, int *d_info,
                cudaStream_t stream) {
@@ -208,14 +210,16 @@ void launch_xi(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, int m, int ld,
 
 } // namespace dr_bcg::mathdx_detail
 
-// Fused MathDx reduced-system (xi) chain helper for DR-BCG (PLAN.md Stage 3).
+// Fused MathDx reduced-system (xi) chain helper for DR-BCG.
 // Owns the small N*N workspaces and dispatches the compile-time-N kernel chain.
 // Used by the fused solve loop (mathdx_fused.cuh) alongside MathDxCholeskyQr2.
 template <SupportedType T>
 class MathDxXiChain {
   public:
-    MathDxXiChain(const MathDxXiChain &) = delete;
-    MathDxXiChain &operator=(const MathDxXiChain &) = delete;
+    struct ProblemSize {
+        int m;
+        int n;
+    };
 
     // n: block size s (reduced-system side length).
     explicit MathDxXiChain(int n) : block_size(n) {
@@ -231,23 +235,36 @@ class MathDxXiChain {
                                   sizeof(T) * n));
     }
 
+    MathDxXiChain(const MathDxXiChain &) = delete;
+    MathDxXiChain &operator=(const MathDxXiChain &) = delete;
+    MathDxXiChain(MathDxXiChain &&) = delete;
+    MathDxXiChain &operator=(MathDxXiChain &&) = delete;
+
     ~MathDxXiChain() {
-        if (d_G)
+        if (d_G != nullptr) {
             CUDA_CHECK(cudaFree(d_G));
-        if (d_F)
+        }
+        if (d_F != nullptr) {
             CUDA_CHECK(cudaFree(d_F));
-        if (d_Finv)
+        }
+        if (d_Finv != nullptr) {
             CUDA_CHECK(cudaFree(d_Finv));
-        if (d_Ginv)
+        }
+        if (d_Ginv != nullptr) {
             CUDA_CHECK(cudaFree(d_Ginv));
-        if (d_C)
+        }
+        if (d_C != nullptr) {
             CUDA_CHECK(cudaFree(d_C));
-        if (d_info)
+        }
+        if (d_info != nullptr) {
             CUDA_CHECK(cudaFree(d_info));
-        if (h_info)
+        }
+        if (h_info != nullptr) {
             CUDA_CHECK(cudaFreeHost(h_info));
-        if (h_diag)
+        }
+        if (h_diag != nullptr) {
             CUDA_CHECK(cudaFreeHost(h_diag));
+        }
     }
 
     // X += s * G^-1 * sigma (in place); d_U <- AS * G^-1. m: rows (n), n: block.
@@ -256,7 +273,7 @@ class MathDxXiChain {
         assert(n < m && "Expect cols to be less than rows for DR-BCG");
         CudaTimerRange rng{g_event_timer, "xi:func", stream};
 
-        dispatch(d_s, d_AS, d_sigma, d_X, d_U, m, n, stream);
+        dispatch(d_s, d_AS, d_sigma, d_X, d_U, {.m = m, .n = n}, stream);
 
         // Stage F's diagonal + POTRF info for the breakdown check.
         CUDA_CHECK(cudaMemcpy2DAsync(h_diag, sizeof(T), d_F,
@@ -292,41 +309,43 @@ class MathDxXiChain {
     }
 
   private:
-    void dispatch(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, int m, int n,
+    void dispatch(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, ProblemSize size,
                   cudaStream_t stream) {
         using dr_bcg::mathdx_detail::launch_xi;
-        switch (n) {
+        switch (size.n) {
+        // NOLINTBEGIN
         case 1:
-            launch_xi<T, 1>(d_s, d_AS, d_sigma, d_X, d_U, m, m, d_G, d_F,
+            launch_xi<T, 1>(d_s, d_AS, d_sigma, d_X, d_U, size.m, size.m, d_G, d_F,
                             d_Finv, d_Ginv, d_C, d_info, stream);
             break;
         case 2:
-            launch_xi<T, 2>(d_s, d_AS, d_sigma, d_X, d_U, m, m, d_G, d_F,
+            launch_xi<T, 2>(d_s, d_AS, d_sigma, d_X, d_U, size.m, size.m, d_G, d_F,
                             d_Finv, d_Ginv, d_C, d_info, stream);
             break;
         case 4:
-            launch_xi<T, 4>(d_s, d_AS, d_sigma, d_X, d_U, m, m, d_G, d_F,
+            launch_xi<T, 4>(d_s, d_AS, d_sigma, d_X, d_U, size.m, size.m, d_G, d_F,
                             d_Finv, d_Ginv, d_C, d_info, stream);
             break;
         case 8:
-            launch_xi<T, 8>(d_s, d_AS, d_sigma, d_X, d_U, m, m, d_G, d_F,
+            launch_xi<T, 8>(d_s, d_AS, d_sigma, d_X, d_U, size.m, size.m, d_G, d_F,
                             d_Finv, d_Ginv, d_C, d_info, stream);
             break;
         case 16:
-            launch_xi<T, 16>(d_s, d_AS, d_sigma, d_X, d_U, m, m, d_G, d_F,
+            launch_xi<T, 16>(d_s, d_AS, d_sigma, d_X, d_U, size.m, size.m, d_G, d_F,
                              d_Finv, d_Ginv, d_C, d_info, stream);
             break;
         case 32:
-            launch_xi<T, 32>(d_s, d_AS, d_sigma, d_X, d_U, m, m, d_G, d_F,
+            launch_xi<T, 32>(d_s, d_AS, d_sigma, d_X, d_U, size.m, size.m, d_G, d_F,
                              d_Finv, d_Ginv, d_C, d_info, stream);
             break;
         case 64:
-            launch_xi<T, 64>(d_s, d_AS, d_sigma, d_X, d_U, m, m, d_G, d_F,
+            launch_xi<T, 64>(d_s, d_AS, d_sigma, d_X, d_U, size.m, size.m, d_G, d_F,
                              d_Finv, d_Ginv, d_C, d_info, stream);
             break;
+        // NOLINTEND
         default:
             throw std::runtime_error(
-                "unsupported block size " + std::to_string(n) +
+                "unsupported block size " + std::to_string(size.n) +
                 " for MathDx xi chain (supported: 1, 2, 4, 8, 16, 32, 64)");
         }
     }

@@ -1,15 +1,16 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 
 #include <mat_utils/mat_reader.h>
 
 #include "qr_backend.h"
 
-enum class Algorithm { CG,
-                       DR_BCG };
-enum class Implementation { MKL,
-                            CUDA };
+enum class Algorithm : std::uint8_t { CG,
+                                      DR_BCG };
+enum class Implementation : std::uint8_t { MKL,
+                                           CUDA };
 
 struct Args {
     Algorithm algorithm;
@@ -31,4 +32,4 @@ struct Args {
     bool fused_xi;
 };
 
-std::optional<Args> parse_args(int argc, char *argv[]);
+std::optional<Args> parse_args(int argc, char *argv[]); // NOLINT(*avoid-c-arrays)

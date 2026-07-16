@@ -76,26 +76,35 @@ class DeviceBuffer {
     static constexpr T h_neg_one{-1};
 
     void deallocate() noexcept {
-        if (w)
+        if (w) {
             CUDA_CHECK(cudaFree(w));
-        if (sigma)
+        }
+        if (sigma) {
             CUDA_CHECK(cudaFree(sigma));
-        if (s)
+        }
+        if (s) {
             CUDA_CHECK(cudaFree(s));
-        if (xi)
+        }
+        if (xi) {
             CUDA_CHECK(cudaFree(xi));
-        if (zeta)
+        }
+        if (zeta) {
             CUDA_CHECK(cudaFree(zeta));
-        if (temp)
+        }
+        if (temp) {
             CUDA_CHECK(cudaFree(temp));
+        }
         w = sigma = s = xi = zeta = temp = nullptr;
 
-        if (one)
+        if (one) {
             CUDA_CHECK(cudaFree(one));
-        if (zero)
+        }
+        if (zero) {
             CUDA_CHECK(cudaFree(zero));
-        if (neg_one)
+        }
+        if (neg_one) {
             CUDA_CHECK(cudaFree(neg_one));
+        }
         one = zero = neg_one = nullptr;
     }
 };
