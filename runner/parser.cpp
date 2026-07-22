@@ -6,7 +6,9 @@
 #include <string>
 #include <utility>
 
-static std::optional<Algorithm> parse_algorithm(const std::string &s) {
+namespace {
+
+std::optional<Algorithm> parse_algorithm(const std::string &s) {
     if (s == "cg") {
         return Algorithm::CG;
     }
@@ -16,7 +18,7 @@ static std::optional<Algorithm> parse_algorithm(const std::string &s) {
     return std::nullopt;
 }
 
-static std::optional<Implementation> parse_implementation(const std::string &s) {
+std::optional<Implementation> parse_implementation(const std::string &s) {
     if (s == "mkl") {
         return Implementation::MKL;
     }
@@ -26,7 +28,7 @@ static std::optional<Implementation> parse_implementation(const std::string &s) 
     return std::nullopt;
 }
 
-static std::optional<QrBackend> parse_qr_backend(const std::string &s) {
+std::optional<QrBackend> parse_qr_backend(const std::string &s) {
     if (s == "householder") {
         return QrBackend::Householder;
     }
@@ -38,6 +40,8 @@ static std::optional<QrBackend> parse_qr_backend(const std::string &s) {
     }
     return std::nullopt;
 }
+
+} // namespace
 
 std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
     cxxopts::Options options("cgrun",
