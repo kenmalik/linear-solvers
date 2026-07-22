@@ -65,7 +65,7 @@ class CudaTimer<true> {
     };
 
     void add_pair(std::string_view name, cudaEvent_t start, cudaEvent_t stop) {
-        pairs_.push_back({.start = start, .stop = stop, .name = std::string(name)});
+        pairs_.push_back({.start = start, .stop = stop, .name = name});
     }
 
     void report(std::string_view fname) {
