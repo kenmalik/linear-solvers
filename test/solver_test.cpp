@@ -188,6 +188,64 @@ TEST(Parser, ParsesExplicitCholQrBackend) {
     EXPECT_EQ(parsed->qr_backend, QrBackend::CholQR); // NOLINT
 }
 
+TEST(Parser, LoadsAWithDefaultPathWhenColonOmitted) {
+    std::vector<std::string> args = {
+        "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat"};
+    auto argv = argv_from(args);
+
+    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->A.rows(), 1138); // NOLINT
+}
+
+TEST(Parser, LoadsAWithExplicitParentArraysAndField) {
+    std::vector<std::string> args = {
+        "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat:/Problem/A"}; // NOLINT
+    auto argv = argv_from(args);
+
+    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->A.rows(), 1138); // NOLINT
+}
+
+TEST(Parser, RejectsMatArgWithMalformedPath) {
+    std::vector<std::string> args = {
+        "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat:Problem/A"}; // NOLINT
+    auto argv = argv_from(args);
+
+    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+
+    EXPECT_FALSE(parsed.has_value());
+
+    args = {
+        "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat:"}; // NOLINT
+    argv = argv_from(args);
+
+    parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+
+    EXPECT_FALSE(parsed.has_value());
+
+    args = {
+        "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat:/Problem/A/"}; // NOLINT
+    argv = argv_from(args);
+
+    parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+
+    EXPECT_FALSE(parsed.has_value());
+}
+
+TEST(Parser, RejectsMatArgWithNonexistentPath) {
+    std::vector<std::string> args = {
+        "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat:/Nonexistent/Value"}; // NOLINT
+    auto argv = argv_from(args);
+
+    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+
+    EXPECT_FALSE(parsed.has_value());
+}
+
 TEST(Parser, DefaultsFusedXiToFalse) {
     std::vector<std::string> args = {
         "cgrun", "dr-bcg", "cuda", TEST_DATA_DIR "/1138_bus.mat"};
