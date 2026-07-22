@@ -51,8 +51,19 @@ struct MatArg {
     std::string field;
 };
 
-// Format: mat_file_path:parent_arrays/field
-std::optional<MatArg> parse_mat_arg(const std::string &s) {
+// Format: mat_file_path[:parent_arrays/field]
+// If the `:parent_arrays/field` suffix is omitted, default_parent_arrays and
+// default_field are used instead.
+std::optional<MatArg> parse_mat_arg(const std::string &s,
+                                    std::vector<std::string> default_parent_arrays,
+                                    std::string default_field) {
+    if (s.find(':') == std::string::npos) {
+        if (s.empty()) {
+            return std::nullopt;
+        }
+        return MatArg{.file = s, .parent_arrays = std::move(default_parent_arrays), .field = std::move(default_field)};
+    }
+
     static const std::regex pattern(R"(^([^:]+):((?:/[^/]+)+)$)");
     std::smatch match;
     if (!std::regex_match(s, match, pattern)) {
@@ -113,12 +124,13 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
     options.parse_positional({"algorithm", "implementation", "A", "L"});
     options.positional_help("<algorithm> <implementation> <A> [L]");
 
-    auto parse_mat_option = [&options](const std::string &name,
-                                       const std::string &value) -> std::optional<MatArg> {
-        auto arg = parse_mat_arg(value);
+    auto parse_mat_option = [&options](const std::string &name, const std::string &value,
+                                       std::vector<std::string> default_parent_arrays,
+                                       std::string default_field) -> std::optional<MatArg> {
+        auto arg = parse_mat_arg(value, std::move(default_parent_arrays), std::move(default_field));
         if (!arg) {
             std::cerr << "Invalid format for --" << name << ": " << value << "\n"
-                      << "Expected format: file:/parent_arrays/field\n\n";
+                      << "Expected format: file[:/parent_arrays/field]\n\n";
             std::cerr << options.help();
         }
         return arg;
@@ -161,7 +173,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
             return std::nullopt;
         }
 
-        auto A_arg = parse_mat_option("A", result["A"].as<std::string>());
+        auto A_arg = parse_mat_option("A", result["A"].as<std::string>(), {"Problem"}, "A");
         if (!A_arg) {
             return std::nullopt;
         }
@@ -185,7 +197,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
         }
         std::optional<mat_utils::DnMatReader> b_reader;
         if (result.contains("b")) {
-            auto b_arg = parse_mat_option("b", result["b"].as<std::string>());
+            auto b_arg = parse_mat_option("b", result["b"].as<std::string>(), {}, "b");
             if (!b_arg) {
                 return std::nullopt;
             }
@@ -193,7 +205,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
         }
         std::optional<mat_utils::DnMatReader> B_reader;
         if (result.contains("B")) {
-            auto B_arg = parse_mat_option("B", result["B"].as<std::string>());
+            auto B_arg = parse_mat_option("B", result["B"].as<std::string>(), {}, "B");
             if (!B_arg) {
                 return std::nullopt;
             }
@@ -201,7 +213,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
         }
         std::optional<mat_utils::DnMatReader> x_reader;
         if (result.contains("x")) {
-            auto x_arg = parse_mat_option("x", result["x"].as<std::string>());
+            auto x_arg = parse_mat_option("x", result["x"].as<std::string>(), {}, "x");
             if (!x_arg) {
                 return std::nullopt;
             }
@@ -209,7 +221,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
         }
         std::optional<mat_utils::DnMatReader> X_reader;
         if (result.contains("X")) {
-            auto X_arg = parse_mat_option("X", result["X"].as<std::string>());
+            auto X_arg = parse_mat_option("X", result["X"].as<std::string>(), {}, "X");
             if (!X_arg) {
                 return std::nullopt;
             }
@@ -230,7 +242,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
         bool output_b = result["output-b"].as<bool>();
 
         if (result.contains("L")) {
-            auto L_arg = parse_mat_option("L", result["L"].as<std::string>());
+            auto L_arg = parse_mat_option("L", result["L"].as<std::string>(), {}, "L");
             if (!L_arg) {
                 return std::nullopt;
             }
