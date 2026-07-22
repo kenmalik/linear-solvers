@@ -44,6 +44,10 @@ configure_file(
 add_library(solver_config INTERFACE)
 target_include_directories(solver_config INTERFACE ${CMAKE_BINARY_DIR}/include)
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(solver_config INTERFACE -Wall -Wextra)
+endif()
+
 add_library(solvers_internal INTERFACE)
 target_include_directories(solvers_internal INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

@@ -5,7 +5,9 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -13,14 +15,33 @@
 template <bool Enabled>
 class CpuTimer;
 
+// NOLINTBEGIN
+template <>
+class CpuTimer<false> {
+  public:
+    struct ScopedRange {
+        ScopedRange(CpuTimer &, std::string_view) {}
+    };
+
+    void start(std::string_view) {}
+    void stop(std::string_view) {}
+    void report(std::string_view) const {}
+};
+// NOLINTEND
+
 template <>
 class CpuTimer<true> {
   public:
     struct ScopedRange {
-        ScopedRange(CpuTimer &timer, const char *name)
-            : timer_(timer), name_(name) {
+        ScopedRange(CpuTimer &timer, std::string_view name)
+            : timer_{timer}, name_{name} {
             timer_.start(name_);
         }
+
+        ScopedRange(CpuTimer &timer, const char *name)
+            : ScopedRange{timer, std::string_view{name}} {}
+
+        ScopedRange(CpuTimer &timer, std::string &&name) = delete;
 
         ScopedRange(const ScopedRange &) = delete;
         ScopedRange &operator=(const ScopedRange &) = delete;
@@ -33,15 +54,15 @@ class CpuTimer<true> {
 
       private:
         CpuTimer &timer_;
-        const char *name_;
+        std::string_view name_;
     };
 
-    void start(const std::string &name) {
+    void start(std::string_view name) {
         register_name(name);
         starts_[name] = clock_t::now();
     }
 
-    void stop(const std::string &name) {
+    void stop(std::string_view name) {
         auto end = clock_t::now();
         auto ms = std::chrono::duration<double, std::milli>(
                       end - starts_.at(name))
@@ -50,8 +71,10 @@ class CpuTimer<true> {
         counts_[name]++;
     }
 
-    void report(const std::string &fname) const {
-        std::ofstream out{fname};
+    void report(std::string_view fname) const {
+        std::ostringstream oss;
+        oss << fname;
+        std::ofstream out{oss.str()};
         out << "Range,Total (ms),Avg (ms),Instances\n";
         for (const auto &name : order_) {
             double total = totals_.at(name);
@@ -72,37 +95,17 @@ class CpuTimer<true> {
   private:
     using clock_t = std::chrono::steady_clock;
 
-    void register_name(const std::string &name) {
+    void register_name(std::string_view name) {
         if (seen_.insert(name).second) {
             order_.push_back(name);
         }
     }
 
-    std::unordered_map<std::string, clock_t::time_point> starts_;
-    std::unordered_map<std::string, double> totals_;
-    std::unordered_map<std::string, int> counts_;
-    std::vector<std::string> order_;
-    std::unordered_set<std::string> seen_;
-};
-
-template <>
-class CpuTimer<false> {
-  public:
-    struct ScopedRange {
-        ScopedRange(CpuTimer &timer, const char *name) {}
-
-        ScopedRange(const ScopedRange &) = delete;
-        ScopedRange &operator=(const ScopedRange &) = delete;
-        ScopedRange(ScopedRange &&) = delete;
-        ScopedRange &operator=(ScopedRange &&) = delete;
-
-        ~ScopedRange() = default;
-    };
-
-    void start(const std::string &fname) {}
-    void stop(const std::string &fname) {}
-    void report(const std::string &fname) const {}
-    void reset() {}
+    std::unordered_map<std::string_view, clock_t::time_point> starts_;
+    std::unordered_map<std::string_view, double> totals_;
+    std::unordered_map<std::string_view, int> counts_;
+    std::vector<std::string_view> order_;
+    std::unordered_set<std::string_view> seen_;
 };
 
 inline CpuTimer<timer_enabled> g_timer; // NOLINT
