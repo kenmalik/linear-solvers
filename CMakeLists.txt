@@ -5,7 +5,8 @@ include(GNUInstallDirs)
 
 option(SOLVERS_BUILD_CUDA "Build CUDA implementations of solvers" ON)
 option(SOLVERS_BUILD_MKL "Build MKL implementations of solvers" OFF)
-option(SOLVERS_BUILD_MATHDX "Build MathDx-fused (cuBLASDx + cuSolverDx) DR-BCG variants" OFF)
+option(SOLVERS_BUILD_MATHDX
+    "Build MathDx-fused (cuBLASDx + cuSolverDx) DR-BCG variants" OFF)
 
 option(SOLVERS_BUILD_DR_BCG "Build DR-BCG implementations" ON)
 option(SOLVERS_BUILD_CG "Build CG implementations" OFF)
@@ -17,13 +18,31 @@ option(SOLVERS_BUILD_BENCHMARKS "Build benchmark programs" OFF)
 option(SOLVERS_ENABLE_VERBOSE "Enable verbose output" OFF)
 option(SOLVERS_ENABLE_TIMER "Enable timing output" OFF)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 20)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
+if(CLANG_TIDY_EXE)
+    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
+else()
+    message(WARNING "clang-tidy not found. Skipping static analysis.")
+endif()
+
+find_program(CPPCHECK_EXE NAMES "cppcheck")
+if(CPPCHECK_EXE)
+    set(CMAKE_CXX_CPPCHECK "${CPPCHECK_EXE}")
+else()
+    message(WARNING "cppcheck not found. Skipping static analysis.")
+endif()
+
 configure_file(
     ${CMAKE_SOURCE_DIR}/include/config.h.in
     ${CMAKE_BINARY_DIR}/include/config.h
 )
 add_library(solver_config INTERFACE)
 target_include_directories(solver_config INTERFACE ${CMAKE_BINARY_DIR}/include)
-target_compile_features(solver_config INTERFACE cxx_std_20 cuda_std_20)
 
 add_library(solvers_internal INTERFACE)
 target_include_directories(solvers_internal INTERFACE
@@ -38,7 +57,8 @@ if(SOLVERS_BUILD_CUDA)
     if(SOLVERS_BUILD_MATHDX)
         # MathDx API churn risk (FillMode defaults changed in cuSolverDx 0.2.0,
         # TRSM conventions in 0.3.0).
-        find_package(mathdx 25.12 CONFIG REQUIRED COMPONENTS cublasdx cusolverdx)
+        find_package(mathdx 25.12 CONFIG REQUIRED COMPONENTS
+            cublasdx cusolverdx)
     endif()
 endif()
 

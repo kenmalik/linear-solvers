@@ -5,6 +5,7 @@
 #include "common/timer.h"
 
 #include <cassert>
+#include <cstdint>
 #include <cstring>
 
 #include <mkl.h>
@@ -15,6 +16,10 @@
 // Internal helpers
 // ---------------------------------------------------------------------------
 namespace {
+
+enum class Transpose : std::uint8_t { True,
+                                      False };
+
 // Allocate a column-major dense matrix of given size (uninitialized)
 DenseMatrix alloc_dense(MKL_INT rows, MKL_INT cols) noexcept {
     DenseMatrix m;
@@ -25,15 +30,14 @@ DenseMatrix alloc_dense(MKL_INT rows, MKL_INT cols) noexcept {
 }
 
 // Compute Y = alpha * op(A_sparse) * X_dense + beta * Y_dense
-// op: 'N' = no transpose, 'T' = transpose
 // Uses MKL sparse BLAS (mkl_dcsrmm)
-void sparse_mm(const CSRMatrix &A, char op, double alpha, const DenseMatrix &X,
+void sparse_mm(const CSRMatrix &A, Transpose op, double alpha, const DenseMatrix &X,
                double beta, DenseMatrix &Y) noexcept {
-    sparse_operation_t op_type = (op == 'T') ? SPARSE_OPERATION_TRANSPOSE
-                                             : SPARSE_OPERATION_NON_TRANSPOSE;
+    sparse_operation_t op_type = (op == Transpose::True) ? SPARSE_OPERATION_TRANSPOSE
+                                                         : SPARSE_OPERATION_NON_TRANSPOSE;
 
     // Output rows depend on operation
-    MKL_INT out_rows = (op == 'T') ? A.cols : A.rows;
+    MKL_INT out_rows = (op == Transpose::True) ? A.cols : A.rows;
 
     MKL_SPARSE_CHECK(mkl_sparse_d_mm(op_type, alpha, A.mat, A.descr,
                                      SPARSE_LAYOUT_COLUMN_MAJOR, X.data.data(),
@@ -44,13 +48,12 @@ void sparse_mm(const CSRMatrix &A, char op, double alpha, const DenseMatrix &X,
 }
 
 // Solve op(L) * Y = X, writing result back into X.
-// op: 'N' => L*Y=X (forward solve), 'T' => L^T*Y=X (backward solve)
 // L is lower triangular CSR.
 // MKL requires separate input/output buffers, so we allocate Y internally
 // and move it into X on success.
-void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) noexcept {
-    sparse_operation_t op_type = (op == 'T') ? SPARSE_OPERATION_TRANSPOSE
-                                             : SPARSE_OPERATION_NON_TRANSPOSE;
+void sparse_trsm(const CSRMatrix &L, Transpose op, DenseMatrix &X) noexcept {
+    sparse_operation_t op_type = (op == Transpose::True) ? SPARSE_OPERATION_TRANSPOSE
+                                                         : SPARSE_OPERATION_NON_TRANSPOSE;
 
     // mkl_sparse_d_trsm: y = alpha * inv(op(L)) * x
     // x and y must not overlap — use a fresh output buffer.
@@ -66,12 +69,11 @@ void sparse_trsm(const CSRMatrix &L, char op, DenseMatrix &X) noexcept {
 
 // Compute C = alpha * A * B + beta * C  (dense matrix multiply, column-major)
 // A: m x k,  B: k x n,  C: m x n
-// op_a / op_b: 'N' or 'T'
-void dense_mm(char op_a, char op_b, MKL_INT m, MKL_INT n, MKL_INT k,
+void dense_mm(Transpose op_a, Transpose op_b, MKL_INT m, MKL_INT n, MKL_INT k,
               double alpha, const double *A, MKL_INT lda, const double *B,
               MKL_INT ldb, double beta, double *C, MKL_INT ldc) noexcept {
-    CBLAS_TRANSPOSE ta = (op_a == 'T') ? CblasTrans : CblasNoTrans;
-    CBLAS_TRANSPOSE tb = (op_b == 'T') ? CblasTrans : CblasNoTrans;
+    CBLAS_TRANSPOSE ta = (op_a == Transpose::True) ? CblasTrans : CblasNoTrans;
+    CBLAS_TRANSPOSE tb = (op_b == Transpose::True) ? CblasTrans : CblasNoTrans;
     cblas_dgemm(CblasColMajor, ta, tb, m, n, k, alpha, A, lda, B, ldb, beta, C,
                 ldc);
 }
@@ -102,10 +104,12 @@ void thin_qr(const DenseMatrix &M, DenseMatrix &Q,
     // Extract upper triangular R (n x n) from the upper triangle of Q
     R_out = alloc_dense(n, n);
     for (MKL_INT j = 0; j < n; ++j) {
-        for (MKL_INT i = 0; i <= j; ++i)
-            R_out.data[j * n + i] = Q.data[j * m + i];
-        for (MKL_INT i = j + 1; i < n; ++i)
-            R_out.data[j * n + i] = 0.0;
+        for (MKL_INT i = 0; i <= j; ++i) {
+            R_out.data[(j * n) + i] = Q.data[(m * j) + i];
+        }
+        for (MKL_INT i = j + 1; i < n; ++i) {
+            R_out.data[(j * n) + i] = 0.0;
+        }
     }
 
     // Form Q explicitly
@@ -122,14 +126,13 @@ void invert_square(std::vector<double> &A_data, MKL_INT n) {
     MKL_LAPACKE_CHECK(
         LAPACKE_dgetri(LAPACK_COL_MAJOR, n, A_data.data(), n, ipiv.data()));
 }
+
 } // namespace
 
-// ---------------------------------------------------------------------------
-// PDR-BCG implementation
-// ---------------------------------------------------------------------------
 namespace dr_bcg::mkl {
+
 int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
-          DenseMatrix &X, double tolerance, int max_iterations) noexcept {
+          DenseMatrix &X, Config config) noexcept {
     CpuTimerRange solve_range{g_timer, "solve"};
 
     const MKL_INT n = A.rows;
@@ -148,18 +151,19 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
     {
         CpuTimerRange r_range(g_timer, "R = B - A * X");
         R = B;
-        sparse_mm(A, 'N', -1.0, X, 1.0, R); // R = B - A*X
+        sparse_mm(A, Transpose::False, -1.0, X, 1.0, R); // R = B - A*X
     }
 
     // We break [w sigma] = QR(L^-1 * R) into two steps for timing purposes:
     // 1. temp = L^-1 * R
     // 2. [w sigma] = QR(temp)
-    DenseMatrix w, sigma;
+    DenseMatrix w;
+    DenseMatrix sigma;
     DenseMatrix temp = R;
     {
         CpuTimerRange w_sigma_range(g_timer, "temp = L^-1 * R");
 
-        sparse_trsm(L, 'N', temp);
+        sparse_trsm(L, Transpose::False, temp);
     }
 
     {
@@ -171,22 +175,23 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
     DenseMatrix s = w;
     {
         CpuTimerRange s_initial_range(g_timer, "s = (L^-1)' * w");
-        sparse_trsm(L, 'T', s);
+        sparse_trsm(L, Transpose::True, s);
     }
 
     // ------------------------------------------------------------------
     // Precompute norm of first column of B for convergence check
     // ------------------------------------------------------------------
     double b_norm = cblas_dnrm2(n, B.data.data(), 1);
-    if (b_norm == 0.0)
+    if (b_norm == 0.0) {
         b_norm = 1.0; // guard against zero rhs
+    }
 
     int iterations = 0;
 
     // ------------------------------------------------------------------
     // Main iteration loop
     // ------------------------------------------------------------------
-    for (int k = 0; k < max_iterations; ++k) {
+    for (int k = 0; k < config.max_iterations; ++k) {
         CpuTimerRange iteration_range(g_timer, "iteration");
         ++iterations;
 
@@ -196,10 +201,10 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
             CpuTimerRange xi_range(g_timer, "xi = (s' * As)^-1");
             // Step 1: As = A * s  (n x nrhs)
             As.data.assign(As.data.size(), 0.0);
-            sparse_mm(A, 'N', 1.0, s, 0.0, As);
+            sparse_mm(A, Transpose::False, 1.0, s, 0.0, As);
 
             // Step 2: xi_inv = s' * As  (nrhs x nrhs)
-            dense_mm('T', 'N', nrhs, nrhs, n, 1.0, s.data.data(), n,
+            dense_mm(Transpose::True, Transpose::False, nrhs, nrhs, n, 1.0, s.data.data(), n,
                      As.data.data(), n, 0.0, xi.data.data(), nrhs);
 
             // Step 3: xi = xi_inv^{-1}
@@ -210,12 +215,12 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         {
             CpuTimerRange x_range(g_timer, "X = X + s * xi * sigma");
             // Step a: tmp2 = xi * sigma  (nrhs x nrhs)
-            dense_mm('N', 'N', nrhs, nrhs, nrhs, 1.0, xi.data.data(), nrhs,
+            dense_mm(Transpose::False, Transpose::False, nrhs, nrhs, nrhs, 1.0, xi.data.data(), nrhs,
                      sigma.data.data(), nrhs, 0.0, xi_sigma.data.data(),
                      nrhs);
 
             // Step b: X += s * xi_sigma  (n x nrhs)
-            dense_mm('N', 'N', n, nrhs, nrhs, 1.0, s.data.data(), n,
+            dense_mm(Transpose::False, Transpose::False, n, nrhs, nrhs, 1.0, s.data.data(), n,
                      xi_sigma.data.data(), nrhs, 1.0, X.data.data(), n);
         }
 
@@ -230,13 +235,13 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
 
             DenseMatrix r1 = alloc_dense(n, 1);
             std::copy(B.data.begin(), B.data.begin() + n, r1.data.begin());
-            sparse_mm(A, 'N', -1.0, X_col1, 1.0, r1);
+            sparse_mm(A, Transpose::False, -1.0, X_col1, 1.0, r1);
 
             residual_norm = cblas_dnrm2(n, r1.data.data(), 1);
             cils::log(residual_norm / b_norm);
         }
 
-        if (residual_norm / b_norm < tolerance) {
+        if (residual_norm / b_norm < config.tolerance) {
             break;
         }
 
@@ -248,15 +253,16 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
             CpuTimerRange w_zeta_range(g_timer, "w = w - L^-1 * A * s * xi");
 
             // temp = As * xi
-            dense_mm('N', 'N', n, nrhs, nrhs, 1.0, As.data.data(), n,
+            dense_mm(Transpose::False, Transpose::False, n, nrhs, nrhs, 1.0, As.data.data(), n,
                      xi.data.data(), nrhs, 0.0, temp.data.data(), n);
 
             // temp = L^-1 * As_xi
-            sparse_trsm(L, 'N', temp);
+            sparse_trsm(L, Transpose::False, temp);
 
             // w = w - L^{-1} * A * s * xi
-            for (size_t i = 0; i < w.data.size(); ++i)
+            for (size_t i = 0; i < w.data.size(); ++i) {
                 w.data[i] = w.data[i] - temp.data[i];
+            }
         }
 
         {
@@ -267,23 +273,24 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
         {
             CpuTimerRange s_range(g_timer, "s = (L^-1)' * w + s * zeta'");
             DenseMatrix Linv_T_w = w;
-            sparse_trsm(L, 'T', Linv_T_w); // Linv_T_w = L^{-T} * w
+            sparse_trsm(L, Transpose::True, Linv_T_w); // Linv_T_w = L^{-T} * w
 
             // s = Linv_T_w + s * zeta'
             DenseMatrix s_new = alloc_dense(n, nrhs);
             // s_new = s * zeta^T
-            dense_mm('N', 'T', n, nrhs, nrhs, 1.0, s.data.data(), n,
+            dense_mm(Transpose::False, Transpose::True, n, nrhs, nrhs, 1.0, s.data.data(), n,
                      zeta.data.data(), nrhs, 0.0, s_new.data.data(), n);
             // s_new += Linv_T_w
-            for (size_t i = 0; i < s_new.data.size(); ++i)
+            for (size_t i = 0; i < s_new.data.size(); ++i) {
                 s_new.data[i] += Linv_T_w.data[i];
+            }
             s = std::move(s_new);
         }
 
         {
             CpuTimerRange sigma_range(g_timer, "sigma = zeta * sigma");
             DenseMatrix sigma_new = alloc_dense(nrhs, nrhs);
-            dense_mm('N', 'N', nrhs, nrhs, nrhs, 1.0, zeta.data.data(), nrhs,
+            dense_mm(Transpose::False, Transpose::False, nrhs, nrhs, nrhs, 1.0, zeta.data.data(), nrhs,
                      sigma.data.data(), nrhs, 0.0, sigma_new.data.data(),
                      nrhs);
             sigma = std::move(sigma_new);
@@ -292,4 +299,5 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
 
     return iterations;
 }
+
 } // namespace dr_bcg::mkl

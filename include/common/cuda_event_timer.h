@@ -34,17 +34,19 @@ class CudaTimer<true> {
 
         ScopedRange(const ScopedRange &) = delete;
         ScopedRange &operator=(const ScopedRange &) = delete;
+        ScopedRange(ScopedRange &&) = delete;
+        ScopedRange &operator=(ScopedRange &&) = delete;
 
       private:
         CudaTimer &timer_;
         const char *name_;
         cudaStream_t stream_;
-        cudaEvent_t start_;
-        cudaEvent_t stop_;
+        cudaEvent_t start_{};
+        cudaEvent_t stop_{};
     };
 
     void add_pair(const char *name, cudaEvent_t start, cudaEvent_t stop) {
-        pairs_.push_back({start, stop, std::string(name)});
+        pairs_.push_back({.start = start, .stop = stop, .name = std::string(name)});
     }
 
     void report(const std::string &fname) {
@@ -107,18 +109,20 @@ class CudaTimer<false> {
     struct ScopedRange {
         ScopedRange(CudaTimer &timer, const char *name, cudaStream_t stream) {}
 
-        ~ScopedRange() {}
+        ~ScopedRange() = default;
 
         ScopedRange(const ScopedRange &) = delete;
         ScopedRange &operator=(const ScopedRange &) = delete;
+        ScopedRange(ScopedRange &&) = delete;
+        ScopedRange &operator=(ScopedRange &&) = delete;
     };
 
-    void add_pair(const char *name, cudaEvent_t start, cudaEvent_t stop) {}
+    void add_pair(const char *name, cudaEvent_t start, cudaEvent_t stop) {} // NOLINT
     void report(const std::string &fname) {}
     void reset() {}
 };
 
-inline CudaTimer<timer_enabled> g_event_timer;
+inline CudaTimer<timer_enabled> g_event_timer; // NOLINT
 using CudaTimerRange = CudaTimer<timer_enabled>::ScopedRange;
 
 static_assert(timer_enabled || sizeof(g_event_timer) == 1, "disabled CUDA timer should have size of 1 byte");

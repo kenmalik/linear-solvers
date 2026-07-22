@@ -11,17 +11,19 @@ int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
                 double tolerance, int max_iterations,
                 bool disable_tensor_cores = false);
 
-int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
-                    const std::vector<double> &b, std::vector<double> &x,
-                    const mat_utils::SpMatReader &L, double tolerance,
-                    int max_iterations, int block_size,
-                    bool disable_tensor_cores = false,
-                    QrBackend qr_backend = QrBackend::Householder,
-                    bool fused_xi = false);
+struct CudaDrBcgConfig {
+    double tolerance;
+    int max_iterations;
+    int block_size;
+    bool disable_tensor_cores;
+    QrBackend qr_backend;
+    bool fused_xi;
+};
 
 int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
                     const std::vector<double> &b, std::vector<double> &x,
-                    double tolerance, int max_iterations, int block_size,
-                    bool disable_tensor_cores = false,
-                    QrBackend qr_backend = QrBackend::Householder,
-                    bool fused_xi = false);
+                    const mat_utils::SpMatReader &L, CudaDrBcgConfig config);
+
+int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
+                    const std::vector<double> &b, std::vector<double> &x,
+                    CudaDrBcgConfig config);

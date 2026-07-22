@@ -7,32 +7,39 @@
 #include <utility>
 
 static std::optional<Algorithm> parse_algorithm(const std::string &s) {
-    if (s == "cg")
+    if (s == "cg") {
         return Algorithm::CG;
-    if (s == "dr-bcg")
+    }
+    if (s == "dr-bcg") {
         return Algorithm::DR_BCG;
+    }
     return std::nullopt;
 }
 
 static std::optional<Implementation> parse_implementation(const std::string &s) {
-    if (s == "mkl")
+    if (s == "mkl") {
         return Implementation::MKL;
-    if (s == "cuda")
+    }
+    if (s == "cuda") {
         return Implementation::CUDA;
+    }
     return std::nullopt;
 }
 
 static std::optional<QrBackend> parse_qr_backend(const std::string &s) {
-    if (s == "householder")
+    if (s == "householder") {
         return QrBackend::Householder;
-    if (s == "cholqr")
+    }
+    if (s == "cholqr") {
         return QrBackend::CholQR;
-    if (s == "cholqr-dx")
+    }
+    if (s == "cholqr-dx") {
         return QrBackend::CholQRDx;
+    }
     return std::nullopt;
 }
 
-std::optional<Args> parse_args(int argc, char *argv[]) {
+std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
     cxxopts::Options options("cgrun",
                              "Run conjugate gradient variants on .mat files");
 
@@ -67,9 +74,8 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
     try {
         auto result = options.parse(argc, argv);
 
-        if (!result.count("algorithm")) {
-            std::cerr << "Missing required argument: algorithm\n"
-                      << std::endl;
+        if (!result.contains("algorithm")) {
+            std::cerr << "Missing required argument: algorithm\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
@@ -77,15 +83,13 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         auto algorithm = parse_algorithm(result["algorithm"].as<std::string>());
         if (!algorithm) {
             std::cerr << "Unknown algorithm: " << result["algorithm"].as<std::string>() << "\n"
-                      << "Available: cg, dr-bcg\n"
-                      << std::endl;
+                      << "Available: cg, dr-bcg\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        if (!result.count("implementation")) {
-            std::cerr << "Missing required argument: implementation\n"
-                      << std::endl;
+        if (!result.contains("implementation")) {
+            std::cerr << "Missing required argument: implementation\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
@@ -93,15 +97,13 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         auto implementation = parse_implementation(result["implementation"].as<std::string>());
         if (!implementation) {
             std::cerr << "Unknown implementation: " << result["implementation"].as<std::string>() << "\n"
-                      << "Available: mkl, cuda\n"
-                      << std::endl;
+                      << "Available: mkl, cuda\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        if (!result.count("A")) {
-            std::cerr << "Missing required argument: A\n"
-                      << std::endl;
+        if (!result.contains("A")) {
+            std::cerr << "Missing required argument: A\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
@@ -111,8 +113,9 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
 
         double tolerance = result["tolerance"].as<double>();
         std::optional<int> max_iterations;
-        if (result.count("max-iterations"))
+        if (result.contains("max-iterations")) {
             max_iterations = result["max-iterations"].as<int>();
+        }
         int block_size = result["block-size"].as<int>();
         bool disable_tensor_cores = result["no-tensor-cores"].as<bool>();
         bool fused_xi = result["fused-xi"].as<bool>();
@@ -120,25 +123,24 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         if (!qr_backend) {
             std::cerr << "Unknown QR backend: "
                       << result["qr-backend"].as<std::string>() << "\n"
-                      << "Available: householder, cholqr, cholqr-dx\n"
-                      << std::endl;
+                      << "Available: householder, cholqr, cholqr-dx\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
         std::optional<mat_utils::DnMatReader> b_reader;
-        if (result.count("b")) {
+        if (result.contains("b")) {
             b_reader.emplace(result["b"].as<std::string>(), std::vector<std::string>{}, "b");
         }
         std::optional<mat_utils::DnMatReader> B_reader;
-        if (result.count("B")) {
+        if (result.contains("B")) {
             B_reader.emplace(result["B"].as<std::string>(), std::vector<std::string>{}, "B");
         }
         std::optional<mat_utils::DnMatReader> x_reader;
-        if (result.count("x")) {
+        if (result.contains("x")) {
             x_reader.emplace(result["x"].as<std::string>(), std::vector<std::string>{}, "x");
         }
         std::optional<mat_utils::DnMatReader> X_reader;
-        if (result.count("X")) {
+        if (result.contains("X")) {
             X_reader.emplace(result["X"].as<std::string>(), std::vector<std::string>{}, "X");
         }
         auto timer_out = result["timer-out"].as<std::string>();
@@ -147,7 +149,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         }
 
         std::optional<std::string> output;
-        if (result.count("output")) {
+        if (result.contains("output")) {
             output = result["output"].as<std::string>();
             if (!output->ends_with(".mat")) {
                 *output += ".mat";
@@ -155,28 +157,19 @@ std::optional<Args> parse_args(int argc, char *argv[]) {
         }
         bool output_b = result["output-b"].as<bool>();
 
-        if (result.count("L")) {
+        if (result.contains("L")) {
             mat_utils::SpMatReader L_reader{
                 result["L"].as<std::string>(), {}, "L"};
-            return Args{*algorithm, *implementation, std::move(A_reader), std::move(L_reader),
-                        std::move(b_reader), std::move(B_reader), std::move(x_reader),
-                        std::move(X_reader), timer_out, std::move(output), output_b,
-                        tolerance, max_iterations, block_size, disable_tensor_cores,
-                        *qr_backend, fused_xi};
+            return Args{.algorithm = *algorithm, .implementation = *implementation, .A = std::move(A_reader), .L = std::move(L_reader), .b = std::move(b_reader), .B = std::move(B_reader), .x = std::move(x_reader), .X = std::move(X_reader), .timer_out = timer_out, .output = std::move(output), .output_b = output_b, .tolerance = tolerance, .max_iterations = max_iterations, .block_size = block_size, .disable_tensor_cores = disable_tensor_cores, .qr_backend = *qr_backend, .fused_xi = fused_xi};
         }
 
-        return Args{*algorithm, *implementation, std::move(A_reader), std::nullopt,
-                    std::move(b_reader), std::move(B_reader), std::move(x_reader),
-                    std::move(X_reader), timer_out, std::move(output), output_b,
-                    tolerance, max_iterations, block_size, disable_tensor_cores,
-                    *qr_backend, fused_xi};
+        return Args{.algorithm = *algorithm, .implementation = *implementation, .A = std::move(A_reader), .L = std::nullopt, .b = std::move(b_reader), .B = std::move(B_reader), .x = std::move(x_reader), .X = std::move(X_reader), .timer_out = timer_out, .output = std::move(output), .output_b = output_b, .tolerance = tolerance, .max_iterations = max_iterations, .block_size = block_size, .disable_tensor_cores = disable_tensor_cores, .qr_backend = *qr_backend, .fused_xi = fused_xi};
     } catch (const cxxopts::exceptions::exception &e) {
-        std::cerr << e.what() << '\n'
-                  << std::endl;
+        std::cerr << e.what() << "\n\n";
         std::cerr << options.help();
         return std::nullopt;
     } catch (const std::exception &e) {
-        std::cerr << "Data loading failed: " << e.what() << std::endl;
+        std::cerr << "Data loading failed: " << e.what() << '\n';
         return std::nullopt;
     }
 }

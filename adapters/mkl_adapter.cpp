@@ -29,12 +29,14 @@ CSRMatrix read_mkl(const mat_utils::SpMatReader &reader) {
     csr.values.resize(nnz);
 
     // Count nnz per row
-    for (MKL_INT k = 0; k < nnz; ++k)
+    for (MKL_INT k = 0; k < nnz; ++k) {
         ++csr.row_ptr[ir[k] + 1];
+    }
 
     // Exclusive prefix sum → row_ptr
-    for (MKL_INT i = 0; i < n_rows; ++i)
+    for (MKL_INT i = 0; i < n_rows; ++i) {
         csr.row_ptr[i + 1] += csr.row_ptr[i];
+    }
 
     // Scatter CSC columns into CSR rows
     std::vector<MKL_INT> cursor(csr.row_ptr.begin(),
@@ -48,10 +50,11 @@ CSRMatrix read_mkl(const mat_utils::SpMatReader &reader) {
         }
     }
 
-    mkl_sparse_d_create_csr(&csr.mat, SPARSE_INDEX_BASE_ZERO, reader.rows(),
-                            reader.cols(), csr.row_ptr.data(),
-                            csr.row_ptr.data() + 1, csr.col_idx.data(),
-                            csr.values.data());
+    mkl_sparse_d_create_csr(&csr.mat, SPARSE_INDEX_BASE_ZERO,
+                            static_cast<long long>(reader.rows()),
+                            static_cast<long long>(reader.cols()),
+                            csr.row_ptr.data(), csr.row_ptr.data() + 1,
+                            csr.col_idx.data(), csr.values.data());
 
     return csr;
 }
@@ -69,7 +72,9 @@ int run_mkl_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
     L_csr.descr.mode = SPARSE_FILL_MODE_LOWER;
     L_csr.descr.diag = SPARSE_DIAG_NON_UNIT;
 
-    return cg::mkl::solve(A_csr, b, x, L_csr, tolerance, max_iterations);
+    return cg::mkl::solve(A_csr, b, x, L_csr,
+                          {.tolerance = tolerance,
+                           .max_iterations = max_iterations});
 }
 
 #endif // SOLVERS_BUILD_CG
@@ -78,8 +83,7 @@ int run_mkl_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
 
 int run_mkl_dr_bcg(const mat_utils::SpMatReader &A,
                    const std::vector<double> &b, std::vector<double> &x,
-                   const mat_utils::SpMatReader &L, double tolerance,
-                   int max_iterations, int block_size) {
+                   const mat_utils::SpMatReader &L, MklDrBcgConfig config) {
     auto A_csr = read_mkl(A);
     A_csr.descr.type = SPARSE_MATRIX_TYPE_GENERAL;
 
@@ -88,12 +92,13 @@ int run_mkl_dr_bcg(const mat_utils::SpMatReader &A,
     L_csr.descr.mode = SPARSE_FILL_MODE_LOWER;
     L_csr.descr.diag = SPARSE_DIAG_NON_UNIT;
 
-    int n = A.rows();
-    DenseMatrix b_dm{n, block_size, b};
-    DenseMatrix x_dm{n, block_size, x};
+    int n = static_cast<int>(A.rows());
+    DenseMatrix b_dm{.rows = n, .cols = config.block_size, .data = b};
+    DenseMatrix x_dm{.rows = n, .cols = config.block_size, .data = x};
 
-    return dr_bcg::mkl::solve(A_csr, L_csr, b_dm, x_dm, tolerance,
-                              max_iterations);
+    return dr_bcg::mkl::solve(A_csr, L_csr, b_dm, x_dm,
+                              {.tolerance = config.tolerance,
+                               .max_iterations = config.max_iterations});
 }
 
 #endif // SOLVERS_BUILD_DR_BCG

@@ -36,7 +36,7 @@ class DeviceSparseMatrix {
                 }
             }
 
-            int missing_diags =
+            auto missing_diags =
                 std::count(has_diag.begin(), has_diag.end(), false);
             int negative_diags =
                 std::count_if(diag_vals.begin(), diag_vals.end(),
@@ -117,18 +117,18 @@ class DeviceSparseMatrix {
     DeviceSparseMatrix &operator=(DeviceSparseMatrix &&) = delete;
 
     ~DeviceSparseMatrix() {
-        if (A) {
+        if (A != nullptr) {
             CUSPARSE_CHECK(cusparseDestroySpMat(A));
         }
-        if (d_rowPtr) {
+        if (d_rowPtr != nullptr) {
             CUDA_CHECK(cudaFree(d_rowPtr));
             d_rowPtr = nullptr;
         }
-        if (d_colInd) {
+        if (d_colInd != nullptr) {
             CUDA_CHECK(cudaFree(d_colInd));
             d_colInd = nullptr;
         }
-        if (d_vals) {
+        if (d_vals != nullptr) {
             CUDA_CHECK(cudaFree(d_vals));
             d_vals = nullptr;
         }

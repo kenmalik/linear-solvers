@@ -6,6 +6,12 @@
 #include "common/mkl_matrices.h"
 
 namespace dr_bcg::mkl {
+
+struct Config {
+    double tolerance;
+    int max_iterations;
+};
+
 /// PDR-BCG: Preconditioned Dubrulle-R Block Conjugate Gradient
 ///
 /// Solves A * X = B using L as the Cholesky factor of the preconditioner M = L
@@ -22,5 +28,6 @@ namespace dr_bcg::mkl {
 ///
 /// @return number of iterations performed
 int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
-          DenseMatrix &X, double tolerance, int max_iterations) noexcept;
+          DenseMatrix &X, Config config) noexcept;
+
 } // namespace dr_bcg::mkl

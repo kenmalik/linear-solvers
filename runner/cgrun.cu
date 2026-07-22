@@ -20,14 +20,14 @@
 #include "parser.h"
 #include "rhs.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
     auto args = parse_args(argc, argv);
 
     if (!args) {
         return -1;
     }
 
-    int iters;
+    int iters = 0;
 
     switch (args->algorithm) {
     case Algorithm::CG:
@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
         iters = run_dr_bcg(*args);
         break;
     default:
-        std::cerr << "Unknown algorithm" << std::endl;
+        std::cerr << "Unknown algorithm\n";
         return -1;
     }
 
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    std::cout << iters << std::endl;
+    std::cout << iters << '\n';
 
     if constexpr (timer_enabled) {
         if (args->implementation == Implementation::CUDA) {
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
 }
 
 int run_cg(const Args &args) {
-    int n = args.A.rows();
+    std::size_t n = args.A.rows();
     std::vector<double> b;
     std::vector<double> x;
 
@@ -67,13 +67,13 @@ int run_cg(const Args &args) {
         b = prepare_rhs(args.b, args.B, n, 1);
         x = prepare_initial_guess(args.x, args.X, n, 1);
     } catch (const std::exception &e) {
-        std::cerr << "Failed to prepare dense inputs: " << e.what() << std::endl;
+        std::cerr << "Failed to prepare dense inputs: " << e.what() << '\n';
         return -1;
     }
 
     int max_iters = args.max_iterations.value_or(n);
 
-    int iters;
+    int iters = 0;
 
     switch (args.implementation) {
 #ifdef SOLVERS_BUILD_CG
@@ -83,7 +83,7 @@ int run_cg(const Args &args) {
             iters = run_mkl_cg(args.A, b, x, args.L.value(), args.tolerance,
                                max_iters);
         } else {
-            std::cerr << "Not implemented" << std::endl;
+            std::cerr << "Not implemented\n";
             return -1;
         }
         break;
@@ -98,8 +98,7 @@ int run_cg(const Args &args) {
 #endif // SOLVERS_BUILD_CUDA
 #endif // SOLVERS_BUILD_CG
     default:
-        std::cerr << "Selected implementation not available in this build"
-                  << std::endl;
+        std::cerr << "Selected implementation not available in this build\n";
         return -1;
     }
 
@@ -116,7 +115,7 @@ int run_cg(const Args &args) {
 }
 
 int run_dr_bcg(const Args &args) {
-    int n = args.A.rows();
+    std::size_t n = args.A.rows();
     int s = args.block_size;
     std::vector<double> b;
     std::vector<double> x;
@@ -125,23 +124,27 @@ int run_dr_bcg(const Args &args) {
         b = prepare_rhs(args.b, args.B, n, s);
         x = prepare_initial_guess(args.x, args.X, n, s);
     } catch (const std::exception &e) {
-        std::cerr << "Failed to prepare dense inputs: " << e.what() << std::endl;
+        std::cerr << "Failed to prepare dense inputs: " << e.what() << '\n';
         return -1;
     }
 
-    int max_iters = args.max_iterations.value_or(n);
+    int max_iterations = args.max_iterations.value_or(n);
 
-    int iters;
+    int iters = 0;
 
     switch (args.implementation) {
 #ifdef SOLVERS_BUILD_DR_BCG
 #ifdef SOLVERS_BUILD_MKL
     case Implementation::MKL: {
+        MklDrBcgConfig config{
+            .tolerance = args.tolerance,
+            .max_iterations = max_iterations,
+            .block_size = s};
+
         if (args.L.has_value()) {
-            iters = run_mkl_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
-                                   max_iters, s);
+            iters = run_mkl_dr_bcg(args.A, b, x, args.L.value(), config);
         } else {
-            std::cerr << "Not implemented" << std::endl;
+            std::cerr << "Not implemented\n";
             return -1;
         }
         break;
@@ -149,24 +152,26 @@ int run_dr_bcg(const Args &args) {
 #endif // SOLVERS_BUILD_MKL
 #ifdef SOLVERS_BUILD_CUDA
     case Implementation::CUDA: {
+        CudaDrBcgConfig config{
+            .tolerance = args.tolerance,
+            .max_iterations = max_iterations,
+            .block_size = args.block_size,
+            .disable_tensor_cores = args.disable_tensor_cores,
+            .qr_backend = args.qr_backend,
+            .fused_xi = args.fused_xi};
+
         if (args.L.has_value()) {
-            iters = run_cuda_dr_bcg(args.A, b, x, args.L.value(), args.tolerance,
-                                    max_iters, args.block_size,
-                                    args.disable_tensor_cores,
-                                    args.qr_backend, args.fused_xi);
+            iters = run_cuda_dr_bcg(args.A, b, x, args.L.value(), config);
         } else {
-            iters = run_cuda_dr_bcg(args.A, b, x, args.tolerance, max_iters,
-                                    args.block_size,
-                                    args.disable_tensor_cores,
-                                    args.qr_backend, args.fused_xi);
+            iters = run_cuda_dr_bcg(args.A, b, x, config);
         }
+
         break;
     }
 #endif // SOLVERS_BUILD_CUDA
 #endif // SOLVERS_BUILD_DR_BCG
     default:
-        std::cerr << "Selected implementation not available in this build"
-                  << std::endl;
+        std::cerr << "Selected implementation not available in this build\n";
         return -1;
     }
 

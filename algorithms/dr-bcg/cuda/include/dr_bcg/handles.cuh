@@ -13,10 +13,10 @@ namespace dr_bcg::cuda {
 
 class Handles {
   public:
-    cusparseHandle_t cusparse;
-    cusolverDnHandle_t cusolver;
-    cusolverDnParams_t cusolver_params;
-    cublasHandle_t cublas;
+    cusparseHandle_t cusparse{};
+    cusolverDnHandle_t cusolver{};
+    cusolverDnParams_t cusolver_params{};
+    cublasHandle_t cublas{};
 
     [[nodiscard]] Handles() noexcept {
         CUSPARSE_CHECK(cusparseCreate(&cusparse));
@@ -49,14 +49,14 @@ class Handles {
         return *this;
     }
 
-    void set_stream(cudaStream_t stream) noexcept {
+    void set_stream(cudaStream_t stream) const noexcept {
         CUSPARSE_CHECK(cusparseSetStream(cusparse, stream));
         CUSOLVER_CHECK(cusolverDnSetStream(cusolver, stream));
         CUBLAS_CHECK(cublasSetStream_v2(cublas, stream));
     }
 
   private:
-    void free() noexcept {
+    void free() const noexcept {
         CUSPARSE_CHECK(cusparseDestroy(cusparse));
         CUSOLVER_CHECK(cusolverDnDestroy(cusolver));
         CUSOLVER_CHECK(cusolverDnDestroyParams(cusolver_params));

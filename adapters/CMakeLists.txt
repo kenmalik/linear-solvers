@@ -2,7 +2,6 @@ find_package(MatUtils CONFIG REQUIRED)
 
 add_library(solver_adapters)
 
-target_compile_features(solver_adapters PRIVATE cxx_std_20)
 target_include_directories(solver_adapters PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 target_link_libraries(solver_adapters PUBLIC

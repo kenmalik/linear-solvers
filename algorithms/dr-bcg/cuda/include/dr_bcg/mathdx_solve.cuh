@@ -6,6 +6,7 @@
 // MathDx (cuBLASDx + cuSolverDx) kernels are instantiated and device-linked
 // inside the dedicated cuda_dr_bcg_mathdx target, not in general adapter code.
 
+#include <cstdint>
 #include <cuda_runtime.h>
 #include <cusparse.h>
 
@@ -17,7 +18,9 @@ struct Handles;
 // Orthonormalization policy used by the fused xi chain (solve_fused_dx). The
 // fused loop is QR-agnostic; this algorithm-layer selector lets the adapter
 // pick the QR without the algorithm layer depending on the adapter's QrBackend.
-enum class FusedXiQr { Householder, CholQR, CholQRDx };
+enum class FusedXiQr : std::uint8_t { Householder,
+                                      CholQR,
+                                      CholQRDx };
 
 // Preconditioned (M = L L^T) DR-BCG with fused CholeskyQR2 orthonormalization.
 int solve_cholqr_dx(Handles &handles, cusparseSpMatDescr_t A,

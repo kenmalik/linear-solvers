@@ -9,7 +9,7 @@
         sparse_status_t _err = (call);                                         \
         if (_err != SPARSE_STATUS_SUCCESS) {                                   \
             std::cerr << "MKL sparse error at " << __FILE__ << ":" << __LINE__ \
-                      << ": " << _err << std::endl;                            \
+                      << ": " << _err << '\n';                                 \
             std::abort();                                                      \
         }                                                                      \
     } while (0)
@@ -19,7 +19,7 @@
         lapack_int _err = (call);                                   \
         if (_err != 0) {                                            \
             std::cerr << "MKL LAPACKE error at " << __FILE__ << ":" \
-                      << __LINE__ << ": " << _err << std::endl;     \
+                      << __LINE__ << ": " << _err << '\n';          \
             std::abort();                                           \
         }                                                           \
     } while (0)
