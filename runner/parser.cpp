@@ -1,10 +1,14 @@
 #include "parser.h"
 
+#include <cstddef>
 #include <cxxopts.hpp>
 #include <exception>
 #include <iostream>
+#include <optional>
+#include <regex>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -41,6 +45,40 @@ std::optional<QrBackend> parse_qr_backend(const std::string &s) {
     return std::nullopt;
 }
 
+struct MatArg {
+    std::string file;
+    std::vector<std::string> parent_arrays;
+    std::string field;
+};
+
+// Format: mat_file_path:parent_arrays/field
+std::optional<MatArg> parse_mat_arg(const std::string &s) {
+    static const std::regex pattern(R"(^([^:]+):((?:/[^/]+)+)$)");
+    std::smatch match;
+    if (!std::regex_match(s, match, pattern)) {
+        return std::nullopt;
+    }
+
+    std::string file = match[1];
+    std::string path = match[2];
+
+    std::vector<std::string> components;
+    size_t start = 1; // skip leading '/'
+    while (start < path.size()) {
+        size_t end = path.find('/', start);
+        if (end == std::string::npos) {
+            end = path.size();
+        }
+        components.push_back(path.substr(start, end - start));
+        start = end + 1;
+    }
+
+    std::string field = std::move(components.back());
+    components.pop_back();
+
+    return MatArg{.file = std::move(file), .parent_arrays = std::move(components), .field = std::move(field)};
+}
+
 } // namespace
 
 std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
@@ -74,6 +112,17 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
 
     options.parse_positional({"algorithm", "implementation", "A", "L"});
     options.positional_help("<algorithm> <implementation> <A> [L]");
+
+    auto parse_mat_option = [&options](const std::string &name,
+                                       const std::string &value) -> std::optional<MatArg> {
+        auto arg = parse_mat_arg(value);
+        if (!arg) {
+            std::cerr << "Invalid format for --" << name << ": " << value << "\n"
+                      << "Expected format: file:/parent_arrays/field\n\n";
+            std::cerr << options.help();
+        }
+        return arg;
+    };
 
     try {
         auto result = options.parse(argc, argv);
@@ -112,8 +161,11 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
             return std::nullopt;
         }
 
-        mat_utils::SpMatReader A_reader{
-            result["A"].as<std::string>(), {"Problem"}, "A"};
+        auto A_arg = parse_mat_option("A", result["A"].as<std::string>());
+        if (!A_arg) {
+            return std::nullopt;
+        }
+        mat_utils::SpMatReader A_reader{A_arg->file, A_arg->parent_arrays, A_arg->field};
 
         double tolerance = result["tolerance"].as<double>();
         std::optional<int> max_iterations;
@@ -133,19 +185,35 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
         }
         std::optional<mat_utils::DnMatReader> b_reader;
         if (result.contains("b")) {
-            b_reader.emplace(result["b"].as<std::string>(), std::vector<std::string>{}, "b");
+            auto b_arg = parse_mat_option("b", result["b"].as<std::string>());
+            if (!b_arg) {
+                return std::nullopt;
+            }
+            b_reader.emplace(b_arg->file, b_arg->parent_arrays, b_arg->field);
         }
         std::optional<mat_utils::DnMatReader> B_reader;
         if (result.contains("B")) {
-            B_reader.emplace(result["B"].as<std::string>(), std::vector<std::string>{}, "B");
+            auto B_arg = parse_mat_option("B", result["B"].as<std::string>());
+            if (!B_arg) {
+                return std::nullopt;
+            }
+            B_reader.emplace(B_arg->file, B_arg->parent_arrays, B_arg->field);
         }
         std::optional<mat_utils::DnMatReader> x_reader;
         if (result.contains("x")) {
-            x_reader.emplace(result["x"].as<std::string>(), std::vector<std::string>{}, "x");
+            auto x_arg = parse_mat_option("x", result["x"].as<std::string>());
+            if (!x_arg) {
+                return std::nullopt;
+            }
+            x_reader.emplace(x_arg->file, x_arg->parent_arrays, x_arg->field);
         }
         std::optional<mat_utils::DnMatReader> X_reader;
         if (result.contains("X")) {
-            X_reader.emplace(result["X"].as<std::string>(), std::vector<std::string>{}, "X");
+            auto X_arg = parse_mat_option("X", result["X"].as<std::string>());
+            if (!X_arg) {
+                return std::nullopt;
+            }
+            X_reader.emplace(X_arg->file, X_arg->parent_arrays, X_arg->field);
         }
         auto timer_out = result["timer-out"].as<std::string>();
         if (!timer_out.ends_with(".csv")) {
@@ -162,8 +230,11 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
         bool output_b = result["output-b"].as<bool>();
 
         if (result.contains("L")) {
-            mat_utils::SpMatReader L_reader{
-                result["L"].as<std::string>(), {}, "L"};
+            auto L_arg = parse_mat_option("L", result["L"].as<std::string>());
+            if (!L_arg) {
+                return std::nullopt;
+            }
+            mat_utils::SpMatReader L_reader{L_arg->file, L_arg->parent_arrays, L_arg->field};
             return Args{.algorithm = *algorithm, .implementation = *implementation, .A = std::move(A_reader), .L = std::move(L_reader), .b = std::move(b_reader), .B = std::move(B_reader), .x = std::move(x_reader), .X = std::move(X_reader), .timer_out = timer_out, .output = std::move(output), .output_b = output_b, .tolerance = tolerance, .max_iterations = max_iterations, .block_size = block_size, .disable_tensor_cores = disable_tensor_cores, .qr_backend = *qr_backend, .fused_xi = fused_xi};
         }
 
