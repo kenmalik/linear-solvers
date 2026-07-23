@@ -139,120 +139,138 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
     };
 
     try {
-        auto result = options.parse(argc, argv);
+        auto parsed = options.parse(argc, argv);
 
-        if (!result.contains("algorithm")) {
+        if (!parsed.contains("algorithm")) {
             std::cerr << "Missing required argument: algorithm\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        auto algorithm = parse_algorithm(result["algorithm"].as<std::string>());
+        auto algorithm = parse_algorithm(parsed["algorithm"].as<std::string>());
         if (!algorithm) {
-            std::cerr << "Unknown algorithm: " << result["algorithm"].as<std::string>() << "\n"
+            std::cerr << "Unknown algorithm: " << parsed["algorithm"].as<std::string>() << "\n"
                       << "Available: cg, dr-bcg\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        if (!result.contains("implementation")) {
+        if (!parsed.contains("implementation")) {
             std::cerr << "Missing required argument: implementation\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        auto implementation = parse_implementation(result["implementation"].as<std::string>());
+        auto implementation = parse_implementation(parsed["implementation"].as<std::string>());
         if (!implementation) {
-            std::cerr << "Unknown implementation: " << result["implementation"].as<std::string>() << "\n"
+            std::cerr << "Unknown implementation: " << parsed["implementation"].as<std::string>() << "\n"
                       << "Available: mkl, cuda\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        if (!result.contains("A")) {
+        if (!parsed.contains("A")) {
             std::cerr << "Missing required argument: A\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        auto A_arg = parse_mat_option("A", result["A"].as<std::string>(), {"Problem"}, "A");
+        auto A_arg = parse_mat_option("A", parsed["A"].as<std::string>(), {"Problem"}, "A");
         if (!A_arg) {
             return std::nullopt;
         }
         MatReader<mat_utils::Sparsity::Sparse> A_reader{A_arg->file, A_arg->parent_arrays, A_arg->field};
 
-        double tolerance = result["tolerance"].as<double>();
+        double tolerance = parsed["tolerance"].as<double>();
         std::optional<int> max_iterations;
-        if (result.contains("max-iterations")) {
-            max_iterations = result["max-iterations"].as<int>();
+        if (parsed.contains("max-iterations")) {
+            max_iterations = parsed["max-iterations"].as<int>();
         }
-        int block_size = result["block-size"].as<int>();
-        bool disable_tensor_cores = result["no-tensor-cores"].as<bool>();
-        bool fused_xi = result["fused-xi"].as<bool>();
-        auto qr_backend = parse_qr_backend(result["qr-backend"].as<std::string>());
+        int block_size = parsed["block-size"].as<int>();
+        bool disable_tensor_cores = parsed["no-tensor-cores"].as<bool>();
+        bool fused_xi = parsed["fused-xi"].as<bool>();
+        auto qr_backend = parse_qr_backend(parsed["qr-backend"].as<std::string>());
         if (!qr_backend) {
             std::cerr << "Unknown QR backend: "
-                      << result["qr-backend"].as<std::string>() << "\n"
+                      << parsed["qr-backend"].as<std::string>() << "\n"
                       << "Available: householder, cholqr, cholqr-dx\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
         std::optional<MatReader<>> b_reader;
-        if (result.contains("b")) {
-            auto b_arg = parse_mat_option("b", result["b"].as<std::string>(), {}, "b");
+        if (parsed.contains("b")) {
+            auto b_arg = parse_mat_option("b", parsed["b"].as<std::string>(), {}, "b");
             if (!b_arg) {
                 return std::nullopt;
             }
             b_reader.emplace(b_arg->file, b_arg->parent_arrays, b_arg->field);
         }
         std::optional<MatReader<>> B_reader;
-        if (result.contains("B")) {
-            auto B_arg = parse_mat_option("B", result["B"].as<std::string>(), {}, "B");
+        if (parsed.contains("B")) {
+            auto B_arg = parse_mat_option("B", parsed["B"].as<std::string>(), {}, "B");
             if (!B_arg) {
                 return std::nullopt;
             }
             B_reader.emplace(B_arg->file, B_arg->parent_arrays, B_arg->field);
         }
         std::optional<MatReader<>> x_reader;
-        if (result.contains("x")) {
-            auto x_arg = parse_mat_option("x", result["x"].as<std::string>(), {}, "x");
+        if (parsed.contains("x")) {
+            auto x_arg = parse_mat_option("x", parsed["x"].as<std::string>(), {}, "x");
             if (!x_arg) {
                 return std::nullopt;
             }
             x_reader.emplace(x_arg->file, x_arg->parent_arrays, x_arg->field);
         }
         std::optional<MatReader<>> X_reader;
-        if (result.contains("X")) {
-            auto X_arg = parse_mat_option("X", result["X"].as<std::string>(), {}, "X");
+        if (parsed.contains("X")) {
+            auto X_arg = parse_mat_option("X", parsed["X"].as<std::string>(), {}, "X");
             if (!X_arg) {
                 return std::nullopt;
             }
             X_reader.emplace(X_arg->file, X_arg->parent_arrays, X_arg->field);
         }
-        auto timer_out = result["timer-out"].as<std::string>();
+        auto timer_out = parsed["timer-out"].as<std::string>();
         if (!timer_out.ends_with(".csv")) {
             timer_out += ".csv";
         }
 
         std::optional<std::string> output;
-        if (result.contains("output")) {
-            output = result["output"].as<std::string>();
+        if (parsed.contains("output")) {
+            output = parsed["output"].as<std::string>();
             if (!output->ends_with(".mat")) {
                 *output += ".mat";
             }
         }
-        bool output_b = result["output-b"].as<bool>();
+        bool output_b = parsed["output-b"].as<bool>();
 
-        if (result.contains("L")) {
-            auto L_arg = parse_mat_option("L", result["L"].as<std::string>(), {}, "L");
+        Args res{.algorithm = *algorithm,
+                 .implementation = *implementation,
+                 .A = std::move(A_reader),
+                 .L = std::nullopt,
+                 .b = std::move(b_reader),
+                 .B = std::move(B_reader),
+                 .x = std::move(x_reader),
+                 .X = std::move(X_reader),
+                 .timer_out = timer_out,
+                 .output = std::move(output),
+                 .output_b = output_b,
+                 .tolerance = tolerance,
+                 .max_iterations = max_iterations,
+                 .block_size = block_size,
+                 .disable_tensor_cores = disable_tensor_cores,
+                 .qr_backend = *qr_backend,
+                 .fused_xi = fused_xi};
+
+        if (parsed.contains("L")) {
+            auto L_arg = parse_mat_option("L", parsed["L"].as<std::string>(), {}, "L");
             if (!L_arg) {
                 return std::nullopt;
             }
             MatReader<mat_utils::Sparsity::Sparse> L_reader{L_arg->file, L_arg->parent_arrays, L_arg->field};
-            return Args{.algorithm = *algorithm, .implementation = *implementation, .A = std::move(A_reader), .L = std::move(L_reader), .b = std::move(b_reader), .B = std::move(B_reader), .x = std::move(x_reader), .X = std::move(X_reader), .timer_out = timer_out, .output = std::move(output), .output_b = output_b, .tolerance = tolerance, .max_iterations = max_iterations, .block_size = block_size, .disable_tensor_cores = disable_tensor_cores, .qr_backend = *qr_backend, .fused_xi = fused_xi};
+            res.L = std::move(L_reader);
         }
 
-        return Args{.algorithm = *algorithm, .implementation = *implementation, .A = std::move(A_reader), .L = std::nullopt, .b = std::move(b_reader), .B = std::move(B_reader), .x = std::move(x_reader), .X = std::move(X_reader), .timer_out = timer_out, .output = std::move(output), .output_b = output_b, .tolerance = tolerance, .max_iterations = max_iterations, .block_size = block_size, .disable_tensor_cores = disable_tensor_cores, .qr_backend = *qr_backend, .fused_xi = fused_xi};
+        return res;
     } catch (const cxxopts::exceptions::exception &e) {
         std::cerr << e.what() << "\n\n";
         std::cerr << options.help();
