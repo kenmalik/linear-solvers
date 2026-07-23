@@ -1,4 +1,4 @@
-find_package(MatUtils CONFIG REQUIRED)
+find_package(MatUtils VERSION 0.4.0 CONFIG REQUIRED)
 
 include(FetchContent)
 
@@ -12,10 +12,12 @@ set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
 set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googlebenchmark)
-set_target_properties(benchmark benchmark_main PROPERTIES CXX_CLANG_TIDY "" CXX_CPPCHECK "")
+set_target_properties(benchmark benchmark_main PROPERTIES
+    CXX_CLANG_TIDY "" CXX_CPPCHECK "")
 
 add_executable(solver_benchmarks solver_benchmark.cpp)
-target_link_libraries(solver_benchmarks PRIVATE benchmark::benchmark_main MatUtils::mat_utils solver_config)
+target_link_libraries(solver_benchmarks PRIVATE
+    benchmark::benchmark_main MatUtils::mat_utils solver_config)
 target_compile_definitions(solver_benchmarks PRIVATE
     BENCHMARK_DATA_DIR="${PROJECT_SOURCE_DIR}/data")
 

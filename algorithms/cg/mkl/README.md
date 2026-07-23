@@ -18,14 +18,14 @@ int cg(CsrMatrix &A, const std::vector<double> &b, std::vector<double> &x,
        double tolerance = 1e-6, int max_iterations = 100);
 
 // Sparse A loaded from a .mat file
-int cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
+int cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A, const std::vector<double> &b,
        std::vector<double> &x, double tolerance = 1e-6,
        int max_iterations = 100);
 
 // Preconditioned CG with incomplete Cholesky factor L
 // Preconditioner M = L * L^T. Convergence criterion: ||r|| <= tolerance * ||b||
-int cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
-       std::vector<double> &x, const mat_utils::SpMatReader &L,
+int cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A, const std::vector<double> &b,
+       std::vector<double> &x, const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
        double tolerance = 1e-6, int max_iterations = 100,
        bool real_residual = false);
 ```
@@ -37,7 +37,7 @@ which prevents floating-point drift at the cost of an extra sparse
 matrix-vector product per iteration.
 
 The dense and CSR overloads use an absolute convergence criterion
-(`||r|| <= tolerance`). The `SpMatReader` PCG overload uses a relative
+(`||r|| <= tolerance`). The `MatReader<mat_utils::Sparsity::Sparse>` PCG overload uses a relative
 criterion (`||r|| <= tolerance * ||b||`).
 
 ## Building
@@ -52,7 +52,7 @@ cmake --build build
 | Option | Default | Description |
 |--------|---------|-------------|
 | `MKL_CG_BUILD_TESTS` | `OFF` | Build the GoogleTest test suite |
-| `MKL_CG_BUILD_MAT_READERS` | `OFF` | Enable `SpMatReader`-based overloads (requires MatUtils and a MATLAB installation) |
+| `MKL_CG_BUILD_MAT_READERS` | `OFF` | Enable `MatReader<mat_utils::Sparsity::Sparse>`-based overloads (requires MatUtils and a MATLAB installation) |
 | `MKL_CG_BUILD_CLI` | `OFF` | Build the `mkl-cgrun` CLI runner (requires `MKL_CG_BUILD_MAT_READERS`) |
 | `MKL_CG_PRINT_RELATIVE_RESIDUAL_NORMS` | `OFF` | Print `\|\|r\|\|/\|\|b\|\|` to `stderr` each iteration |
 
@@ -61,7 +61,7 @@ cmake --build build
 - **Intel MKL** (required) — discovered via CMake's `find_package(MKL)` or the
   `MKLROOT` environment variable as a fallback.
 - **MatUtils** (optional) — required when `MKL_CG_BUILD_MAT_READERS=ON`.
-  Provides `SpMatReader` for loading sparse matrices from MATLAB `.mat` files.
+  Provides `MatReader<mat_utils::Sparsity::Sparse>` for loading sparse matrices from MATLAB `.mat` files.
 - **cxxopts** (optional) — required when `MKL_CG_BUILD_CLI=ON`.
 - **GoogleTest** — fetched automatically via CMake `FetchContent` when
   `MKL_CG_BUILD_TESTS=ON`.

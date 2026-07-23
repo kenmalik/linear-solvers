@@ -58,8 +58,8 @@ dr_bcg::cuda::FusedXiQr to_fused_xi_qr(QrBackend qr_backend) {
 
 #ifdef SOLVERS_BUILD_CG
 
-int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
-                std::vector<double> &x, const mat_utils::SpMatReader &L,
+int run_cuda_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A, const std::vector<double> &b,
+                std::vector<double> &x, const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
                 double tolerance, int max_iterations,
                 bool disable_tensor_cores) {
     cusparseHandle_t cusparse = nullptr;
@@ -123,9 +123,9 @@ int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
 
 #ifdef SOLVERS_BUILD_DR_BCG
 
-int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
+int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                     const std::vector<double> &b, std::vector<double> &x,
-                    const mat_utils::SpMatReader &L, CudaDrBcgConfig config) {
+                    const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L, CudaDrBcgConfig config) {
     auto n = A.rows();
 
     dr_bcg::cuda::Handles handles;
@@ -203,7 +203,7 @@ int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
     return iters;
 }
 
-int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
+int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                     const std::vector<double> &b, std::vector<double> &x,
                     CudaDrBcgConfig config) {
     auto n = A.rows();

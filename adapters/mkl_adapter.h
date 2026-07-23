@@ -6,10 +6,11 @@
 
 #include "common/mkl_matrices.h"
 
-CSRMatrix read_mkl(const mat_utils::SpMatReader &reader);
+CSRMatrix read_mkl(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &reader);
 
-int run_mkl_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
-               std::vector<double> &x, const mat_utils::SpMatReader &L,
+int run_mkl_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
+               const std::vector<double> &b, std::vector<double> &x,
+               const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
                double tolerance, int max_iterations);
 
 struct MklDrBcgConfig {
@@ -18,6 +19,7 @@ struct MklDrBcgConfig {
     int block_size;
 };
 
-int run_mkl_dr_bcg(const mat_utils::SpMatReader &A,
+int run_mkl_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                    const std::vector<double> &b, std::vector<double> &x,
-                   const mat_utils::SpMatReader &L, MklDrBcgConfig config);
+                   const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
+                   MklDrBcgConfig config);

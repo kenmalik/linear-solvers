@@ -24,7 +24,7 @@ std::vector<double> generate_zero_initial_guess(std::size_t size) {
 }
 
 std::vector<double>
-prepare_dense_input(const std::optional<mat_utils::DnMatReader> &reader,
+prepare_dense_input(const std::optional<mat_utils::MatReader<>> &reader,
                     std::size_t expected_rows, std::size_t expected_cols,
                     const char *name, std::vector<double> (*fallback)(std::size_t)) {
     if (!reader.has_value()) {
@@ -38,11 +38,10 @@ prepare_dense_input(const std::optional<mat_utils::DnMatReader> &reader,
         throw std::runtime_error(oss.str());
     }
 
-    auto *data = reader->data();
-    return {data, data + reader->size()};
+    return {reader->values<double>().begin(), reader->values<double>().end()};
 }
 
-void validate_dense_input(const mat_utils::DnMatReader &reader,
+void validate_dense_input(const mat_utils::MatReader<> &reader,
                           std::size_t expected_rows,
                           std::size_t expected_cols,
                           const char *name) {
@@ -55,8 +54,8 @@ void validate_dense_input(const mat_utils::DnMatReader &reader,
 }
 
 std::vector<double> prepare_split_dense_input(
-    const std::optional<mat_utils::DnMatReader> &first_reader,
-    const std::optional<mat_utils::DnMatReader> &rest_reader,
+    const std::optional<mat_utils::MatReader<>> &first_reader,
+    const std::optional<mat_utils::MatReader<>> &rest_reader,
     std::size_t expected_rows, std::size_t expected_cols, const char *first_name,
     const char *rest_name, std::vector<double> (*fallback)(std::size_t)) {
     if (!first_reader.has_value() && !rest_reader.has_value()) {
@@ -98,8 +97,7 @@ std::vector<double> prepare_split_dense_input(
 
     if (first_reader.has_value()) {
         validate_dense_input(*first_reader, expected_rows, 1, first_name);
-        std::copy(first_reader->data(), first_reader->data() + first_reader->size(),
-                  dense_input.begin());
+        std::ranges::copy(first_reader->values<double>(), dense_input.begin());
     } else {
         auto first_column = fallback(expected_rows);
         std::ranges::copy(first_column, dense_input.begin());
@@ -107,8 +105,8 @@ std::vector<double> prepare_split_dense_input(
 
     if (rest_reader.has_value()) {
         validate_dense_input(*rest_reader, expected_rows, expected_cols - 1, rest_name);
-        std::copy(rest_reader->data(), rest_reader->data() + rest_reader->size(),
-                  dense_input.begin() + static_cast<std::ptrdiff_t>(expected_rows));
+        std::ranges::copy(rest_reader->values<double>(),
+                          dense_input.begin() + static_cast<std::ptrdiff_t>(expected_rows));
     } else {
         auto remaining_columns = fallback(expected_rows * (expected_cols - 1));
         std::ranges::copy(remaining_columns,
@@ -121,8 +119,8 @@ std::vector<double> prepare_split_dense_input(
 } // namespace
 
 std::vector<double>
-prepare_rhs(const std::optional<mat_utils::DnMatReader> &rhs_reader,
-            const std::optional<mat_utils::DnMatReader> &rhs_rest_reader,
+prepare_rhs(const std::optional<mat_utils::MatReader<>> &rhs_reader,
+            const std::optional<mat_utils::MatReader<>> &rhs_rest_reader,
             std::size_t expected_rows, std::size_t expected_cols) {
     return prepare_split_dense_input(rhs_reader, rhs_rest_reader, expected_rows,
                                      expected_cols, "RHS b", "RHS B",
@@ -130,8 +128,8 @@ prepare_rhs(const std::optional<mat_utils::DnMatReader> &rhs_reader,
 }
 
 std::vector<double>
-prepare_initial_guess(const std::optional<mat_utils::DnMatReader> &x_reader,
-                      const std::optional<mat_utils::DnMatReader> &x_rest_reader,
+prepare_initial_guess(const std::optional<mat_utils::MatReader<>> &x_reader,
+                      const std::optional<mat_utils::MatReader<>> &x_rest_reader,
                       std::size_t expected_rows, std::size_t expected_cols) {
     return prepare_split_dense_input(x_reader, x_rest_reader, expected_rows,
                                      expected_cols, "Initial guess x",
