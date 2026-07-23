@@ -2,7 +2,6 @@
 #include "qr_backend.h"
 
 #include <mat_utils/mat_reader.h>
-#include <mat_utils/mat_writer.h>
 
 #ifndef TEST_DATA_DIR
 #define TEST_DATA_DIR "."
@@ -309,7 +308,7 @@ TEST(Rhs, CombinesVectorRhsWithSeededDefaultMatrixForDrBcg) {
 
     auto b = prepare_rhs<double>(b_reader, std::optional<mat_utils::MatReader<>>{}, 3, 3);
     auto fallback = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
-                                std::optional<mat_utils::MatReader<>>{}, 3, 2);
+                                        std::optional<mat_utils::MatReader<>>{}, 3, 2);
 
     // NOLINTBEGIN
     EXPECT_EQ(b, (std::vector<double>{1.0, 2.0, 3.0,
@@ -324,7 +323,7 @@ TEST(Rhs, CombinesSeededDefaultVectorWithMatrixRhsForDrBcg) {
 
     auto b = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{}, B_reader, 3, 3);
     auto fallback = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
-                                std::optional<mat_utils::MatReader<>>{}, 3, 1);
+                                        std::optional<mat_utils::MatReader<>>{}, 3, 1);
 
     // NOLINTBEGIN
     EXPECT_EQ(b, (std::vector<double>{fallback[0], fallback[1], fallback[2],
@@ -353,16 +352,16 @@ TEST(Rhs, RejectsSplitRhsDimensionMismatch) {
 
 TEST(Rhs, GeneratesRandomRhsWhenFileNotProvided) {
     auto b = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
-                         std::optional<mat_utils::MatReader<>>{}, 3, 2);
+                                 std::optional<mat_utils::MatReader<>>{}, 3, 2);
 
     EXPECT_EQ(b.size(), 6);
 }
 
 TEST(Rhs, GeneratesSeededRandomRhsWhenFileNotProvided) {
     auto first = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
-                             std::optional<mat_utils::MatReader<>>{}, 3, 2);
+                                     std::optional<mat_utils::MatReader<>>{}, 3, 2);
     auto second = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
-                              std::optional<mat_utils::MatReader<>>{}, 3, 2);
+                                      std::optional<mat_utils::MatReader<>>{}, 3, 2);
 
     EXPECT_EQ(first, second);
     EXPECT_NE(first, (std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
@@ -579,6 +578,34 @@ TEST(DrBcgCuda, ConvergesOn1138BusCholQR) {
                 abs_error)
         << "CholQR convergence (" << iters_dx << ") diverged from Householder ("
         << iters_householder << ")";
+}
+
+// Use well-conditioned tridiagonal to test float solvers as single-precision is
+// not capable of convergence on 1138_bus
+TEST(DrBcgCuda, ConvergesOnTridiagonalSinglePrecision) {
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> A{TEST_DATA_DIR "/tridiag_single.mat", {}, "A"};
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> L{TEST_DATA_DIR "/tridiag_ichol_single.mat", {}, "L"};
+
+    ASSERT_FALSE(A.is_double());
+    ASSERT_FALSE(L.is_double());
+
+    std::size_t n = A.rows();
+    std::vector<float> b(n * block_size, 1.0F);
+    std::vector<float> x(n * block_size, 0.0F);
+
+    constexpr float single_precision_tolerance = 1e-5F;
+    CudaDrBcgConfig<float> config{
+        .tolerance = single_precision_tolerance,
+        .max_iterations = static_cast<int>(n),
+        .block_size = block_size,
+        .disable_tensor_cores = false,
+        .qr_backend = QrBackend::Householder,
+        .fused_xi = false};
+
+    int iters = run_cuda_dr_bcg(A, b, x, L, config);
+
+    EXPECT_GT(iters, 0) << "DR-BCG (CUDA, float) failed before converging";
+    EXPECT_LT(iters, n) << "DR-BCG (CUDA, float) did not converge within " << n << " iterations";
 }
 
 #ifdef SOLVERS_BUILD_MATHDX
