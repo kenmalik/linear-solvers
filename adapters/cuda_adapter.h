@@ -6,8 +6,9 @@
 
 #include <mat_utils/mat_reader.h>
 
-int run_cuda_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
-                std::vector<double> &x, const mat_utils::SpMatReader &L,
+int run_cuda_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
+                const std::vector<double> &b, std::vector<double> &x,
+                const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
                 double tolerance, int max_iterations,
                 bool disable_tensor_cores = false);
 
@@ -20,10 +21,11 @@ struct CudaDrBcgConfig {
     bool fused_xi;
 };
 
-int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
+int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                     const std::vector<double> &b, std::vector<double> &x,
-                    const mat_utils::SpMatReader &L, CudaDrBcgConfig config);
+                    const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
+                    CudaDrBcgConfig config);
 
-int run_cuda_dr_bcg(const mat_utils::SpMatReader &A,
+int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                     const std::vector<double> &b, std::vector<double> &x,
                     CudaDrBcgConfig config);

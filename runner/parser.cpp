@@ -93,6 +93,8 @@ std::optional<MatArg> parse_mat_arg(const std::string &s,
 } // namespace
 
 std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
+    using mat_utils::MatReader;
+
     cxxopts::Options options("cgrun",
                              "Run conjugate gradient variants on .mat files");
 
@@ -177,7 +179,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
         if (!A_arg) {
             return std::nullopt;
         }
-        mat_utils::SpMatReader A_reader{A_arg->file, A_arg->parent_arrays, A_arg->field};
+        MatReader<mat_utils::Sparsity::Sparse> A_reader{A_arg->file, A_arg->parent_arrays, A_arg->field};
 
         double tolerance = result["tolerance"].as<double>();
         std::optional<int> max_iterations;
@@ -195,7 +197,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
             std::cerr << options.help();
             return std::nullopt;
         }
-        std::optional<mat_utils::DnMatReader> b_reader;
+        std::optional<MatReader<>> b_reader;
         if (result.contains("b")) {
             auto b_arg = parse_mat_option("b", result["b"].as<std::string>(), {}, "b");
             if (!b_arg) {
@@ -203,7 +205,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
             }
             b_reader.emplace(b_arg->file, b_arg->parent_arrays, b_arg->field);
         }
-        std::optional<mat_utils::DnMatReader> B_reader;
+        std::optional<MatReader<>> B_reader;
         if (result.contains("B")) {
             auto B_arg = parse_mat_option("B", result["B"].as<std::string>(), {}, "B");
             if (!B_arg) {
@@ -211,7 +213,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
             }
             B_reader.emplace(B_arg->file, B_arg->parent_arrays, B_arg->field);
         }
-        std::optional<mat_utils::DnMatReader> x_reader;
+        std::optional<MatReader<>> x_reader;
         if (result.contains("x")) {
             auto x_arg = parse_mat_option("x", result["x"].as<std::string>(), {}, "x");
             if (!x_arg) {
@@ -219,7 +221,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
             }
             x_reader.emplace(x_arg->file, x_arg->parent_arrays, x_arg->field);
         }
-        std::optional<mat_utils::DnMatReader> X_reader;
+        std::optional<MatReader<>> X_reader;
         if (result.contains("X")) {
             auto X_arg = parse_mat_option("X", result["X"].as<std::string>(), {}, "X");
             if (!X_arg) {
@@ -246,7 +248,7 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
             if (!L_arg) {
                 return std::nullopt;
             }
-            mat_utils::SpMatReader L_reader{L_arg->file, L_arg->parent_arrays, L_arg->field};
+            MatReader<mat_utils::Sparsity::Sparse> L_reader{L_arg->file, L_arg->parent_arrays, L_arg->field};
             return Args{.algorithm = *algorithm, .implementation = *implementation, .A = std::move(A_reader), .L = std::move(L_reader), .b = std::move(b_reader), .B = std::move(B_reader), .x = std::move(x_reader), .X = std::move(X_reader), .timer_out = timer_out, .output = std::move(output), .output_b = output_b, .tolerance = tolerance, .max_iterations = max_iterations, .block_size = block_size, .disable_tensor_cores = disable_tensor_cores, .qr_backend = *qr_backend, .fused_xi = fused_xi};
         }
 

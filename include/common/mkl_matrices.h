@@ -7,14 +7,12 @@
 
 // CSR sparse matrix descriptor
 struct CSRMatrix {
-    CSRMatrix() : descr{.type = SPARSE_MATRIX_TYPE_GENERAL,
-                        .mode = SPARSE_FILL_MODE_FULL,
-                        .diag = SPARSE_DIAG_NON_UNIT} {}
-
     MKL_INT rows{};
     MKL_INT cols{};
     sparse_matrix_t mat{};
-    struct matrix_descr descr;
+    struct matrix_descr descr{.type = SPARSE_MATRIX_TYPE_GENERAL,
+                              .mode = SPARSE_FILL_MODE_FULL,
+                              .diag = SPARSE_DIAG_NON_UNIT};
     std::vector<double> values;
     std::vector<MKL_INT> row_ptr;
     std::vector<MKL_INT> col_idx;
