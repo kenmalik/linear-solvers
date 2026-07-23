@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/type_info.h"
+#include "common/cuda_type.cuh"
 #include "cuda_checks.h"
 
 #include <mat_utils/mat_reader.h>
@@ -11,7 +11,7 @@
 #include <cstdint>
 #include <vector>
 
-template <SupportedType T>
+template <cils::SupportedType T>
 class DeviceSparseMatrix {
   public:
     explicit DeviceSparseMatrix(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &ssm_A) {

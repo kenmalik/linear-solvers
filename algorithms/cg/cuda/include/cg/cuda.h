@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/cuda_checks.h"
-#include "common/type_info.h"
+#include "common/cuda_type.cuh"
 
 #include <cstdint>
 
@@ -10,7 +10,7 @@
 
 namespace {
 
-template <SupportedType T>
+template <cils::SupportedType T>
 struct DeviceBuffers {
     DeviceBuffers(std::int64_t n) noexcept {
         CUDA_CHECK(cudaMalloc(&d_r, sizeof(T) * n));

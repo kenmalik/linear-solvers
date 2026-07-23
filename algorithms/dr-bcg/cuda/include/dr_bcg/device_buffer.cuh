@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/cuda_checks.h"
-#include "common/type_info.h"
+#include "common/cuda_type.cuh"
 
 #include <cuda_runtime.h>
 
@@ -9,7 +9,7 @@
 
 namespace dr_bcg::cuda {
 
-template <SupportedType T>
+template <cils::SupportedType T>
 class DeviceBuffer {
   public:
     T *w = nullptr;

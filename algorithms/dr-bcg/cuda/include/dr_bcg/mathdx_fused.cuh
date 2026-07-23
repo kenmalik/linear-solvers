@@ -19,7 +19,7 @@
 
 namespace dr_bcg::cuda {
 
-template <SupportedType T>
+template <cils::SupportedType T>
 void apply_xi_chain(MathDxXiChain<T> &xi, DeviceBuffer<T> &d, T *d_AS, T *d_X,
                     std::int64_t n, std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range xi_range{"xi chain: X += s*xi*sigma; U = AS*xi"};
@@ -31,7 +31,7 @@ void apply_xi_chain(MathDxXiChain<T> &xi, DeviceBuffer<T> &d, T *d_AS, T *d_X,
 }
 
 // Unpreconditioned (L = I) fully fused DR-BCG.
-template <SupportedType T, QrPolicy<T> Qr = MathDxCholeskyQr2<T>>
+template <cils::SupportedType T, QrPolicy<T> Qr = MathDxCholeskyQr2<T>>
 int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                 cusparseDnMatDescr_t X, cusparseDnMatDescr_t B, T tolerance,
                 int max_iterations, cudaStream_t stream) {
@@ -129,7 +129,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
 }
 
 // Preconditioned (M = L L^T) fully fused DR-BCG.
-template <SupportedType T, QrPolicy<T> Qr = MathDxCholeskyQr2<T>>
+template <cils::SupportedType T, QrPolicy<T> Qr = MathDxCholeskyQr2<T>>
 int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                 cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
                 cusparseSpMatDescr_t L, T tolerance, int max_iterations,

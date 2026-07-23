@@ -9,7 +9,7 @@
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
-#include "common/type_info.h"
+#include "common/cuda_type.cuh"
 
 #include <cublas_v2.h>
 #include <cusolverDn.h>
@@ -24,7 +24,7 @@
 
 namespace dr_bcg::cuda {
 
-template <SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
+template <cils::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, T tolerance, int max_iterations, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
@@ -132,7 +132,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     return iterations;
 }
 
-template <SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
+template <cils::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
           T tolerance, int max_iterations, cudaStream_t stream) {

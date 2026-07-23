@@ -17,7 +17,7 @@
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
-#include "common/type_info.h"
+#include "common/cuda_type.cuh"
 #include "dr_bcg/qr.cuh"
 
 #include <cublasdx.hpp>
@@ -306,7 +306,7 @@ void launch_cholqr2(T *d_Q, T *d_R, const T *d_A, int m, int ldA, T *d_G,
 
 // Fused Cholesky QR policy for use in DR-BCG configuration
 //
-template <SupportedType T>
+template <cils::SupportedType T>
 class MathDxCholeskyQr2 {
   public:
     // m: rows (problem size n), n: cols (block size s).

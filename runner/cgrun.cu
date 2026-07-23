@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <iostream>
+#include <type_traits>
 #include <vector>
 
 #ifdef SOLVERS_BUILD_MKL
@@ -12,8 +13,10 @@
 #endif
 
 #include <mat_utils/mat_writer.h>
+#include <mat_utils/supported_type.h>
 
 #include "common/cuda_event_timer.h"
+#include "common/supported_type.h"
 #include "common/timer.h"
 
 #include "cgrun.h"
@@ -64,8 +67,8 @@ int run_cg(const Args &args) {
     std::vector<double> x;
 
     try {
-        b = prepare_rhs(args.b, args.B, n, 1);
-        x = prepare_initial_guess(args.x, args.X, n, 1);
+        b = prepare_rhs<double>(args.b, args.B, n, 1);
+        x = prepare_initial_guess<double>(args.x, args.X, n, 1);
     } catch (const std::exception &e) {
         std::cerr << "Failed to prepare dense inputs: " << e.what() << '\n';
         return -1;
@@ -114,15 +117,16 @@ int run_cg(const Args &args) {
     return iters;
 }
 
-int run_dr_bcg(const Args &args) {
+template <cils::SupportedType T>
+int run_dr_bcg_impl(const Args &args) {
     std::size_t n = args.A.rows();
     int s = args.block_size;
-    std::vector<double> b;
-    std::vector<double> x;
+    std::vector<T> b;
+    std::vector<T> x;
 
     try {
-        b = prepare_rhs(args.b, args.B, n, s);
-        x = prepare_initial_guess(args.x, args.X, n, s);
+        b = prepare_rhs<T>(args.b, args.B, n, s);
+        x = prepare_initial_guess<T>(args.x, args.X, n, s);
     } catch (const std::exception &e) {
         std::cerr << "Failed to prepare dense inputs: " << e.what() << '\n';
         return -1;
@@ -136,15 +140,20 @@ int run_dr_bcg(const Args &args) {
 #ifdef SOLVERS_BUILD_DR_BCG
 #ifdef SOLVERS_BUILD_MKL
     case Implementation::MKL: {
-        MklDrBcgConfig config{
-            .tolerance = args.tolerance,
-            .max_iterations = max_iterations,
-            .block_size = s};
+        if constexpr (std::is_same_v<T, double>) {
+            MklDrBcgConfig config{
+                .tolerance = args.tolerance,
+                .max_iterations = max_iterations,
+                .block_size = s};
 
-        if (args.L.has_value()) {
-            iters = run_mkl_dr_bcg(args.A, b, x, args.L.value(), config);
+            if (args.L.has_value()) {
+                iters = run_mkl_dr_bcg(args.A, b, x, args.L.value(), config);
+            } else {
+                std::cerr << "Not implemented\n";
+                return -1;
+            }
         } else {
-            std::cerr << "Not implemented\n";
+            std::cerr << "MKL implementation does not support single precision\n";
             return -1;
         }
         break;
@@ -152,18 +161,23 @@ int run_dr_bcg(const Args &args) {
 #endif // SOLVERS_BUILD_MKL
 #ifdef SOLVERS_BUILD_CUDA
     case Implementation::CUDA: {
-        CudaDrBcgConfig config{
-            .tolerance = args.tolerance,
+        CudaDrBcgConfig<T> config{
+            .tolerance = static_cast<T>(args.tolerance),
             .max_iterations = max_iterations,
             .block_size = args.block_size,
             .disable_tensor_cores = args.disable_tensor_cores,
             .qr_backend = args.qr_backend,
             .fused_xi = args.fused_xi};
 
-        if (args.L.has_value()) {
-            iters = run_cuda_dr_bcg(args.A, b, x, args.L.value(), config);
-        } else {
-            iters = run_cuda_dr_bcg(args.A, b, x, config);
+        try {
+            if (args.L.has_value()) {
+                iters = run_cuda_dr_bcg<T>(args.A, b, x, args.L.value(), config);
+            } else {
+                iters = run_cuda_dr_bcg<T>(args.A, b, x, config);
+            }
+        } catch (const std::exception &e) {
+            std::cerr << "CUDA DR-BCG failed: " << e.what() << '\n';
+            return -1;
         }
 
         break;
@@ -185,4 +199,11 @@ int run_dr_bcg(const Args &args) {
     }
 
     return iters;
+}
+
+int run_dr_bcg(const Args &args) {
+    if (args.A.is_double()) {
+        return run_dr_bcg_impl<double>(args);
+    }
+    return run_dr_bcg_impl<float>(args);
 }
