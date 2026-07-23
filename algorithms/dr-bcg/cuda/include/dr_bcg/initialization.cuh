@@ -3,7 +3,7 @@
 #include "dr_bcg/math.h"
 
 #include "common/cuda_event_timer.h"
-#include "common/type_info.h"
+#include "common/cuda_type.cuh"
 
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>
@@ -14,7 +14,7 @@
 
 namespace dr_bcg::cuda {
 
-template <SupportedType T>
+template <cils::SupportedType T>
 class [[nodiscard]] RCalculator {
   public:
     RCalculator(cusparseHandle_t cusparse, std::int64_t n, std::int64_t s, cudaStream_t stream) noexcept
@@ -92,7 +92,7 @@ class [[nodiscard]] RCalculator {
     cusparseDnMatDescr_t R = nullptr;
 };
 
-template <SupportedType T>
+template <cils::SupportedType T>
 void initialize_preconditioned_s(
     const cusparseHandle_t cusparse, std::int64_t n, std::int64_t s,
     cusparseDnMatDescr_t s_desc, cusparseDnMatDescr_t w_desc, cusparseSpMatDescr_t L_desc,
