@@ -27,7 +27,6 @@ namespace dr_bcg::cuda {
 template <SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, T tolerance, int max_iterations, cudaStream_t stream) {
-    static_assert(std::is_same_v<T, double>, "currently only double supported");
     NVTX3_FUNC_RANGE();
     CudaTimerRange solve_range{g_event_timer, "solve", stream};
 
@@ -137,7 +136,6 @@ template <SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
           T tolerance, int max_iterations, cudaStream_t stream) {
-    static_assert(std::is_same_v<T, double>, "currently only double supported");
     NVTX3_FUNC_RANGE();
     CudaTimerRange solve_range{g_event_timer, "solve", stream};
 

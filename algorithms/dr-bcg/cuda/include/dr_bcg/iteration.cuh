@@ -16,6 +16,7 @@
 #include <nvtx3/nvtx3.hpp>
 
 #include <cstdint>
+#include <type_traits>
 
 namespace dr_bcg::cuda {
 
@@ -39,7 +40,11 @@ class RelativeResidualNormConvergence {
         CUSPARSE_CHECK(cusparseCreateDnVec(&X1, n, d_X, compute_type));
 
         // Precalculate B1 norm for conversion checks
-        CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d_B, incx, d_norm));
+        if constexpr (std::is_same_v<T, float>) {
+            CUBLAS_CHECK(cublasSnrm2_v2(handles.cublas, n, d_B, incx, d_norm));
+        } else {
+            CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d_B, incx, d_norm));
+        }
         CUDA_CHECK(cudaMemcpyAsync(&B1_norm, d_norm, sizeof(T), cudaMemcpyDeviceToHost, stream));
 
         std::size_t bufsize = 0;
@@ -80,7 +85,11 @@ class RelativeResidualNormConvergence {
                                     &beta, temp, compute_type, alg, buffer));
 
         // r_norm = norm(temp)
-        CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d_r, incx, d_norm));
+        if constexpr (std::is_same_v<T, float>) {
+            CUBLAS_CHECK(cublasSnrm2_v2(handles.cublas, n, d_r, incx, d_norm));
+        } else {
+            CUBLAS_CHECK(cublasDnrm2_v2(handles.cublas, n, d_r, incx, d_norm));
+        }
 
         T residual_norm = 0;
         CUDA_CHECK(cudaMemcpyAsync(&residual_norm, d_norm, sizeof(T),
@@ -140,8 +149,14 @@ void compute_xi(Handles &handles, cusparseSpMatDescr_t A,
 
     constexpr cublasOperation_t op_t = CUBLAS_OP_T;
     constexpr cublasOperation_t op_n = CUBLAS_OP_N;
-    CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op_t, op_n, s, s, n, d.one, d.s,
-                                n, d.temp, n, d.zero, d.xi, s));
+
+    if constexpr (std::is_same_v<T, float>) {
+        CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, op_t, op_n, s, s, n, d.one,
+                                    d.s, n, d.temp, n, d.zero, d.xi, s));
+    } else {
+        CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op_t, op_n, s, s, n, d.one,
+                                    d.s, n, d.temp, n, d.zero, d.xi, s));
+    }
 
     invert_square_matrix(handles.cusolver, handles.cusolver_params, d.xi, s,
                          lu_ws, stream);
@@ -154,12 +169,23 @@ void update_X(Handles &handles, DeviceBuffer<T> &d, T *d_X, std::int64_t n,
     nvtx3::scoped_range X_range{"X = X + s * xi * sigma"};
     CudaTimerRange er{g_event_timer, "X = X + s * xi * sigma", stream};
 
-    CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N, CUBLAS_OP_N, s, s,
-                                s, d.one, d.xi, s, d.sigma, s, d.zero, d.temp,
-                                n));
+    if constexpr (std::is_same_v<T, float>) {
+        CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, CUBLAS_OP_N, CUBLAS_OP_N,
+                                    s, s, s, d.one, d.xi, s, d.sigma, s, d.zero,
+                                    d.temp, n));
 
-    CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N, CUBLAS_OP_N, n, s,
-                                s, d.one, d.s, n, d.temp, n, d.one, d_X, n));
+        CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, CUBLAS_OP_N, CUBLAS_OP_N,
+                                    n, s, s, d.one, d.s, n, d.temp, n, d.one,
+                                    d_X, n));
+    } else {
+        CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N, CUBLAS_OP_N,
+                                    s, s, s, d.one, d.xi, s, d.sigma, s, d.zero,
+                                    d.temp, n));
+
+        CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, CUBLAS_OP_N, CUBLAS_OP_N,
+                                    n, s, s, d.one, d.s, n, d.temp, n, d.one,
+                                    d_X, n));
+    }
 }
 
 // sigma = zeta * sigma
@@ -174,9 +200,15 @@ void update_sigma(Handles &handles, DeviceBuffer<T> &d, std::int64_t s,
     constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
     constexpr cublasOperation_t op_zeta = CUBLAS_OP_N;
 
-    CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode, op_zeta,
-                                diag_type, s, s, d.one, d.zeta, s, d.sigma, s,
-                                d.sigma, s));
+    if constexpr (std::is_same_v<T, float>) {
+        CUBLAS_CHECK(cublasStrmm_v2(handles.cublas, side, fill_mode, op_zeta,
+                                    diag_type, s, s, d.one, d.zeta, s, d.sigma,
+                                    s, d.sigma, s));
+    } else {
+        CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode, op_zeta,
+                                    diag_type, s, s, d.one, d.zeta, s, d.sigma,
+                                    s, d.sigma, s));
+    }
 }
 
 // [w, zeta] = qr(w - A * s * xi, 'econ')
@@ -189,8 +221,14 @@ void update_w_zeta(Handles &handles, Qr &qr, cusparseSpMatDescr_t A,
     CudaTimerRange er{g_event_timer, "[w zeta] = QR(w - A * s * xi}", stream};
 
     constexpr cublasOperation_t op = CUBLAS_OP_N;
-    CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op, op, n, s, s, d.one, d.s, n,
-                                d.xi, s, d.zero, d.temp, n));
+
+    if constexpr (std::is_same_v<T, float>) {
+        CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, op, op, n, s, s, d.one,
+                                    d.s, n, d.xi, s, d.zero, d.temp, n));
+    } else {
+        CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, op, op, n, s, s, d.one,
+                                    d.s, n, d.xi, s, d.zero, d.temp, n));
+    }
 
     constexpr cusparseOperation_t spmm_op = CUSPARSE_OPERATION_NON_TRANSPOSE;
     constexpr T spmm_alpha = -1.0;
@@ -219,13 +257,25 @@ void update_s(Handles &handles, DeviceBuffer<T> &d, std::int64_t n,
     constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
     constexpr cublasOperation_t op_zeta = CUBLAS_OP_T;
 
-    CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode, op_zeta,
-                                diag_type, n, s, d.one, d.zeta, s, d.s, n, d.s,
-                                n));
+    if constexpr (std::is_same_v<T, float>) {
+        CUBLAS_CHECK(cublasStrmm_v2(handles.cublas, side, fill_mode, op_zeta,
+                                    diag_type, n, s, d.one, d.zeta, s, d.s, n,
+                                    d.s, n));
+    } else {
+        CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode, op_zeta,
+                                    diag_type, n, s, d.one, d.zeta, s, d.s, n,
+                                    d.s, n));
+    }
 
     constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
-    CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s, d.one,
-                             d.s, n, d.one, d.w, n, d.s, n));
+
+    if constexpr (std::is_same_v<T, float>) {
+        CUBLAS_CHECK(cublasSgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
+                                 d.one, d.s, n, d.one, d.w, n, d.s, n));
+    } else {
+        CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
+                                 d.one, d.s, n, d.one, d.w, n, d.s, n));
+    }
 }
 
 // w = w - L^-1 * A * s * xi
@@ -253,8 +303,16 @@ void update_w(Handles &handles, cusparseSpMatDescr_t A,
 
     // w = w - temp * xi
     constexpr cublasOperation_t sgemm_op = CUBLAS_OP_N;
-    CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, sgemm_op, sgemm_op, n, s, s,
-                                d.neg_one, d.temp, n, d.xi, s, d.one, d.w, n));
+
+    if constexpr (std::is_same_v<T, float>) {
+        CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, sgemm_op, sgemm_op, n, s,
+                                    s, d.neg_one, d.temp, n, d.xi, s, d.one,
+                                    d.w, n));
+    } else {
+        CUBLAS_CHECK(cublasDgemm_v2(handles.cublas, sgemm_op, sgemm_op, n, s,
+                                    s, d.neg_one, d.temp, n, d.xi, s, d.one,
+                                    d.w, n));
+    }
 }
 
 // [w, zeta] = qr(w)
@@ -284,16 +342,28 @@ void update_s_preconditioned(Handles &handles, cusparseDnMatDescr_t temp,
     constexpr cublasDiagType_t diag_type = CUBLAS_DIAG_NON_UNIT;
     constexpr cublasOperation_t op_zeta = CUBLAS_OP_T;
 
-    CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode, op_zeta,
-                                diag_type, n, s, d.one, d.zeta, s, d.s, n, d.s,
-                                n));
+    if constexpr (std::is_same_v<T, float>) {
+        CUBLAS_CHECK(cublasStrmm_v2(handles.cublas, side, fill_mode, op_zeta,
+                                    diag_type, n, s, d.one, d.zeta, s, d.s, n,
+                                    d.s, n));
+    } else {
+        CUBLAS_CHECK(cublasDtrmm_v2(handles.cublas, side, fill_mode, op_zeta,
+                                    diag_type, n, s, d.one, d.zeta, s, d.s, n,
+                                    d.s, n));
+    }
 
     sptri_solve<T>(handles.cusparse, temp, CUSPARSE_OPERATION_TRANSPOSE, L,
                    w_desc, spsm_t);
 
     constexpr cublasOperation_t sgeam_op = CUBLAS_OP_N;
-    CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s, d.one,
-                             d.s, n, d.one, d.temp, n, d.s, n));
+
+    if constexpr (std::is_same_v<T, float>) {
+        CUBLAS_CHECK(cublasSgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
+                                 d.one, d.s, n, d.one, d.temp, n, d.s, n));
+    } else {
+        CUBLAS_CHECK(cublasDgeam(handles.cublas, sgeam_op, sgeam_op, n, s,
+                                 d.one, d.s, n, d.one, d.temp, n, d.s, n));
+    }
 }
 
 #ifdef SOLVERS_BUILD_MATHDX
