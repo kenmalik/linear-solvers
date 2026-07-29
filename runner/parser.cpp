@@ -1,9 +1,11 @@
 #include "parser.h"
+#include "qr_backend.h"
 
 #include <cstddef>
 #include <cxxopts.hpp>
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <regex>
 #include <string>

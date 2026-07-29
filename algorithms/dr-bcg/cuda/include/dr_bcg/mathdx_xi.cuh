@@ -21,8 +21,6 @@
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
-#include "common/cuda_type.cuh"
-#include "dr_bcg/mathdx_qr.cuh"
 
 #include <cublasdx.hpp>
 #include <cusolverdx.hpp>

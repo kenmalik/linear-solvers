@@ -1,11 +1,12 @@
 #pragma once
 
-#include <cstdint>
-#include <optional>
-
 #include <mat_utils/mat_reader.h>
 
-#include "qr_backend.h"
+#include <cstdint>
+#include <optional>
+#include <string>
+
+enum class QrBackend : std::uint8_t;
 
 enum class Algorithm : std::uint8_t { CG,
                                       DR_BCG };
