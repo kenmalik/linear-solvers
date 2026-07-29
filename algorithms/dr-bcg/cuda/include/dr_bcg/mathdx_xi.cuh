@@ -27,7 +27,7 @@
 #include <cublasdx.hpp>
 #include <cusolverdx.hpp>
 
-namespace dr_bcg::mathdx_detail {
+namespace cils::dr_bcg::mathdx_detail {
 
 // Gram of two distinct panels: G += s^T * AS, accumulated across row-tiles.
 //
@@ -208,7 +208,7 @@ void launch_xi(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, int m, int ld,
     CUDA_CHECK_LAST();
 }
 
-} // namespace dr_bcg::mathdx_detail
+} // namespace cils::dr_bcg::mathdx_detail
 
 // Fused MathDx reduced-system (xi) chain helper for DR-BCG.
 // Owns the small N*N workspaces and dispatches the compile-time-N kernel chain.
@@ -311,7 +311,7 @@ class MathDxXiChain {
   private:
     void dispatch(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, ProblemSize size,
                   cudaStream_t stream) {
-        using dr_bcg::mathdx_detail::launch_xi;
+        using cils::dr_bcg::mathdx_detail::launch_xi;
         switch (size.n) {
         // NOLINTBEGIN
         case 1:

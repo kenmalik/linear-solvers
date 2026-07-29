@@ -22,7 +22,7 @@
 #include <cublasdx.hpp>
 #include <cusolverdx.hpp>
 
-namespace dr_bcg::mathdx_detail {
+namespace cils::dr_bcg::mathdx_detail {
 
 #ifndef MATHDX_TARGET_SM
 #error "MATHDX_TARGET_SM must be defined by CMake (derived from CMAKE_CUDA_ARCHITECTURES)"
@@ -301,7 +301,9 @@ void launch_cholqr2(T *d_Q, T *d_R, const T *d_A, int m, int ldA, T *d_G,
     CUDA_CHECK_LAST();
 }
 
-} // namespace dr_bcg::mathdx_detail
+} // namespace cils::dr_bcg::mathdx_detail
+
+namespace cils::dr_bcg::cuda {
 
 // Fused Cholesky QR policy for use in DR-BCG configuration
 //
@@ -396,8 +398,9 @@ class MathDxCholeskyQr2 {
   private:
     void dispatch(T *d_Q, T *d_R, const T *d_A, QrDimensions dims,
                   cudaStream_t stream) {
-        using dr_bcg::mathdx_detail::launch_cholqr2;
+
         switch (dims.n) {
+            using cils::dr_bcg::mathdx_detail::launch_cholqr2;
             // NOLINTBEGIN
         case 1:
             launch_cholqr2<T, 1>(d_Q, d_R, d_A, dims.m, dims.m, d_G, d_R1, d_R2, d_Rinv, d_info, stream);
@@ -437,5 +440,7 @@ class MathDxCholeskyQr2 {
     int *h_info = nullptr;
     T *h_diag = nullptr;
 };
+
+} // namespace cils::dr_bcg::cuda
 
 #endif // SOLVERS_BUILD_MATHDX

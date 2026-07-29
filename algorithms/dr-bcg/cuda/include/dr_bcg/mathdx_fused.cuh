@@ -1,8 +1,6 @@
 #pragma once
 
 // DR-BCG with MathDx-fused xi chain.
-//
-// TODO: Consider ways to reduce code duplication from original solver implementation.
 
 #include "config.h"
 

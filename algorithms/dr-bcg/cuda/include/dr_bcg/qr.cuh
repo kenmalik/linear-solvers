@@ -12,6 +12,8 @@
 #include <concepts>
 #include <vector>
 
+namespace cils::dr_bcg::cuda {
+
 struct QrDimensions {
     int m;
     int n;
@@ -312,3 +314,5 @@ class CholeskyQr {
     std::size_t h_work_size = 0;
     T *h_factor = nullptr;
 };
+
+} // namespace cils::dr_bcg::cuda

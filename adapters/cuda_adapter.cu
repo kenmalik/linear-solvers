@@ -187,9 +187,9 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                 throw std::runtime_error("'--fused-xi' requires double precision (MathDx does not support float)");
             }
         } else if (config.qr_backend == QrBackend::CholQR) {
-            iters = cils::dr_bcg::cuda::solve<T, CholeskyQr<T>>(handles, A_mat.get(), x_descr, b_descr,
-                                                                L_mat.get(), config.tolerance, config.max_iterations,
-                                                                stream);
+            iters = cils::dr_bcg::cuda::solve<T, cils::dr_bcg::cuda::CholeskyQr<T>>(handles, A_mat.get(), x_descr, b_descr,
+                                                                                    L_mat.get(), config.tolerance, config.max_iterations,
+                                                                                    stream);
         } else if (config.qr_backend == QrBackend::CholQRDx) {
             if constexpr (std::is_same_v<T, double>) {
 #ifdef SOLVERS_BUILD_MATHDX
@@ -280,8 +280,8 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                 throw std::runtime_error("'--fused-xi' requires double precision (MathDx does not support float)");
             }
         } else if (config.qr_backend == QrBackend::CholQR) {
-            iters = cils::dr_bcg::cuda::solve<T, CholeskyQr<T>>(handles, A_mat.get(), x_descr, b_descr,
-                                                                config.tolerance, config.max_iterations, stream);
+            iters = cils::dr_bcg::cuda::solve<T, cils::dr_bcg::cuda::CholeskyQr<T>>(handles, A_mat.get(), x_descr, b_descr,
+                                                                                    config.tolerance, config.max_iterations, stream);
         } else if (config.qr_backend == QrBackend::CholQRDx) {
             if constexpr (std::is_same_v<T, double>) {
 #ifdef SOLVERS_BUILD_MATHDX
