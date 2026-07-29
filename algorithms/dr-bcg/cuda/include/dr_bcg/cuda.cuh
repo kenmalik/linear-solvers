@@ -4,7 +4,7 @@
 #include "dr_bcg/handles.cuh"
 #include "dr_bcg/initialization.cuh"
 #include "dr_bcg/iteration.cuh"
-#include "dr_bcg/math.h"
+#include "dr_bcg/math.cuh"
 #include "dr_bcg/qr.cuh"
 
 #include "common/cuda_checks.h"

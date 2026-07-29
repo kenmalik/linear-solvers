@@ -11,6 +11,8 @@
 #include <nvtx3/nvtx3.hpp>
 #include <vector>
 
+namespace cils::dr_bcg::cuda::detail {
+
 template <cils::SupportedType T>
 struct LuWorkspace {
     int64_t *d_Ipiv = nullptr;
@@ -176,3 +178,5 @@ void invert_square_matrix(cusolverDnHandle_t &cusolverH,
     CUDA_CHECK(cudaMemcpyAsync(ws.h_info, ws.d_info, sizeof(int),
                                cudaMemcpyDeviceToHost, stream));
 }
+
+} // namespace cils::dr_bcg::cuda::detail

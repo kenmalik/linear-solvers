@@ -2,7 +2,7 @@
 
 #include "dr_bcg/device_buffer.cuh"
 #include "dr_bcg/handles.cuh"
-#include "dr_bcg/math.h"
+#include "dr_bcg/math.cuh"
 #include "dr_bcg/qr.cuh"
 
 #include "common/cuda_checks.h"
