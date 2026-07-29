@@ -1,5 +1,4 @@
 #include "config.h"
-#include <utility>
 
 #include "mkl_adapter.h"
 
@@ -12,6 +11,13 @@
 #endif
 
 #include "common/mkl_matrices.h"
+
+#include <mkl_spblas.h>
+#include <mkl_types.h>
+
+#include <cstddef>
+#include <span>
+#include <utility>
 
 CSRMatrix read_mkl(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &reader) {
     const std::size_t nnz = reader.nonzero_count();

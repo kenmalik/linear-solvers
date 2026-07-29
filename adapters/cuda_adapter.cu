@@ -1,15 +1,7 @@
 #include "config.h"
 
 #include "cuda_adapter.h"
-
-#include <iostream>
-#include <stdexcept>
-#include <type_traits>
-
-#include "common/cuda_checks.h"
-#include "common/cuda_type.cuh"
-#include "common/device_sparse_matrix.h"
-#include "common/supported_type.h"
+#include "device_sparse_matrix.h"
 
 #ifdef SOLVERS_BUILD_CG
 #include "cg/cuda.h"
@@ -21,6 +13,14 @@
 #include "dr_bcg/mathdx_solve.cuh"
 #endif
 #endif
+
+#include "common/cuda_checks.h"
+#include "common/cuda_type.cuh"
+#include "common/supported_type.h"
+
+#include <iostream>
+#include <stdexcept>
+#include <type_traits>
 
 namespace {
 
@@ -94,8 +94,8 @@ int run_cuda_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A, cons
     cusparseDnVecDescr_t x_descr = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnVec(&x_descr, x.size(), d_x, CUDA_R_64F));
 
-    DeviceSparseMatrixDouble A_mat{A};
-    DeviceSparseMatrixDouble L_mat{L};
+    cils::internal::DeviceSparseMatrixDouble A_mat{A};
+    cils::internal::DeviceSparseMatrixDouble L_mat{L};
 
     CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -167,8 +167,8 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
     CUSPARSE_CHECK(cusparseCreateDnMat(&x_descr, n, config.block_size, n, d_x,
                                        cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
-    DeviceSparseMatrix<T> A_mat{A};
-    DeviceSparseMatrix<T> L_mat{L};
+    cils::internal::DeviceSparseMatrix<T> A_mat{A};
+    cils::internal::DeviceSparseMatrix<T> L_mat{L};
 
     CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -261,7 +261,7 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
     CUSPARSE_CHECK(cusparseCreateDnMat(&x_descr, n, config.block_size, n, d_x,
                                        cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
-    DeviceSparseMatrix<T> A_mat{A};
+    cils::internal::DeviceSparseMatrix<T> A_mat{A};
 
     CUDA_CHECK(cudaDeviceSynchronize());
 

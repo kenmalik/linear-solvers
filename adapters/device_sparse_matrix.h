@@ -1,7 +1,7 @@
 #pragma once
 
+#include "common/cuda_checks.h"
 #include "common/cuda_type.cuh"
-#include "cuda_checks.h"
 
 #include <mat_utils/mat_reader.h>
 
@@ -10,6 +10,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
+
+namespace cils::internal {
 
 template <cils::SupportedType T>
 class DeviceSparseMatrix {
@@ -144,3 +146,5 @@ class DeviceSparseMatrix {
 
 using DeviceSparseMatrixFloat = DeviceSparseMatrix<float>;
 using DeviceSparseMatrixDouble = DeviceSparseMatrix<double>;
+
+} // namespace cils::internal
