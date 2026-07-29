@@ -53,7 +53,7 @@ struct LuWorkspace {
         T *d_dummy = nullptr;
         CUDA_CHECK(cudaMalloc(&d_dummy, sizeof(T) * n * n));
         CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(
-            cusolverH, params, n, n, cuda_type<T>, d_dummy, n, cuda_type<T>,
+            cusolverH, params, n, n, cils::detail::cuda_type<T>, d_dummy, n, cils::detail::cuda_type<T>,
             &d_work_size, &h_work_size));
         CUDA_CHECK(cudaFree(d_dummy));
 
@@ -109,7 +109,7 @@ struct SpsmCache {
         size_t buffer_size = 0;
         CUSPARSE_CHECK(cusparseSpSM_bufferSize(
             cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B,
-            C, cuda_type<T>, ALG_TYPE, spsm, &buffer_size));
+            C, cils::detail::cuda_type<T>, ALG_TYPE, spsm, &buffer_size));
 
         if (buffer_size > 0) {
             CUDA_CHECK(cudaMalloc(&buffer, buffer_size));
@@ -119,7 +119,7 @@ struct SpsmCache {
 
         CUSPARSE_CHECK(cusparseSpSM_analysis(
             cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B,
-            C, cuda_type<T>, ALG_TYPE, spsm, buffer));
+            C, cils::detail::cuda_type<T>, ALG_TYPE, spsm, buffer));
     }
 
     ~SpsmCache() {
@@ -146,7 +146,7 @@ void sptri_solve(const cusparseHandle_t &cusparseH, cusparseDnMatDescr_t &C,
 
     CUSPARSE_CHECK(cusparseSpSM_solve(
         cusparseH, opA, OP_B, reinterpret_cast<const void *>(&alpha), A, B, C,
-        cuda_type<T>, ALG_TYPE, cache.spsm));
+        cils::detail::cuda_type<T>, ALG_TYPE, cache.spsm));
 }
 
 template <cils::SupportedType T>
@@ -160,12 +160,12 @@ void invert_square_matrix(cusolverDnHandle_t &cusolverH,
                                cudaMemcpyHostToDevice, stream));
 
     CUSOLVER_CHECK(cusolverDnXgetrf(
-        cusolverH, params, n, n, cuda_type<T>, d_A, n, ws.d_Ipiv, cuda_type<T>,
+        cusolverH, params, n, n, cils::detail::cuda_type<T>, d_A, n, ws.d_Ipiv, cils::detail::cuda_type<T>,
         ws.d_work, ws.d_work_size, ws.h_work.data(), ws.h_work_size, ws.d_info));
 
     // Solve A * X = I; result (A^{-1}) lands in ws.d_I.
     CUSOLVER_CHECK(cusolverDnXgetrs(cusolverH, params, CUBLAS_OP_N, n, n,
-                                    cuda_type<T>, d_A, n, ws.d_Ipiv, cuda_type<T>,
+                                    cils::detail::cuda_type<T>, d_A, n, ws.d_Ipiv, cils::detail::cuda_type<T>,
                                     ws.d_I, n, ws.d_info));
 
     CUDA_CHECK(cudaMemcpyAsync(d_A, ws.d_I, sizeof(T) * n * n,

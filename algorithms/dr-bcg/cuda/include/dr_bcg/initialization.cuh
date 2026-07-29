@@ -21,7 +21,7 @@ class [[nodiscard]] RCalculator {
         : cusparse{cusparse}, n{n}, s{s}, stream{stream} {
         CUDA_CHECK(cudaMallocAsync(&d_R, sizeof(T) * n * s, stream));
         CUSPARSE_CHECK(
-            cusparseCreateDnMat(&R, n, s, n, d_R, cuda_type<T>, CUSPARSE_ORDER_COL));
+            cusparseCreateDnMat(&R, n, s, n, d_R, cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
     }
 
     RCalculator(const RCalculator &) = delete;
@@ -40,7 +40,7 @@ class [[nodiscard]] RCalculator {
         constexpr T alpha = -1.0;
         constexpr T beta = 1.0;
         constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-        constexpr cudaDataType_t compute_type = cuda_type<T>;
+        constexpr cudaDataType_t compute_type = cils::detail::cuda_type<T>;
         constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
         void *d_B_ptr = nullptr;

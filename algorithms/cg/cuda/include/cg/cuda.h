@@ -18,10 +18,10 @@ struct DeviceBuffers {
         CUDA_CHECK(cudaMalloc(&d_d, sizeof(T) * n));
         CUDA_CHECK(cudaMalloc(&d_q, sizeof(T) * n));
 
-        CUSPARSE_CHECK(cusparseCreateDnVec(&r, n, d_r, cuda_type<T>));
-        CUSPARSE_CHECK(cusparseCreateDnVec(&s, n, d_s, cuda_type<T>));
-        CUSPARSE_CHECK(cusparseCreateDnVec(&d, n, d_d, cuda_type<T>));
-        CUSPARSE_CHECK(cusparseCreateDnVec(&q, n, d_q, cuda_type<T>));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&r, n, d_r, cils::detail::cuda_type<T>));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&s, n, d_s, cils::detail::cuda_type<T>));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&d, n, d_d, cils::detail::cuda_type<T>));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&q, n, d_q, cils::detail::cuda_type<T>));
     }
 
     DeviceBuffers(const DeviceBuffers &) = delete;

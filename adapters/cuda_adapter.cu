@@ -156,7 +156,7 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
 
     cusparseDnMatDescr_t b_descr = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&b_descr, n, config.block_size, n, d_b,
-                                       cuda_type<T>, CUSPARSE_ORDER_COL));
+                                       cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
     T *d_x = nullptr;
     CUDA_CHECK(cudaMalloc(&d_x, sizeof(T) * x.size()));
@@ -165,7 +165,7 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
 
     cusparseDnMatDescr_t x_descr = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&x_descr, n, config.block_size, n, d_x,
-                                       cuda_type<T>, CUSPARSE_ORDER_COL));
+                                       cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
     DeviceSparseMatrix<T> A_mat{A};
     DeviceSparseMatrix<T> L_mat{L};
@@ -250,7 +250,7 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
 
     cusparseDnMatDescr_t b_descr = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&b_descr, n, config.block_size, n, d_b,
-                                       cuda_type<T>, CUSPARSE_ORDER_COL));
+                                       cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
     T *d_x = nullptr;
     CUDA_CHECK(cudaMalloc(&d_x, sizeof(T) * x.size()));
@@ -259,7 +259,7 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
 
     cusparseDnMatDescr_t x_descr = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&x_descr, n, config.block_size, n, d_x,
-                                       cuda_type<T>, CUSPARSE_ORDER_COL));
+                                       cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
     DeviceSparseMatrix<T> A_mat{A};
 

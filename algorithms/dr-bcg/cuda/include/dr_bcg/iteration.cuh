@@ -104,7 +104,7 @@ class RelativeResidualNormConvergence {
     }
 
   private:
-    static constexpr cudaDataType_t compute_type = cuda_type<T>;
+    static constexpr cudaDataType_t compute_type = cils::detail::cuda_type<T>;
     static constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
     static constexpr T alpha = -1.0;
     static constexpr T beta = 1.0;
@@ -141,7 +141,7 @@ void compute_xi(Handles &handles, cusparseSpMatDescr_t A,
     constexpr T alpha = 1.0;
     constexpr T beta = 0.0;
     constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
-    constexpr cudaDataType_t compute_type = cuda_type<T>;
+    constexpr cudaDataType_t compute_type = cils::detail::cuda_type<T>;
     constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
     CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A, s_desc,
@@ -233,7 +233,7 @@ void update_w_zeta(Handles &handles, Qr &qr, cusparseSpMatDescr_t A,
     constexpr cusparseOperation_t spmm_op = CUSPARSE_OPERATION_NON_TRANSPOSE;
     constexpr T spmm_alpha = -1.0;
     constexpr T spmm_beta = 1.0;
-    constexpr cudaDataType_t compute_type = cuda_type<T>;
+    constexpr cudaDataType_t compute_type = cils::detail::cuda_type<T>;
     constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
     CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, spmm_op, spmm_op, &spmm_alpha,
@@ -292,7 +292,7 @@ void update_w(Handles &handles, cusparseSpMatDescr_t A,
     constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
     constexpr T alpha = 1.0;
     constexpr T beta = 0.0;
-    constexpr cudaDataType compute_type = cuda_type<T>;
+    constexpr cudaDataType compute_type = cils::detail::cuda_type<T>;
     constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
     CUSPARSE_CHECK(cusparseSpMM(handles.cusparse, op, op, &alpha, A, s_desc,
@@ -434,7 +434,7 @@ class [[nodiscard]] AsCalculator {
     static constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
     static constexpr T alpha = 1.0;
     static constexpr T beta = 0.0;
-    static constexpr cudaDataType_t compute_type = cuda_type<T>;
+    static constexpr cudaDataType_t compute_type = cils::detail::cuda_type<T>;
     static constexpr cusparseSpMMAlg_t alg = CUSPARSE_SPMM_ALG_DEFAULT;
 
     const cusparseHandle_t cusparse;

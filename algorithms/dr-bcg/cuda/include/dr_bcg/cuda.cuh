@@ -46,7 +46,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     void *d_scratch = nullptr;
 
     cusparseDnMatDescr_t temp = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
     T *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
@@ -74,11 +74,11 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     }
 
     cusparseDnMatDescr_t s_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
     cusparseDnMatDescr_t w_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cuda_type<T>,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
     {
@@ -91,10 +91,10 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         std::size_t buf_w_zeta = 0;
         CUSPARSE_CHECK(cusparseSpMM_bufferSize(
             handles.cusparse, op_nt, op_nt, &alpha_pos, A, s_desc, &beta_zero,
-            temp, cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
+            temp, cils::detail::cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
         CUSPARSE_CHECK(cusparseSpMM_bufferSize(
             handles.cusparse, op_nt, op_nt, &alpha_neg, A, temp, &beta_pos,
-            w_desc, cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_w_zeta));
+            w_desc, cils::detail::cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_w_zeta));
         std::size_t scratch_size = std::max(buf_xi, buf_w_zeta);
         if (scratch_size > 0) {
             CUDA_CHECK(cudaMallocAsync(&d_scratch, scratch_size, stream));
@@ -155,11 +155,11 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     void *d_scratch = nullptr;
 
     cusparseDnMatDescr_t temp = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
     cusparseDnMatDescr_t s_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
     cusparseDnMatDescr_t w_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cuda_type<T>, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
     SpsmCache<T> spsm_nt;
     spsm_nt.analyze(handles.cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, L,
@@ -206,7 +206,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         std::size_t buf_xi = 0;
         CUSPARSE_CHECK(cusparseSpMM_bufferSize(
             handles.cusparse, op_nt, op_nt, &alpha_pos, A, s_desc, &beta_zero,
-            temp, cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
+            temp, cils::detail::cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
         if (buf_xi > 0) {
             CUDA_CHECK(cudaMallocAsync(&d_scratch, buf_xi, stream));
         }

@@ -50,7 +50,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     MathDxXiChain<T> xi{static_cast<int>(s)};
 
     cusparseDnMatDescr_t temp = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
     T *d_X = nullptr;
@@ -79,7 +79,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     }
 
     cusparseDnMatDescr_t s_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
     AsCalculator<T> As_calculator{handles.cusparse, n, s, A, s_desc, stream};
@@ -149,13 +149,13 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     MathDxXiChain<T> xi{static_cast<int>(s)};
 
     cusparseDnMatDescr_t temp = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
     cusparseDnMatDescr_t s_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
     cusparseDnMatDescr_t w_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cuda_type<T>,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
     SpsmCache<T> spsm_nt;

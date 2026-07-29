@@ -4,6 +4,8 @@
 
 #include <cuda_runtime.h>
 
+namespace cils::detail {
+
 template <cils::SupportedType T>
 inline constexpr cudaDataType_t cuda_type = [] {
     if constexpr (std::is_same_v<T, float>) {
@@ -12,3 +14,5 @@ inline constexpr cudaDataType_t cuda_type = [] {
         return CUDA_R_64F;
     }
 }();
+
+} // namespace cils::detail

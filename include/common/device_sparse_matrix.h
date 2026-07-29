@@ -107,7 +107,7 @@ class DeviceSparseMatrix {
         constexpr cusparseIndexType_t idxType = CUSPARSE_INDEX_64I;
         CUSPARSE_CHECK(cusparseCreateCsr(
             &A, ssm_A.rows(), ssm_A.cols(), ssm_A.nonzero_count(), d_rowPtr, d_colInd,
-            d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, cuda_type<T>));
+            d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, cils::detail::cuda_type<T>));
     }
 
     DeviceSparseMatrix(const DeviceSparseMatrix &) = delete;
