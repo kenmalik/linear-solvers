@@ -189,7 +189,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         nvtx3::scoped_range iteration_range{"iteration"};
         cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "iteration", config.stream};
 
-        cils::log(residual_norm / b_norm);
+        cils::detail::log(residual_norm / b_norm);
 
         iterations += 1;
 

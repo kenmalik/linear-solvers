@@ -2,15 +2,20 @@
 
 #include "common/log.h"
 #include "common/mkl_checks.h"
+#include "common/mkl_matrices.h"
 #include "common/timer.h"
 
+#include <mkl_cblas.h>
+#include <mkl_lapacke.h>
+#include <mkl_spblas.h>
+#include <mkl_types.h>
+
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-
-#include <mkl.h>
-#include <mkl_lapacke.h>
-#include <mkl_spblas.h>
+#include <utility>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -238,7 +243,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
             sparse_mm(A, Transpose::False, -1.0, X_col1, 1.0, r1);
 
             residual_norm = cblas_dnrm2(n, r1.data.data(), 1);
-            cils::log(residual_norm / b_norm);
+            cils::detail::log(residual_norm / b_norm);
         }
 
         if (residual_norm / b_norm < config.tolerance) {

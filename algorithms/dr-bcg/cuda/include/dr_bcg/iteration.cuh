@@ -99,7 +99,7 @@ class RelativeResidualNormConvergence {
         CUDA_CHECK(cudaStreamSynchronize(stream));
         relative_residual_norm = residual_norm / B1_norm;
 
-        cils::log(relative_residual_norm);
+        cils::detail::log(relative_residual_norm);
         return relative_residual_norm < tolerance;
     }
 
