@@ -35,7 +35,7 @@ class [[nodiscard]] RCalculator {
 
     void calculate(cusparseDnMatDescr_t B, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X) noexcept {
         nvtx3::scoped_range R_range{"R = B - A * X"};
-        CudaTimerRange er{g_event_timer, "R = B - A * X", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "R = B - A * X", stream};
 
         constexpr T alpha = -1.0;
         constexpr T beta = 1.0;
@@ -98,7 +98,7 @@ void initialize_preconditioned_s(
     cusparseDnMatDescr_t s_desc, cusparseDnMatDescr_t w_desc, cusparseSpMatDescr_t L_desc,
     const SpsmCache<T> &spsm_transpose, const cudaStream_t stream) {
     nvtx3::scoped_range s_initial_range{"s = (L^-1)' * w"};
-    CudaTimerRange er{g_event_timer, "s = (L^-1)' * w", stream};
+    cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "s = (L^-1)' * w", stream};
 
     T *d_s = nullptr;
     T *d_w = nullptr;

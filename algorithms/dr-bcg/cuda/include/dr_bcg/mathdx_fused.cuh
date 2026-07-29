@@ -23,7 +23,7 @@ template <cils::SupportedType T>
 void apply_xi_chain(MathDxXiChain<T> &xi, DeviceBuffer<T> &d, T *d_AS, T *d_X,
                     std::int64_t n, std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range xi_range{"xi chain: X += s*xi*sigma; U = AS*xi"};
-    CudaTimerRange er{g_event_timer, "xi chain", stream};
+    cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "xi chain", stream};
 
     xi.apply(d.s, d_AS, d.sigma, d_X, d.temp, static_cast<int>(n),
              static_cast<int>(s), stream);
@@ -37,7 +37,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                 int max_iterations, cudaStream_t stream) {
     static_assert(std::is_same_v<T, double>, "currently only double supported");
     NVTX3_FUNC_RANGE();
-    CudaTimerRange solve_range{g_event_timer, "solve", stream};
+    cils::detail::CudaTimerRange solve_range{cils::detail::g_event_timer, "solve", stream};
 
     CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
     handles.set_stream(stream);
@@ -60,7 +60,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     R_calculator.calculate(B, A, X);
     {
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(R)"};
-        CudaTimerRange er{g_event_timer, "[w sigma] = QR(R)", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "[w sigma] = QR(R)", stream};
 
         // [w, sigma] = qr(R, 'econ')
         qr.solve(d.w, d.sigma, R_calculator.R_memory(), n, s, handles.cublas,
@@ -71,7 +71,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
 
     {
         nvtx3::scoped_range s_initial_range{"s = w"};
-        CudaTimerRange er{g_event_timer, "s = w", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "s = w", stream};
 
         // s = w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(T) * n * s,
@@ -89,7 +89,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     int iterations = 0;
     while (iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
-        CudaTimerRange er{g_event_timer, "iteration", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "iteration", stream};
 
         ++iterations;
 
@@ -103,7 +103,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
 
         {
             nvtx3::scoped_range w_zeta_range{"[w zeta] = QR(w - A * s * xi)"};
-            CudaTimerRange er{g_event_timer, "[w zeta] = QR(w - A * s * xi}", stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "[w zeta] = QR(w - A * s * xi}", stream};
 
             // w = w - U
             constexpr cublasOperation_t op = CUBLAS_OP_N;
@@ -136,7 +136,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
                 cudaStream_t stream) {
     static_assert(std::is_same_v<T, double>, "currently only double supported");
     NVTX3_FUNC_RANGE();
-    CudaTimerRange solve_range{g_event_timer, "solve", stream};
+    cils::detail::CudaTimerRange solve_range{cils::detail::g_event_timer, "solve", stream};
 
     CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
     handles.set_stream(stream);
@@ -175,7 +175,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     // [w sigma] = QR(L^-1 * R) split for timing: temp = L^-1 R; QR(temp).
     {
         nvtx3::scoped_range w_sigma_initial_range{"temp = L^-1 * R"};
-        CudaTimerRange er{g_event_timer, "temp = L^-1 * R", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "temp = L^-1 * R", stream};
 
         sptri_solve<T>(handles.cusparse, temp, CUSPARSE_OPERATION_NON_TRANSPOSE,
                        L, R_calculator.R_descriptor(), spsm_nt);
@@ -183,7 +183,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
 
     {
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(temp)"};
-        CudaTimerRange er{g_event_timer, "[w sigma] = QR(temp)", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "[w sigma] = QR(temp)", stream};
 
         qr.solve(d.w, d.sigma, d.temp, n, s, handles.cublas, handles.cusolver,
                  handles.cusolver_params, stream);
@@ -201,7 +201,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     int iterations = 0;
     while (iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
-        CudaTimerRange er{g_event_timer, "iteration", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "iteration", stream};
 
         ++iterations;
 
@@ -216,7 +216,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
         {
             nvtx3::scoped_range w_zeta_range{
                 "[w zeta] = QR(w - L^{-1} * A * s * xi)"};
-            CudaTimerRange er{g_event_timer, "[w zeta] = QR(w - L^{-1} * A * s * xi)", stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "[w zeta] = QR(w - L^{-1} * A * s * xi)", stream};
 
             // V = L^-1 * U
             sptri_solve<T>(handles.cusparse, temp,

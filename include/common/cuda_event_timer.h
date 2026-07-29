@@ -13,6 +13,8 @@
 
 #include <cuda_runtime.h>
 
+namespace cils::detail {
+
 template <bool Enabled>
 class CudaTimer;
 
@@ -128,3 +130,5 @@ inline CudaTimer<timer_enabled> g_event_timer; // NOLINT
 using CudaTimerRange = CudaTimer<timer_enabled>::ScopedRange;
 
 static_assert(timer_enabled || sizeof(g_event_timer) == 1, "disabled CUDA timer should have size of 1 byte");
+
+} // namespace cils::detail

@@ -73,7 +73,7 @@ class RelativeResidualNormConvergence {
 
     [[nodiscard]] bool check() noexcept {
         nvtx3::scoped_range rrn_range{"norm(B1 - A * X1) / norm(B1)"};
-        CudaTimerRange er(g_event_timer, "norm(B1 - A * X1) / norm(B1)", stream);
+        cils::detail::CudaTimerRange er(cils::detail::g_event_timer, "norm(B1 - A * X1) / norm(B1)", stream);
 
         T relative_residual_norm = 0;
 
@@ -136,7 +136,7 @@ void compute_xi(Handles &handles, cusparseSpMatDescr_t A,
                 DeviceBuffer<T> &d, LuWorkspace<T> &lu_ws, std::int64_t n,
                 std::int64_t s, void *d_scratch, cudaStream_t stream) {
     nvtx3::scoped_range xi_range{"xi = (s' * As)^-1"};
-    CudaTimerRange er{g_event_timer, "xi = (s' * As)^-1", stream};
+    cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "xi = (s' * As)^-1", stream};
 
     constexpr T alpha = 1.0;
     constexpr T beta = 0.0;
@@ -167,7 +167,7 @@ template <cils::SupportedType T>
 void update_X(Handles &handles, DeviceBuffer<T> &d, T *d_X, std::int64_t n,
               std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range X_range{"X = X + s * xi * sigma"};
-    CudaTimerRange er{g_event_timer, "X = X + s * xi * sigma", stream};
+    cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "X = X + s * xi * sigma", stream};
 
     if constexpr (std::is_same_v<T, float>) {
         CUBLAS_CHECK(cublasSgemm_v2(handles.cublas, CUBLAS_OP_N, CUBLAS_OP_N,
@@ -193,7 +193,7 @@ template <cils::SupportedType T>
 void update_sigma(Handles &handles, DeviceBuffer<T> &d, std::int64_t s,
                   cudaStream_t stream) {
     nvtx3::scoped_range sigma_range{"sigma = zeta * sigma"};
-    CudaTimerRange er{g_event_timer, "sigma = zeta * sigma", stream};
+    cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "sigma = zeta * sigma", stream};
 
     constexpr cublasSideMode_t side = CUBLAS_SIDE_LEFT;
     constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
@@ -218,7 +218,7 @@ void update_w_zeta(Handles &handles, Qr &qr, cusparseSpMatDescr_t A,
                    DeviceBuffer<T> &d, std::int64_t n, std::int64_t s,
                    void *d_scratch, cudaStream_t stream) {
     nvtx3::scoped_range w_zeta_range{"[w zeta] = QR(w - A * s * xi)"};
-    CudaTimerRange er{g_event_timer, "[w zeta] = QR(w - A * s * xi}", stream};
+    cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "[w zeta] = QR(w - A * s * xi}", stream};
 
     constexpr cublasOperation_t op = CUBLAS_OP_N;
 
@@ -250,7 +250,7 @@ template <cils::SupportedType T>
 void update_s(Handles &handles, DeviceBuffer<T> &d, std::int64_t n,
               std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range s_range{"s = w + s * zeta'"};
-    CudaTimerRange er{g_event_timer, "s = w + s * zeta'", stream};
+    cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "s = w + s * zeta'", stream};
 
     constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
     constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
@@ -286,7 +286,7 @@ void update_w(Handles &handles, cusparseSpMatDescr_t A,
               const SpsmCache<T> &spsm_nt, std::int64_t n, std::int64_t s,
               void *d_scratch, cudaStream_t stream) {
     nvtx3::scoped_range w_zeta_range{"w = w - L^-1 * A * s * xi"};
-    CudaTimerRange er{g_event_timer, "w = w - L^-1 * A * s * xi", stream};
+    cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "w = w - L^-1 * A * s * xi", stream};
 
     // temp = A * s
     constexpr cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE;
@@ -320,7 +320,7 @@ template <cils::SupportedType T, QrPolicy<T> Qr>
 void orthonormalize_w(Qr &qr, Handles &handles, DeviceBuffer<T> &d,
                       std::int64_t n, std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range w_zeta_range{"[w zeta] = QR(w)"};
-    CudaTimerRange er{g_event_timer, "[w zeta] = QR(w)", stream};
+    cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "[w zeta] = QR(w)", stream};
 
     qr.solve(d.w, d.zeta, d.w, n, s, handles.cublas, handles.cusolver,
              handles.cusolver_params, stream);
@@ -335,7 +335,7 @@ void update_s_preconditioned(Handles &handles, cusparseDnMatDescr_t temp,
                              std::int64_t n, std::int64_t s,
                              cudaStream_t stream) {
     nvtx3::scoped_range s_range{"s = (L^-1)' * w + s * zeta'"};
-    CudaTimerRange er{g_event_timer, "s = (L^-1)' * w + s * zeta'", stream};
+    cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "s = (L^-1)' * w + s * zeta'", stream};
 
     constexpr cublasSideMode_t side = CUBLAS_SIDE_RIGHT;
     constexpr cublasFillMode_t fill_mode = CUBLAS_FILL_MODE_UPPER;
@@ -399,7 +399,7 @@ class [[nodiscard]] AsCalculator {
 
     void update() noexcept {
         nvtx3::scoped_range as_range{"AS = A * s"};
-        CudaTimerRange er{g_event_timer, "AS = A * s", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "AS = A * s", stream};
 
         CUSPARSE_CHECK(cusparseSpMM(cusparse, op, op, &alpha, A_desc, s_desc,
                                     &beta, As_desc, compute_type, alg, d_buffer));

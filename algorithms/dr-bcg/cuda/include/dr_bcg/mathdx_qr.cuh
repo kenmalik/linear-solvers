@@ -17,7 +17,6 @@
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
-#include "common/cuda_type.cuh"
 #include "dr_bcg/qr.cuh"
 
 #include <cublasdx.hpp>
@@ -357,7 +356,7 @@ class MathDxCholeskyQr2 {
                cublasHandle_t & /*cublasH*/, cusolverDnHandle_t & /*cusolverH*/,
                cusolverDnParams_t & /*params*/, cudaStream_t &stream) {
         assert(n < m && "Expect cols to be less than rows for DR-BCG");
-        CudaTimerRange rng{g_event_timer, "QR:func", stream};
+        cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:func", stream};
 
         dispatch(d_Q, d_R, d_A, {.m = m, .n = n}, stream);
 

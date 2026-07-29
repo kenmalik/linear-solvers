@@ -271,7 +271,7 @@ class MathDxXiChain {
     void apply(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, int m, int n,
                cudaStream_t stream) {
         assert(n < m && "Expect cols to be less than rows for DR-BCG");
-        CudaTimerRange rng{g_event_timer, "xi:func", stream};
+        cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "xi:func", stream};
 
         dispatch(d_s, d_AS, d_sigma, d_X, d_U, {.m = m, .n = n}, stream);
 

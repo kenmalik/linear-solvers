@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
 
     if constexpr (timer_enabled) {
         if (args->implementation == Implementation::CUDA) {
-            g_event_timer.report(args->timer_out);
+            cils::detail::g_event_timer.report(args->timer_out);
         } else {
             g_timer.report(args->timer_out);
         }
