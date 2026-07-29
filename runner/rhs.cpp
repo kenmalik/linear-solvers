@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <random>
 #include <sstream>
 #include <stdexcept>

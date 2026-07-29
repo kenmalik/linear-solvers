@@ -14,11 +14,9 @@
 #include <cublas_v2.h>
 #include <cusolverDn.h>
 #include <cusparse_v2.h>
+#include <nvtx3/nvtx3.hpp>
 
 #include <algorithm>
-#include <type_traits>
-
-#include <nvtx3/nvtx3.hpp>
 
 // TODO: Figure out why LU workspace check was in the sigma convergence block
 
