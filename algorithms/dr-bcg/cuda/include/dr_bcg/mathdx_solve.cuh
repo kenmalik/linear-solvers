@@ -12,7 +12,6 @@
 
 namespace cils::dr_bcg::cuda::detail {
 
-// TODO: Clean up configuration to avoid this forward declaration.
 struct Handles;
 
 // Orthonormalization policy used by the fused xi chain (solve_fused_dx). The
