@@ -10,7 +10,7 @@
 #include <cuda_runtime.h>
 #include <cusparse.h>
 
-namespace dr_bcg::cuda {
+namespace cils::dr_bcg::cuda {
 
 // TODO: Clean up configuration to avoid this forward declaration.
 struct Handles;
@@ -46,4 +46,4 @@ int solve_fused_dx(Handles &handles, cusparseSpMatDescr_t A,
                    double tolerance, int max_iterations, FusedXiQr qr,
                    cudaStream_t stream);
 
-} // namespace dr_bcg::cuda
+} // namespace cils::dr_bcg::cuda

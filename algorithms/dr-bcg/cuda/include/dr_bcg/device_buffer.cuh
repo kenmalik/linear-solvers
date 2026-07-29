@@ -7,7 +7,7 @@
 
 #include <utility>
 
-namespace dr_bcg::cuda {
+namespace cils::dr_bcg::cuda {
 
 template <cils::SupportedType T>
 class DeviceBuffer {
@@ -109,4 +109,4 @@ class DeviceBuffer {
     }
 };
 
-} // namespace dr_bcg::cuda
+} // namespace cils::dr_bcg::cuda

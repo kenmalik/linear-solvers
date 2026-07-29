@@ -18,7 +18,7 @@
 #include <cstdint>
 #include <type_traits>
 
-namespace dr_bcg::cuda {
+namespace cils::dr_bcg::cuda {
 
 template <cils::SupportedType T>
 class RelativeResidualNormConvergence {
@@ -451,4 +451,4 @@ class [[nodiscard]] AsCalculator {
 
 #endif // SOLVERS_BUILD_MATHDX
 
-} // namespace dr_bcg::cuda
+} // namespace cils::dr_bcg::cuda

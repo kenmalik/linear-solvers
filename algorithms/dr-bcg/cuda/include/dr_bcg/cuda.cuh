@@ -20,7 +20,7 @@
 
 // TODO: Figure out why LU workspace check was in the sigma convergence block
 
-namespace dr_bcg::cuda {
+namespace cils::dr_bcg::cuda {
 
 template <cils::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
@@ -243,4 +243,4 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     return iterations;
 }
 
-} // namespace dr_bcg::cuda
+} // namespace cils::dr_bcg::cuda

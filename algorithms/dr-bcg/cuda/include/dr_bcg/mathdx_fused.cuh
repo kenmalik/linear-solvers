@@ -17,7 +17,7 @@
 #include <cstdint>
 #include <type_traits>
 
-namespace dr_bcg::cuda {
+namespace cils::dr_bcg::cuda {
 
 template <cils::SupportedType T>
 void apply_xi_chain(MathDxXiChain<T> &xi, DeviceBuffer<T> &d, T *d_AS, T *d_X,
@@ -246,6 +246,6 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     return iterations;
 }
 
-} // namespace dr_bcg::cuda
+} // namespace cils::dr_bcg::cuda
 
 #endif // SOLVERS_BUILD_MATHDX
