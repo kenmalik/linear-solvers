@@ -22,6 +22,8 @@
 
 namespace cils::dr_bcg::cuda {
 
+using namespace detail;
+
 template <cils::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, T tolerance, int max_iterations, cudaStream_t stream) {

@@ -10,7 +10,7 @@
 #include "dr_bcg/mathdx_fused.cuh"
 #include "dr_bcg/mathdx_qr.cuh"
 
-namespace cils::dr_bcg::cuda {
+namespace cils::dr_bcg::cuda::detail {
 
 int solve_cholqr_dx(Handles &handles, cusparseSpMatDescr_t A,
                     cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
@@ -63,6 +63,6 @@ int solve_fused_dx(Handles &handles, cusparseSpMatDescr_t A,
     }
 }
 
-} // namespace cils::dr_bcg::cuda
+} // namespace cils::dr_bcg::cuda::detail
 
 #endif // SOLVERS_BUILD_MATHDX

@@ -1,13 +1,13 @@
 #pragma once
 
 #include "common/cuda_checks.h"
-#include "common/cuda_type.cuh"
+#include "common/supported_type.h"
 
 #include <cuda_runtime.h>
 
 #include <utility>
 
-namespace cils::dr_bcg::cuda {
+namespace cils::dr_bcg::cuda::detail {
 
 template <cils::SupportedType T>
 class DeviceBuffer {
@@ -109,4 +109,4 @@ class DeviceBuffer {
     }
 };
 
-} // namespace cils::dr_bcg::cuda
+} // namespace cils::dr_bcg::cuda::detail

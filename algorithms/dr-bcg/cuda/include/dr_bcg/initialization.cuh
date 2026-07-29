@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <utility>
 
-namespace cils::dr_bcg::cuda {
+namespace cils::dr_bcg::cuda::detail {
 
 template <cils::SupportedType T>
 class [[nodiscard]] RCalculator {
@@ -126,4 +126,4 @@ inline std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) 
     return {n, s};
 }
 
-} // namespace cils::dr_bcg::cuda
+} // namespace cils::dr_bcg::cuda::detail
