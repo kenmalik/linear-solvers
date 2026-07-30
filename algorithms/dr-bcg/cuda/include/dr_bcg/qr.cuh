@@ -4,12 +4,12 @@
 #include "common/cuda_event_timer.h"
 #include "common/cuda_type.cuh"
 
-#include <cstddef>
 #include <cuda_runtime.h>
 #include <cusolverDn.h>
 
 #include <cassert>
 #include <concepts>
+#include <cstddef>
 #include <vector>
 
 namespace cils::dr_bcg::cuda {

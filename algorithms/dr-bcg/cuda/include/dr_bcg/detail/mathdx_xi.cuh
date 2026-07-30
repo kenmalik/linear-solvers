@@ -15,7 +15,7 @@
 
 #ifdef SOLVERS_BUILD_MATHDX
 
-#include "dr_bcg/mathdx_qr.cuh"
+#include "mathdx_qr.cuh"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"

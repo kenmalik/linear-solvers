@@ -7,8 +7,8 @@
 #include "mathdx_solve.cuh"
 
 #include "dr_bcg/cuda.cuh"
+#include "dr_bcg/detail/mathdx_qr.cuh"
 #include "dr_bcg/mathdx_fused.cuh"
-#include "dr_bcg/mathdx_qr.cuh"
 
 namespace cils::dr_bcg::cuda::detail {
 

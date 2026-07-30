@@ -70,6 +70,24 @@ if(SOLVERS_BUILD_MATHDX AND NOT SOLVERS_BUILD_CUDA)
     message(FATAL_ERROR "SOLVERS_BUILD_MATHDX requires SOLVERS_BUILD_CUDA=ON")
 endif()
 
+# cuBLASDx/cuSolverDx compile-time descriptors (cublasdx::SM<>, cusolverdx::SM<>)
+# take a single target SM, so any MathDx target can only ever be built for one
+# real architecture at a time. Derive it from CMAKE_CUDA_ARCHITECTURES (the
+# same variable driving the rest of the CUDA build) instead of hardcoding it,
+# so it tracks whatever GPU the build is actually targeting.
+function(solvers_mathdx_target_sm out_var)
+    list(GET CMAKE_CUDA_ARCHITECTURES 0 _mathdx_sm)
+    string(REGEX REPLACE "-(real|virtual)$" "" _mathdx_sm "${_mathdx_sm}")
+    list(LENGTH CMAKE_CUDA_ARCHITECTURES _mathdx_sm_count)
+    if(_mathdx_sm_count GREATER 1)
+        message(WARNING
+            "CMAKE_CUDA_ARCHITECTURES lists multiple architectures "
+            "(${CMAKE_CUDA_ARCHITECTURES}); MathDx only supports one target "
+            "SM, using the first: ${_mathdx_sm}")
+    endif()
+    set(${out_var} "${_mathdx_sm}" PARENT_SCOPE)
+endfunction()
+
 if(SOLVERS_BUILD_MKL)
     find_package(MKL CONFIG REQUIRED)
 endif()
