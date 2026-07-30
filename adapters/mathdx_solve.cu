@@ -2,9 +2,9 @@
 
 #include "config.h"
 
-#include "dr_bcg/mathdx_solve.cuh"
-
 #ifdef SOLVERS_BUILD_MATHDX
+
+#include "mathdx_solve.cuh"
 
 #include "dr_bcg/cuda.cuh"
 #include "dr_bcg/mathdx_fused.cuh"

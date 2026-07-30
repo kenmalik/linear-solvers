@@ -10,7 +10,7 @@
 #ifdef SOLVERS_BUILD_DR_BCG
 #include "dr_bcg/cuda.cuh"
 #ifdef SOLVERS_BUILD_MATHDX
-#include "dr_bcg/mathdx_solve.cuh"
+#include "mathdx_solve.cuh"
 #endif
 #endif
 
