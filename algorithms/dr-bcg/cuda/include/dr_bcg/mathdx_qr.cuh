@@ -5,6 +5,8 @@
 // The pass is run twice (CholQR2) because a single CholQR squares
 // the condition number of the input; the two triangular factors are combined so
 // the returned R is the true factor with A = Q * R.
+//
+// This file contains both implementation details and the public QR policy.
 
 #include "config.h"
 

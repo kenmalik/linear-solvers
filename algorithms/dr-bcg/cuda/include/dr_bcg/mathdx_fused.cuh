@@ -6,11 +6,11 @@
 
 #ifdef SOLVERS_BUILD_MATHDX
 
-#include "dr_bcg/device_buffer.cuh"
-#include "dr_bcg/initialization.cuh"
-#include "dr_bcg/iteration.cuh"
+#include "dr_bcg/detail/device_buffer.cuh"
+#include "dr_bcg/detail/initialization.cuh"
+#include "dr_bcg/detail/iteration.cuh"
+#include "dr_bcg/detail/mathdx_xi.cuh"
 #include "dr_bcg/mathdx_qr.cuh"
-#include "dr_bcg/mathdx_xi.cuh"
 
 #include <cstdint>
 #include <type_traits>
@@ -28,6 +28,10 @@ void apply_xi_chain(MathDxXiChain<T> &xi, DeviceBuffer<T> &d, T *d_AS, T *d_X,
     xi.check(static_cast<int>(s), "xi chain", stream);
 }
 
+} // namespace cils::dr_bcg::cuda::detail
+
+namespace cils::dr_bcg::cuda {
+
 // Unpreconditioned (L = I) fully fused DR-BCG.
 template <cils::SupportedType T, QrPolicy<T> Qr = MathDxCholeskyQr2<T>>
 int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
@@ -40,12 +44,12 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
     handles.set_stream(stream);
 
-    auto [n, s] = get_size(B);
-    DeviceBuffer<T> d(n, s);
+    auto [n, s] = detail::get_size(B);
+    detail::DeviceBuffer<T> d(n, s);
 
     const QrDimensions qr_dims{.m = static_cast<int>(n), .n = static_cast<int>(s)};
     Qr qr{handles.cusolver, handles.cusolver_params, qr_dims};
-    MathDxXiChain<T> xi{static_cast<int>(s)};
+    detail::MathDxXiChain<T> xi{static_cast<int>(s)};
 
     cusparseDnMatDescr_t temp = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cils::detail::cuda_type<T>,
@@ -54,7 +58,7 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     T *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
 
-    RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
+    detail::RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
     R_calculator.calculate(B, A, X);
     {
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(R)"};
@@ -80,9 +84,9 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
-    AsCalculator<T> As_calculator{handles.cusparse, n, s, A, s_desc, stream};
+    detail::AsCalculator<T> As_calculator{handles.cusparse, n, s, A, s_desc, stream};
 
-    RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
+    detail::RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
 
     int iterations = 0;
     while (iterations < max_iterations) {
@@ -139,12 +143,12 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
     handles.set_stream(stream);
 
-    auto [n, s] = get_size(B);
-    DeviceBuffer<T> d(n, s);
+    auto [n, s] = detail::get_size(B);
+    detail::DeviceBuffer<T> d(n, s);
 
     const QrDimensions qr_dims{.m = static_cast<int>(n), .n = static_cast<int>(s)};
     Qr qr{handles.cusolver, handles.cusolver_params, qr_dims};
-    MathDxXiChain<T> xi{static_cast<int>(s)};
+    detail::MathDxXiChain<T> xi{static_cast<int>(s)};
 
     cusparseDnMatDescr_t temp = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cils::detail::cuda_type<T>,
@@ -156,18 +160,18 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
-    SpsmCache<T> spsm_nt;
+    detail::SpsmCache<T> spsm_nt;
     spsm_nt.analyze(handles.cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, L,
                     w_desc, temp);
 
-    SpsmCache<T> spsm_t;
+    detail::SpsmCache<T> spsm_t;
     spsm_t.analyze(handles.cusparse, CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
                    temp);
 
     T *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
 
-    RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
+    detail::RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
     R_calculator.calculate(B, A, X);
 
     // [w sigma] = QR(L^-1 * R) split for timing: temp = L^-1 R; QR(temp).
@@ -192,9 +196,9 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
 
     initialize_preconditioned_s(handles.cusparse, n, s, s_desc, w_desc, L, spsm_t, stream);
 
-    AsCalculator<T> As_calculator{handles.cusparse, n, s, A, s_desc, stream};
+    detail::AsCalculator<T> As_calculator{handles.cusparse, n, s, A, s_desc, stream};
 
-    RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
+    detail::RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
 
     int iterations = 0;
     while (iterations < max_iterations) {
@@ -244,6 +248,6 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     return iterations;
 }
 
-} // namespace cils::dr_bcg::cuda::detail
+} // namespace cils::dr_bcg::cuda
 
 #endif // SOLVERS_BUILD_MATHDX

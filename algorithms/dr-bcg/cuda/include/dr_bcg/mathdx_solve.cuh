@@ -10,9 +10,13 @@
 #include <cuda_runtime.h>
 #include <cusparse.h>
 
-namespace cils::dr_bcg::cuda::detail {
+namespace cils::dr_bcg::cuda {
 
 struct Handles;
+
+} // namespace cils::dr_bcg::cuda
+
+namespace cils::dr_bcg::cuda::detail {
 
 // Orthonormalization policy used by the fused xi chain (solve_fused_dx). The
 // fused loop is QR-agnostic; this algorithm-layer selector lets the adapter

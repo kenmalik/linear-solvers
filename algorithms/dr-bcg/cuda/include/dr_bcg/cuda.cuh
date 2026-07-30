@@ -1,10 +1,10 @@
 #pragma once
 
-#include "dr_bcg/device_buffer.cuh"
+#include "dr_bcg/detail/device_buffer.cuh"
+#include "dr_bcg/detail/initialization.cuh"
+#include "dr_bcg/detail/iteration.cuh"
+#include "dr_bcg/detail/math.cuh"
 #include "dr_bcg/handles.cuh"
-#include "dr_bcg/initialization.cuh"
-#include "dr_bcg/iteration.cuh"
-#include "dr_bcg/math.cuh"
 #include "dr_bcg/qr.cuh"
 
 #include "common/cuda_checks.h"
@@ -22,8 +22,6 @@
 
 namespace cils::dr_bcg::cuda {
 
-using namespace detail;
-
 template <cils::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, T tolerance, int max_iterations, cudaStream_t stream) {
@@ -33,13 +31,13 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
     handles.set_stream(stream);
 
-    auto [n, s] = get_size(B);
-    DeviceBuffer<T> d(n, s);
+    auto [n, s] = detail::get_size(B);
+    detail::DeviceBuffer<T> d(n, s);
 
     const QrDimensions qr_dims{.m = static_cast<int>(n), .n = static_cast<int>(s)};
     Qr qr{handles.cusolver, handles.cusolver_params, qr_dims};
 
-    LuWorkspace<T> lu_ws;
+    detail::LuWorkspace<T> lu_ws;
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
                    static_cast<int>(s));
 
@@ -51,7 +49,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     T *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
 
-    RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
+    detail::RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
     R_calculator.calculate(B, A, X);
     {
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(R)"};
@@ -101,7 +99,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
-    RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
+    detail::RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
 
     int iterations = 0;
     while (iterations < max_iterations) {
@@ -142,13 +140,13 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
     handles.set_stream(stream);
 
-    auto [n, s] = get_size(B);
-    DeviceBuffer<T> d(n, s);
+    auto [n, s] = detail::get_size(B);
+    detail::DeviceBuffer<T> d(n, s);
 
     const QrDimensions qr_dims{.m = static_cast<int>(n), .n = static_cast<int>(s)};
     Qr qr{handles.cusolver, handles.cusolver_params, qr_dims};
 
-    LuWorkspace<T> lu_ws;
+    detail::LuWorkspace<T> lu_ws;
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
                    static_cast<int>(s));
 
@@ -161,18 +159,18 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     cusparseDnMatDescr_t w_desc = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
-    SpsmCache<T> spsm_nt;
+    detail::SpsmCache<T> spsm_nt;
     spsm_nt.analyze(handles.cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, L,
                     w_desc, temp);
 
-    SpsmCache<T> spsm_t;
+    detail::SpsmCache<T> spsm_t;
     spsm_t.analyze(handles.cusparse, CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
                    temp);
 
     T *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
 
-    RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
+    detail::RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
     R_calculator.calculate(B, A, X);
 
     // We break [w sigma] = QR(L^-1 * R) into two steps for timing purposes:
@@ -212,7 +210,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         }
     }
 
-    RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
+    detail::RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
 
     int iterations = 0;
     while (iterations < max_iterations) {

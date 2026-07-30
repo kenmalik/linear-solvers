@@ -45,15 +45,17 @@ const char *qr_backend_name(QrBackend qr_backend) {
 }
 
 #if defined(SOLVERS_BUILD_DR_BCG) && defined(SOLVERS_BUILD_MATHDX)
-cils::dr_bcg::cuda::FusedXiQr to_fused_xi_qr(QrBackend qr_backend) {
+using cils::dr_bcg::cuda::detail::FusedXiQr;
+
+FusedXiQr to_fused_xi_qr(QrBackend qr_backend) {
     switch (qr_backend) {
     case QrBackend::CholQR:
-        return cils::dr_bcg::cuda::FusedXiQr::CholQR;
+        return FusedXiQr::CholQR;
     case QrBackend::CholQRDx:
-        return cils::dr_bcg::cuda::FusedXiQr::CholQRDx;
+        return FusedXiQr::CholQRDx;
     case QrBackend::Householder:
     default:
-        return cils::dr_bcg::cuda::FusedXiQr::Householder;
+        return FusedXiQr::Householder;
     }
 }
 #endif
@@ -177,9 +179,9 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
         if (config.fused_xi) {
             if constexpr (std::is_same_v<T, double>) {
 #ifdef SOLVERS_BUILD_MATHDX
-                iters = cils::dr_bcg::cuda::solve_fused_dx(handles, A_mat.get(), x_descr, b_descr,
-                                                           L_mat.get(), config.tolerance, config.max_iterations,
-                                                           to_fused_xi_qr(config.qr_backend), stream);
+                iters = cils::dr_bcg::cuda::detail::solve_fused_dx(handles, A_mat.get(), x_descr, b_descr,
+                                                                   L_mat.get(), config.tolerance, config.max_iterations,
+                                                                   to_fused_xi_qr(config.qr_backend), stream);
 #else
                 throw std::runtime_error("'--fused-xi' requires building with SOLVERS_BUILD_MATHDX=ON");
 #endif
@@ -193,9 +195,9 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
         } else if (config.qr_backend == QrBackend::CholQRDx) {
             if constexpr (std::is_same_v<T, double>) {
 #ifdef SOLVERS_BUILD_MATHDX
-                iters = cils::dr_bcg::cuda::solve_cholqr_dx(handles, A_mat.get(), x_descr, b_descr,
-                                                            L_mat.get(), config.tolerance, config.max_iterations,
-                                                            stream);
+                iters = cils::dr_bcg::cuda::detail::solve_cholqr_dx(handles, A_mat.get(), x_descr, b_descr,
+                                                                    L_mat.get(), config.tolerance, config.max_iterations,
+                                                                    stream);
 #else
                 throw std::runtime_error("QR backend 'cholqr-dx' requires building with SOLVERS_BUILD_MATHDX=ON");
 #endif
@@ -270,9 +272,9 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
         if (config.fused_xi) {
             if constexpr (std::is_same_v<T, double>) {
 #ifdef SOLVERS_BUILD_MATHDX
-                iters = cils::dr_bcg::cuda::solve_fused_dx(handles, A_mat.get(), x_descr, b_descr,
-                                                           config.tolerance, config.max_iterations,
-                                                           to_fused_xi_qr(config.qr_backend), stream);
+                iters = cils::dr_bcg::cuda::detail::solve_fused_dx(handles, A_mat.get(), x_descr, b_descr,
+                                                                   config.tolerance, config.max_iterations,
+                                                                   to_fused_xi_qr(config.qr_backend), stream);
 #else
                 throw std::runtime_error("'--fused-xi' requires building with SOLVERS_BUILD_MATHDX=ON");
 #endif
@@ -285,8 +287,8 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
         } else if (config.qr_backend == QrBackend::CholQRDx) {
             if constexpr (std::is_same_v<T, double>) {
 #ifdef SOLVERS_BUILD_MATHDX
-                iters = cils::dr_bcg::cuda::solve_cholqr_dx(handles, A_mat.get(), x_descr, b_descr,
-                                                            config.tolerance, config.max_iterations, stream);
+                iters = cils::dr_bcg::cuda::detail::solve_cholqr_dx(handles, A_mat.get(), x_descr, b_descr,
+                                                                    config.tolerance, config.max_iterations, stream);
 #else
                 throw std::runtime_error("QR backend 'cholqr-dx' requires building with SOLVERS_BUILD_MATHDX=ON");
 #endif

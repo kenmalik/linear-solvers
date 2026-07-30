@@ -15,15 +15,17 @@
 
 #ifdef SOLVERS_BUILD_MATHDX
 
-#include <cuda_runtime.h>
-#include <stdexcept>
-#include <string>
+#include "dr_bcg/mathdx_qr.cuh"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
 
 #include <cublasdx.hpp>
+#include <cuda_runtime.h>
 #include <cusolverdx.hpp>
+
+#include <stdexcept>
+#include <string>
 
 namespace cils::dr_bcg::cuda::detail {
 
@@ -206,8 +208,6 @@ void launch_xi(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, int m, int ld,
     CUDA_CHECK_LAST();
 }
 
-} // namespace cils::dr_bcg::cuda::detail
-
 // Fused MathDx reduced-system (xi) chain helper for DR-BCG.
 // Owns the small N*N workspaces and dispatches the compile-time-N kernel chain.
 // Used by the fused solve loop (mathdx_fused.cuh) alongside MathDxCholeskyQr2.
@@ -358,5 +358,7 @@ class MathDxXiChain {
     int *h_info = nullptr;
     T *h_diag = nullptr;
 };
+
+} // namespace cils::dr_bcg::cuda::detail
 
 #endif // SOLVERS_BUILD_MATHDX

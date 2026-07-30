@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dr_bcg/math.cuh"
+#include "dr_bcg/detail/math.cuh"
 
 #include "common/cuda_event_timer.h"
 #include "common/cuda_type.cuh"

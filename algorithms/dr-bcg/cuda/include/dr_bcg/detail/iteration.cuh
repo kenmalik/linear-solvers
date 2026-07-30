@@ -1,8 +1,8 @@
 #pragma once
 
-#include "dr_bcg/device_buffer.cuh"
+#include "dr_bcg/detail/device_buffer.cuh"
+#include "dr_bcg/detail/math.cuh"
 #include "dr_bcg/handles.cuh"
-#include "dr_bcg/math.cuh"
 #include "dr_bcg/qr.cuh"
 
 #include "common/cuda_checks.h"

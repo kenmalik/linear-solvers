@@ -9,7 +9,7 @@
 
 #include <utility>
 
-namespace cils::dr_bcg::cuda::detail {
+namespace cils::dr_bcg::cuda {
 
 class Handles {
   public:
@@ -64,4 +64,4 @@ class Handles {
     }
 };
 
-} // namespace cils::dr_bcg::cuda::detail
+} // namespace cils::dr_bcg::cuda
