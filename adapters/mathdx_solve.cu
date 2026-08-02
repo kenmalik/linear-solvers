@@ -6,11 +6,11 @@
 
 #include "mathdx_solve.cuh"
 
-#include "dr_bcg/cuda.cuh"
-#include "dr_bcg/detail/mathdx_qr.cuh"
-#include "dr_bcg/mathdx_fused.cuh"
+#include "cuda/detail/mathdx_qr.cuh"
+#include "cuda/dr_bcg.cuh"
+#include "cuda/mathdx_fused.cuh"
 
-namespace cils::dr_bcg::cuda::detail {
+namespace cils::cuda::detail {
 
 int solve_cholqr_dx(Handles &handles, cusparseSpMatDescr_t A,
                     cusparseDnMatDescr_t X, cusparseDnMatDescr_t B,
@@ -63,6 +63,6 @@ int solve_fused_dx(Handles &handles, cusparseSpMatDescr_t A,
     }
 }
 
-} // namespace cils::dr_bcg::cuda::detail
+} // namespace cils::cuda::detail
 
 #endif // SOLVERS_BUILD_MATHDX

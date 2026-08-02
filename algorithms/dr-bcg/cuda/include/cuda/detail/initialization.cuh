@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dr_bcg/detail/math.cuh"
+#include "cuda/detail/math.cuh"
 
 #include "common/cuda_event_timer.h"
 #include "common/cuda_type.cuh"
@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <utility>
 
-namespace cils::dr_bcg::cuda::detail {
+namespace cils::cuda::detail {
 
 template <cils::detail::SupportedType T>
 class [[nodiscard]] RCalculator {
@@ -126,4 +126,4 @@ inline std::pair<std::int64_t, std::int64_t> get_size(cusparseDnMatDescr_t mat) 
     return {n, s};
 }
 
-} // namespace cils::dr_bcg::cuda::detail
+} // namespace cils::cuda::detail

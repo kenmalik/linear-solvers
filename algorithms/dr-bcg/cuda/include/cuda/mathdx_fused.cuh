@@ -6,11 +6,11 @@
 
 #ifdef SOLVERS_BUILD_MATHDX
 
-#include "dr_bcg/detail/device_buffer.cuh"
-#include "dr_bcg/detail/initialization.cuh"
-#include "dr_bcg/detail/iteration.cuh"
-#include "dr_bcg/detail/mathdx_qr.cuh"
-#include "dr_bcg/detail/mathdx_xi.cuh"
+#include "cuda/detail/device_buffer.cuh"
+#include "cuda/detail/initialization.cuh"
+#include "cuda/detail/iteration.cuh"
+#include "cuda/detail/mathdx_qr.cuh"
+#include "cuda/detail/mathdx_xi.cuh"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
@@ -23,7 +23,7 @@
 #include <string>
 #include <type_traits>
 
-namespace cils::dr_bcg::cuda::detail {
+namespace cils::cuda::detail {
 
 template <cils::detail::SupportedType T>
 void apply_xi_chain(MathDxXiChain<T> &xi, DeviceBuffer<T> &d, T *d_AS, T *d_X,
@@ -36,9 +36,9 @@ void apply_xi_chain(MathDxXiChain<T> &xi, DeviceBuffer<T> &d, T *d_AS, T *d_X,
     xi.check(static_cast<int>(s), "xi chain", stream);
 }
 
-} // namespace cils::dr_bcg::cuda::detail
+} // namespace cils::cuda::detail
 
-namespace cils::dr_bcg::cuda {
+namespace cils::cuda {
 
 // Fused Cholesky QR policy for use in DR-BCG configuration
 //
@@ -392,6 +392,6 @@ int solve_fused(Handles &handles, cusparseSpMatDescr_t A,
     return iterations;
 }
 
-} // namespace cils::dr_bcg::cuda
+} // namespace cils::cuda
 
 #endif // SOLVERS_BUILD_MATHDX

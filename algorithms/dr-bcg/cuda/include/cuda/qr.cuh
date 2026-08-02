@@ -12,7 +12,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace cils::dr_bcg::cuda {
+namespace cils::cuda {
 
 struct QrDimensions {
     int m;
@@ -315,4 +315,4 @@ class CholeskyQr {
     T *h_factor = nullptr;
 };
 
-} // namespace cils::dr_bcg::cuda
+} // namespace cils::cuda

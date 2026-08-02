@@ -10,5 +10,5 @@
 
 #include "config.h"
 
-#include "dr_bcg/cuda.cuh"
-#include "dr_bcg/mathdx_fused.cuh"
+#include "cuda/dr_bcg.cuh"
+#include "cuda/mathdx_fused.cuh"

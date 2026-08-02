@@ -1,11 +1,11 @@
 #pragma once
 
-#include "dr_bcg/detail/device_buffer.cuh"
-#include "dr_bcg/detail/initialization.cuh"
-#include "dr_bcg/detail/iteration.cuh"
-#include "dr_bcg/detail/math.cuh"
-#include "dr_bcg/handles.cuh"
-#include "dr_bcg/qr.cuh"
+#include "cuda/detail/device_buffer.cuh"
+#include "cuda/detail/initialization.cuh"
+#include "cuda/detail/iteration.cuh"
+#include "cuda/detail/math.cuh"
+#include "cuda/handles.cuh"
+#include "cuda/qr.cuh"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
@@ -20,7 +20,7 @@
 
 // TODO: Figure out why LU workspace check was in the sigma convergence block
 
-namespace cils::dr_bcg::cuda {
+namespace cils::cuda {
 
 template <cils::detail::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
@@ -243,4 +243,4 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     return iterations;
 }
 
-} // namespace cils::dr_bcg::cuda
+} // namespace cils::cuda

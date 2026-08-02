@@ -18,7 +18,7 @@
 #include <cublasdx.hpp>
 #include <cusolverdx.hpp>
 
-namespace cils::dr_bcg::cuda::detail {
+namespace cils::cuda::detail {
 
 #ifndef MATHDX_TARGET_SM
 #error "MATHDX_TARGET_SM must be defined by CMake (derived from CMAKE_CUDA_ARCHITECTURES)"
@@ -297,6 +297,6 @@ void launch_cholqr2(T *d_Q, T *d_R, const T *d_A, int m, int ldA, T *d_G,
     CUDA_CHECK_LAST();
 }
 
-} // namespace cils::dr_bcg::cuda::detail
+} // namespace cils::cuda::detail
 
 #endif // SOLVERS_BUILD_MATHDX

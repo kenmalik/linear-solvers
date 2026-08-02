@@ -1,9 +1,9 @@
 #pragma once
 
-#include "dr_bcg/detail/device_buffer.cuh"
-#include "dr_bcg/detail/math.cuh"
-#include "dr_bcg/handles.cuh"
-#include "dr_bcg/qr.cuh"
+#include "cuda/detail/device_buffer.cuh"
+#include "cuda/detail/math.cuh"
+#include "cuda/handles.cuh"
+#include "cuda/qr.cuh"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
@@ -18,7 +18,7 @@
 #include <cstdint>
 #include <type_traits>
 
-namespace cils::dr_bcg::cuda::detail {
+namespace cils::cuda::detail {
 
 template <cils::detail::SupportedType T>
 class RelativeResidualNormConvergence {
@@ -451,4 +451,4 @@ class [[nodiscard]] AsCalculator {
 
 #endif // SOLVERS_BUILD_MATHDX
 
-} // namespace cils::dr_bcg::cuda::detail
+} // namespace cils::cuda::detail

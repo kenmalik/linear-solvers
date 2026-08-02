@@ -11,7 +11,7 @@
 #include <nvtx3/nvtx3.hpp>
 #include <vector>
 
-namespace cils::dr_bcg::cuda::detail {
+namespace cils::cuda::detail {
 
 template <cils::detail::SupportedType T>
 struct LuWorkspace {
@@ -179,4 +179,4 @@ void invert_square_matrix(cusolverDnHandle_t &cusolverH,
                                cudaMemcpyDeviceToHost, stream));
 }
 
-} // namespace cils::dr_bcg::cuda::detail
+} // namespace cils::cuda::detail

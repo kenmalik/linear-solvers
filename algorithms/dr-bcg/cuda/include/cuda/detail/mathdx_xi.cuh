@@ -27,7 +27,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace cils::dr_bcg::cuda::detail {
+namespace cils::cuda::detail {
 
 // Gram of two distinct panels: G += s^T * AS, accumulated across row-tiles.
 //
@@ -309,7 +309,7 @@ class MathDxXiChain {
   private:
     void dispatch(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, ProblemSize size,
                   cudaStream_t stream) {
-        using cils::dr_bcg::cuda::detail::launch_xi;
+        using cils::cuda::detail::launch_xi;
         switch (size.n) {
         // NOLINTBEGIN
         case 1:
@@ -359,6 +359,6 @@ class MathDxXiChain {
     T *h_diag = nullptr;
 };
 
-} // namespace cils::dr_bcg::cuda::detail
+} // namespace cils::cuda::detail
 
 #endif // SOLVERS_BUILD_MATHDX
