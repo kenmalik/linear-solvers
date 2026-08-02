@@ -14,7 +14,8 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
-set_target_properties(gtest gtest_main PROPERTIES CXX_CLANG_TIDY "" CXX_CPPCHECK "")
+set_target_properties(gtest gtest_main PROPERTIES CXX_CLANG_TIDY "" CXX_CPPCHECK ""
+    EXPORT_COMPILE_COMMANDS OFF)
 
 enable_testing()
 
