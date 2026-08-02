@@ -6,6 +6,8 @@
 #include <optional>
 #include <string>
 
+namespace cils {
+
 enum class QrBackend : std::uint8_t;
 
 enum class Algorithm : std::uint8_t { CG,
@@ -34,3 +36,5 @@ struct Args {
 };
 
 std::optional<Args> parse_args(int argc, char *argv[]); // NOLINT(*avoid-c-arrays)
+
+} // namespace cils

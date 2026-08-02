@@ -2,6 +2,7 @@
 
 #include "cuda_adapter.h"
 #include "device_sparse_matrix.h"
+#include "qr_backend.h"
 
 #ifdef SOLVERS_BUILD_CG
 #include "cg/cuda.h"
@@ -30,6 +31,8 @@ void configure_cublas_math_mode(cublasHandle_t cublas,
         CUBLAS_CHECK(cublasSetMathMode(cublas, CUBLAS_PEDANTIC_MATH));
     }
 }
+
+using cils::QrBackend;
 
 const char *qr_backend_name(QrBackend qr_backend) {
     switch (qr_backend) {
@@ -61,6 +64,8 @@ FusedXiQr to_fused_xi_qr(QrBackend qr_backend) {
 #endif
 
 } // namespace
+
+namespace cils {
 
 #ifdef SOLVERS_BUILD_CG
 
@@ -339,3 +344,5 @@ template int run_cuda_dr_bcg<float>(
     CudaDrBcgConfig<float> config);
 
 #endif // SOLVERS_BUILD_DR_BCG
+
+} // namespace cils

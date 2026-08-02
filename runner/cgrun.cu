@@ -24,7 +24,7 @@
 #include "rhs.h"
 
 int main(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
-    auto args = parse_args(argc, argv);
+    auto args = cils::parse_args(argc, argv);
 
     if (!args) {
         return -1;
@@ -33,11 +33,11 @@ int main(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
     int iters = 0;
 
     switch (args->algorithm) {
-    case Algorithm::CG:
-        iters = run_cg(*args);
+    case cils::Algorithm::CG:
+        iters = cils::run_cg(*args);
         break;
-    case Algorithm::DR_BCG:
-        iters = run_dr_bcg(*args);
+    case cils::Algorithm::DR_BCG:
+        iters = cils::run_dr_bcg(*args);
         break;
     default:
         std::cerr << "Unknown algorithm\n";
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
     std::cout << iters << '\n';
 
     if constexpr (timer_enabled) {
-        if (args->implementation == Implementation::CUDA) {
+        if (args->implementation == cils::Implementation::CUDA) {
             cils::detail::g_event_timer.report(args->timer_out);
         } else {
             g_timer.report(args->timer_out);
@@ -61,14 +61,16 @@ int main(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
     return 0;
 }
 
-int run_cg(const Args &args) {
+namespace cils {
+
+int run_cg(const cils::Args &args) {
     std::size_t n = args.A.rows();
     std::vector<double> b;
     std::vector<double> x;
 
     try {
-        b = prepare_rhs<double>(args.b, args.B, n, 1);
-        x = prepare_initial_guess<double>(args.x, args.X, n, 1);
+        b = cils::prepare_rhs<double>(args.b, args.B, n, 1);
+        x = cils::prepare_initial_guess<double>(args.x, args.X, n, 1);
     } catch (const std::exception &e) {
         std::cerr << "Failed to prepare dense inputs: " << e.what() << '\n';
         return -1;
@@ -81,7 +83,7 @@ int run_cg(const Args &args) {
     switch (args.implementation) {
 #ifdef SOLVERS_BUILD_CG
 #ifdef SOLVERS_BUILD_MKL
-    case Implementation::MKL: {
+    case cils::Implementation::MKL: {
         if (args.L.has_value()) {
             iters = run_mkl_cg(args.A, b, x, args.L.value(), args.tolerance,
                                max_iters);
@@ -93,9 +95,9 @@ int run_cg(const Args &args) {
     }
 #endif // SOLVERS_BUILD_MKL
 #ifdef SOLVERS_BUILD_CUDA
-    case Implementation::CUDA: {
-        iters = run_cuda_cg(args.A, b, x, args.L.value(), args.tolerance,
-                            max_iters, args.disable_tensor_cores);
+    case cils::Implementation::CUDA: {
+        iters = cils::run_cuda_cg(args.A, b, x, args.L.value(), args.tolerance,
+                                  max_iters, args.disable_tensor_cores);
         break;
     }
 #endif // SOLVERS_BUILD_CUDA
@@ -118,15 +120,15 @@ int run_cg(const Args &args) {
 }
 
 template <cils::detail::SupportedType T>
-int run_dr_bcg_impl(const Args &args) {
+int run_dr_bcg_impl(const cils::Args &args) {
     std::size_t n = args.A.rows();
     int s = args.block_size;
     std::vector<T> b;
     std::vector<T> x;
 
     try {
-        b = prepare_rhs<T>(args.b, args.B, n, s);
-        x = prepare_initial_guess<T>(args.x, args.X, n, s);
+        b = cils::prepare_rhs<T>(args.b, args.B, n, s);
+        x = cils::prepare_initial_guess<T>(args.x, args.X, n, s);
     } catch (const std::exception &e) {
         std::cerr << "Failed to prepare dense inputs: " << e.what() << '\n';
         return -1;
@@ -139,7 +141,7 @@ int run_dr_bcg_impl(const Args &args) {
     switch (args.implementation) {
 #ifdef SOLVERS_BUILD_DR_BCG
 #ifdef SOLVERS_BUILD_MKL
-    case Implementation::MKL: {
+    case cils::Implementation::MKL: {
         if constexpr (std::is_same_v<T, double>) {
             MklDrBcgConfig config{
                 .tolerance = args.tolerance,
@@ -160,8 +162,8 @@ int run_dr_bcg_impl(const Args &args) {
     }
 #endif // SOLVERS_BUILD_MKL
 #ifdef SOLVERS_BUILD_CUDA
-    case Implementation::CUDA: {
-        CudaDrBcgConfig<T> config{
+    case cils::Implementation::CUDA: {
+        cils::CudaDrBcgConfig<T> config{
             .tolerance = static_cast<T>(args.tolerance),
             .max_iterations = max_iterations,
             .block_size = args.block_size,
@@ -201,9 +203,11 @@ int run_dr_bcg_impl(const Args &args) {
     return iters;
 }
 
-int run_dr_bcg(const Args &args) {
+int run_dr_bcg(const cils::Args &args) {
     if (args.A.is_double()) {
         return run_dr_bcg_impl<double>(args);
     }
     return run_dr_bcg_impl<float>(args);
 }
+
+} // namespace cils

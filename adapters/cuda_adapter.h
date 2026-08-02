@@ -9,6 +9,8 @@
 
 #include <vector>
 
+namespace cils {
+
 int run_cuda_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                 const std::vector<double> &b, std::vector<double> &x,
                 const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
@@ -55,3 +57,5 @@ extern template int run_cuda_dr_bcg<float>(
     const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
     const std::vector<float> &b, std::vector<float> &x,
     CudaDrBcgConfig<float> config);
+
+} // namespace cils

@@ -164,12 +164,12 @@ TEST(Parser, DefaultsQrBackendToHouseholder) {
         "cgrun", "dr-bcg", "cuda", TEST_DATA_DIR "/1138_bus.mat"};
     auto argv = argv_from(args);
 
-    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+    auto parsed = cils::parse_args(static_cast<int>(argv.size()), argv.data());
 
     ASSERT_TRUE(parsed.has_value());
-    EXPECT_EQ(parsed->algorithm, Algorithm::DR_BCG);         // NOLINT
-    EXPECT_EQ(parsed->implementation, Implementation::CUDA); // NOLINT
-    EXPECT_EQ(parsed->qr_backend, QrBackend::Householder);   // NOLINT
+    EXPECT_EQ(parsed->algorithm, cils::Algorithm::DR_BCG);         // NOLINT
+    EXPECT_EQ(parsed->implementation, cils::Implementation::CUDA); // NOLINT
+    EXPECT_EQ(parsed->qr_backend, cils::QrBackend::Householder);   // NOLINT
 }
 
 TEST(Parser, ParsesExplicitCholQrBackend) {
@@ -181,10 +181,10 @@ TEST(Parser, ParsesExplicitCholQrBackend) {
                                      "cholqr"};
     auto argv = argv_from(args);
 
-    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+    auto parsed = cils::parse_args(static_cast<int>(argv.size()), argv.data());
 
     ASSERT_TRUE(parsed.has_value());
-    EXPECT_EQ(parsed->qr_backend, QrBackend::CholQR); // NOLINT
+    EXPECT_EQ(parsed->qr_backend, cils::QrBackend::CholQR); // NOLINT
 }
 
 TEST(Parser, LoadsAWithDefaultPathWhenColonOmitted) {
@@ -192,7 +192,7 @@ TEST(Parser, LoadsAWithDefaultPathWhenColonOmitted) {
         "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat"};
     auto argv = argv_from(args);
 
-    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+    auto parsed = cils::parse_args(static_cast<int>(argv.size()), argv.data());
 
     ASSERT_TRUE(parsed.has_value());
     EXPECT_EQ(parsed->A.rows(), 1138); // NOLINT
@@ -203,7 +203,7 @@ TEST(Parser, LoadsAWithExplicitParentArraysAndField) {
         "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat:/Problem/A"}; // NOLINT
     auto argv = argv_from(args);
 
-    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+    auto parsed = cils::parse_args(static_cast<int>(argv.size()), argv.data());
 
     ASSERT_TRUE(parsed.has_value());
     EXPECT_EQ(parsed->A.rows(), 1138); // NOLINT
@@ -214,7 +214,7 @@ TEST(Parser, RejectsMatArgWithMalformedPath) {
         "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat:Problem/A"}; // NOLINT
     auto argv = argv_from(args);
 
-    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+    auto parsed = cils::parse_args(static_cast<int>(argv.size()), argv.data());
 
     EXPECT_FALSE(parsed.has_value());
 
@@ -222,7 +222,7 @@ TEST(Parser, RejectsMatArgWithMalformedPath) {
         "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat:"}; // NOLINT
     argv = argv_from(args);
 
-    parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+    parsed = cils::parse_args(static_cast<int>(argv.size()), argv.data());
 
     EXPECT_FALSE(parsed.has_value());
 
@@ -230,7 +230,7 @@ TEST(Parser, RejectsMatArgWithMalformedPath) {
         "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat:/Problem/A/"}; // NOLINT
     argv = argv_from(args);
 
-    parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+    parsed = cils::parse_args(static_cast<int>(argv.size()), argv.data());
 
     EXPECT_FALSE(parsed.has_value());
 }
@@ -240,7 +240,7 @@ TEST(Parser, RejectsMatArgWithNonexistentPath) {
         "cgrun", "cg", "mkl", TEST_DATA_DIR "/1138_bus.mat:/Nonexistent/Value"}; // NOLINT
     auto argv = argv_from(args);
 
-    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+    auto parsed = cils::parse_args(static_cast<int>(argv.size()), argv.data());
 
     EXPECT_FALSE(parsed.has_value());
 }
@@ -250,7 +250,7 @@ TEST(Parser, DefaultsFusedXiToFalse) {
         "cgrun", "dr-bcg", "cuda", TEST_DATA_DIR "/1138_bus.mat"};
     auto argv = argv_from(args);
 
-    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+    auto parsed = cils::parse_args(static_cast<int>(argv.size()), argv.data());
 
     ASSERT_TRUE(parsed.has_value());
     EXPECT_FALSE(parsed->fused_xi); // NOLINT
@@ -266,18 +266,18 @@ TEST(Parser, ParsesFusedXiFlag) {
                                      "--fused-xi"};
     auto argv = argv_from(args);
 
-    auto parsed = parse_args(static_cast<int>(argv.size()), argv.data());
+    auto parsed = cils::parse_args(static_cast<int>(argv.size()), argv.data());
 
     ASSERT_TRUE(parsed.has_value());
-    EXPECT_EQ(parsed->qr_backend, QrBackend::CholQRDx); // NOLINT
-    EXPECT_TRUE(parsed->fused_xi);                      // NOLINT
+    EXPECT_EQ(parsed->qr_backend, cils::QrBackend::CholQRDx); // NOLINT
+    EXPECT_TRUE(parsed->fused_xi);                            // NOLINT
 }
 
 TEST(Rhs, LoadsCgRhsFromMat) {
     std::optional<mat_utils::MatReader<>> reader;
     reader.emplace(TEST_DATA_DIR "/b_vec_test.mat", std::vector<std::string>{}, "b");
 
-    auto b = prepare_rhs<double>(reader, std::optional<mat_utils::MatReader<>>{}, 3, 1);
+    auto b = cils::prepare_rhs<double>(reader, std::optional<mat_utils::MatReader<>>{}, 3, 1);
 
     EXPECT_EQ(b, (std::vector<double>{1.0, 2.0, 3.0}));
 }
@@ -286,7 +286,7 @@ TEST(Rhs, LoadsDrBcgRhsFromMat) {
     std::optional<mat_utils::MatReader<>> reader;
     reader.emplace(TEST_DATA_DIR "/b_mat_test.mat", std::vector<std::string>{}, "b");
 
-    auto b = prepare_rhs<double>(reader, std::optional<mat_utils::MatReader<>>{}, 3, 2);
+    auto b = cils::prepare_rhs<double>(reader, std::optional<mat_utils::MatReader<>>{}, 3, 2);
 
     EXPECT_EQ(b, (std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}));
 }
@@ -297,7 +297,7 @@ TEST(Rhs, CombinesVectorAndMatrixRhsForDrBcg) {
     std::optional<mat_utils::MatReader<>> B_reader;
     B_reader.emplace(TEST_DATA_DIR "/b_mat_test.mat", std::vector<std::string>{}, "b");
 
-    auto b = prepare_rhs<double>(b_reader, B_reader, 3, 3);
+    auto b = cils::prepare_rhs<double>(b_reader, B_reader, 3, 3);
 
     EXPECT_EQ(b, (std::vector<double>{1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0}));
 }
@@ -306,9 +306,9 @@ TEST(Rhs, CombinesVectorRhsWithSeededDefaultMatrixForDrBcg) {
     std::optional<mat_utils::MatReader<>> b_reader;
     b_reader.emplace(TEST_DATA_DIR "/b_vec_test.mat", std::vector<std::string>{}, "b");
 
-    auto b = prepare_rhs<double>(b_reader, std::optional<mat_utils::MatReader<>>{}, 3, 3);
-    auto fallback = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
-                                        std::optional<mat_utils::MatReader<>>{}, 3, 2);
+    auto b = cils::prepare_rhs<double>(b_reader, std::optional<mat_utils::MatReader<>>{}, 3, 3);
+    auto fallback = cils::prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
+                                              std::optional<mat_utils::MatReader<>>{}, 3, 2);
 
     // NOLINTBEGIN
     EXPECT_EQ(b, (std::vector<double>{1.0, 2.0, 3.0,
@@ -321,9 +321,9 @@ TEST(Rhs, CombinesSeededDefaultVectorWithMatrixRhsForDrBcg) {
     std::optional<mat_utils::MatReader<>> B_reader;
     B_reader.emplace(TEST_DATA_DIR "/b_mat_test.mat", std::vector<std::string>{}, "b");
 
-    auto b = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{}, B_reader, 3, 3);
-    auto fallback = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
-                                        std::optional<mat_utils::MatReader<>>{}, 3, 1);
+    auto b = cils::prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{}, B_reader, 3, 3);
+    auto fallback = cils::prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
+                                              std::optional<mat_utils::MatReader<>>{}, 3, 1);
 
     // NOLINTBEGIN
     EXPECT_EQ(b, (std::vector<double>{fallback[0], fallback[1], fallback[2],
@@ -336,7 +336,7 @@ TEST(Rhs, RejectsDimensionMismatch) {
     reader.emplace(TEST_DATA_DIR "/b_mat_test.mat", std::vector<std::string>{}, "b");
 
     EXPECT_THROW(
-        static_cast<void>(prepare_rhs<double>(reader, std::optional<mat_utils::MatReader<>>{}, 3, 3)),
+        static_cast<void>(cils::prepare_rhs<double>(reader, std::optional<mat_utils::MatReader<>>{}, 3, 3)),
         std::runtime_error);
 }
 
@@ -346,22 +346,22 @@ TEST(Rhs, RejectsSplitRhsDimensionMismatch) {
     std::optional<mat_utils::MatReader<>> B_reader;
     B_reader.emplace(TEST_DATA_DIR "/b_vec_test.mat", std::vector<std::string>{}, "b");
 
-    EXPECT_THROW(static_cast<void>(prepare_rhs<double>(b_reader, B_reader, 3, 3)),
+    EXPECT_THROW(static_cast<void>(cils::prepare_rhs<double>(b_reader, B_reader, 3, 3)),
                  std::runtime_error);
 }
 
 TEST(Rhs, GeneratesRandomRhsWhenFileNotProvided) {
-    auto b = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
-                                 std::optional<mat_utils::MatReader<>>{}, 3, 2);
+    auto b = cils::prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
+                                       std::optional<mat_utils::MatReader<>>{}, 3, 2);
 
     EXPECT_EQ(b.size(), 6);
 }
 
 TEST(Rhs, GeneratesSeededRandomRhsWhenFileNotProvided) {
-    auto first = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
-                                     std::optional<mat_utils::MatReader<>>{}, 3, 2);
-    auto second = prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
-                                      std::optional<mat_utils::MatReader<>>{}, 3, 2);
+    auto first = cils::prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
+                                           std::optional<mat_utils::MatReader<>>{}, 3, 2);
+    auto second = cils::prepare_rhs<double>(std::optional<mat_utils::MatReader<>>{},
+                                            std::optional<mat_utils::MatReader<>>{}, 3, 2);
 
     EXPECT_EQ(first, second);
     EXPECT_NE(first, (std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
@@ -372,7 +372,7 @@ TEST(Rhs, LoadsCgInitialGuessFromMat) {
     reader.emplace(TEST_DATA_DIR "/x_vec_test.mat", std::vector<std::string>{}, "x");
 
     auto initial_guess =
-        prepare_initial_guess<double>(reader, std::optional<mat_utils::MatReader<>>{}, 3, 1);
+        cils::prepare_initial_guess<double>(reader, std::optional<mat_utils::MatReader<>>{}, 3, 1);
 
     EXPECT_EQ(initial_guess, (std::vector<double>{1.0, 2.0, 3.0}));
 }
@@ -382,7 +382,7 @@ TEST(Rhs, LoadsDrBcgInitialGuessFromMat) {
     reader.emplace(TEST_DATA_DIR "/x_mat_test.mat", std::vector<std::string>{}, "x");
 
     auto initial_guess =
-        prepare_initial_guess<double>(reader, std::optional<mat_utils::MatReader<>>{}, 3, 2);
+        cils::prepare_initial_guess<double>(reader, std::optional<mat_utils::MatReader<>>{}, 3, 2);
 
     EXPECT_EQ(initial_guess, (std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}));
 }
@@ -393,7 +393,7 @@ TEST(Rhs, CombinesVectorAndMatrixInitialGuessForDrBcg) {
     std::optional<mat_utils::MatReader<>> X_reader;
     X_reader.emplace(TEST_DATA_DIR "/x_mat_test.mat", std::vector<std::string>{}, "x");
 
-    auto initial_guess = prepare_initial_guess<double>(x_reader, X_reader, 3, 3);
+    auto initial_guess = cils::prepare_initial_guess<double>(x_reader, X_reader, 3, 3);
 
     EXPECT_EQ(initial_guess,
               (std::vector<double>{1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0}));
@@ -404,7 +404,7 @@ TEST(Rhs, CombinesVectorInitialGuessWithDefaultMatrixForDrBcg) {
     x_reader.emplace(TEST_DATA_DIR "/x_vec_test.mat", std::vector<std::string>{}, "x");
 
     auto initial_guess =
-        prepare_initial_guess<double>(x_reader, std::optional<mat_utils::MatReader<>>{}, 3, 3);
+        cils::prepare_initial_guess<double>(x_reader, std::optional<mat_utils::MatReader<>>{}, 3, 3);
 
     EXPECT_EQ(initial_guess,
               (std::vector<double>{1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}));
@@ -415,7 +415,7 @@ TEST(Rhs, CombinesDefaultVectorWithMatrixInitialGuessForDrBcg) {
     X_reader.emplace(TEST_DATA_DIR "/x_mat_test.mat", std::vector<std::string>{}, "x");
 
     auto initial_guess =
-        prepare_initial_guess<double>(std::optional<mat_utils::MatReader<>>{}, X_reader, 3, 3);
+        cils::prepare_initial_guess<double>(std::optional<mat_utils::MatReader<>>{}, X_reader, 3, 3);
 
     EXPECT_EQ(initial_guess,
               (std::vector<double>{0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0}));
@@ -425,7 +425,7 @@ TEST(Rhs, RejectsInitialGuessDimensionMismatch) {
     std::optional<mat_utils::MatReader<>> reader;
     reader.emplace(TEST_DATA_DIR "/x_mat_test.mat", std::vector<std::string>{}, "x");
 
-    EXPECT_THROW(static_cast<void>(prepare_initial_guess<double>(
+    EXPECT_THROW(static_cast<void>(cils::prepare_initial_guess<double>(
                      reader, std::optional<mat_utils::MatReader<>>{}, 3, 3)),
                  std::runtime_error);
 }
@@ -436,12 +436,12 @@ TEST(Rhs, RejectsSplitInitialGuessDimensionMismatch) {
     std::optional<mat_utils::MatReader<>> X_reader;
     X_reader.emplace(TEST_DATA_DIR "/x_vec_test.mat", std::vector<std::string>{}, "x");
 
-    EXPECT_THROW(static_cast<void>(prepare_initial_guess<double>(x_reader, X_reader, 3, 3)),
+    EXPECT_THROW(static_cast<void>(cils::prepare_initial_guess<double>(x_reader, X_reader, 3, 3)),
                  std::runtime_error);
 }
 
 TEST(Rhs, GeneratesZeroInitialGuessWhenFileNotProvided) {
-    auto initial_guess = prepare_initial_guess<double>(
+    auto initial_guess = cils::prepare_initial_guess<double>(
         std::optional<mat_utils::MatReader<>>{}, std::optional<mat_utils::MatReader<>>{}, 3, 2);
 
     EXPECT_EQ(initial_guess,
@@ -502,7 +502,7 @@ TEST(CgCuda, ConvergesOn1138Bus) {
     std::vector<double> b(n, 1.0);
     std::vector<double> x(n, 0.0);
 
-    int iters = run_cuda_cg(A, b, x, L, tolerance, static_cast<int>(n));
+    int iters = cils::run_cuda_cg(A, b, x, L, tolerance, static_cast<int>(n));
 
     EXPECT_LT(iters, n) << "CG (CUDA) did not converge within " << n << " iterations";
 }
@@ -519,12 +519,12 @@ TEST(DrBcgCuda, ConvergesOn1138Bus) {
     std::vector<double> b(n * block_size, 1.0);
     std::vector<double> x(n * block_size, 0.0);
 
-    CudaDrBcgConfig<double> config{
+    cils::CudaDrBcgConfig<double> config{
         .tolerance = tolerance,
         .max_iterations = static_cast<int>(n),
         .block_size = block_size,
         .disable_tensor_cores = false,
-        .qr_backend = QrBackend::Householder,
+        .qr_backend = cils::QrBackend::Householder,
         .fused_xi = false};
 
     int iters = run_cuda_dr_bcg(A, b, x, L, config);
@@ -550,12 +550,12 @@ TEST(DrBcgCuda, ConvergesOn1138BusCholQR) {
     std::ranges::generate(b, [&dist, &gen] { return dist(gen); });
 
     std::vector<double> x_cholqr(n * block_size, 0.0);
-    CudaDrBcgConfig<double> config{
+    cils::CudaDrBcgConfig<double> config{
         .tolerance = tolerance,
         .max_iterations = static_cast<int>(n),
         .block_size = block_size,
         .disable_tensor_cores = false,
-        .qr_backend = QrBackend::CholQR,
+        .qr_backend = cils::QrBackend::CholQR,
         .fused_xi = false};
 
     int iters_dx = run_cuda_dr_bcg(A, b, x_cholqr, L, config);
@@ -565,7 +565,7 @@ TEST(DrBcgCuda, ConvergesOn1138BusCholQR) {
                            << n << " iterations";
 
     std::vector<double> x_householder(n * block_size, 0.0);
-    config.qr_backend = QrBackend::Householder;
+    config.qr_backend = cils::QrBackend::Householder;
 
     int iters_householder = run_cuda_dr_bcg(A, b, x_householder, L, config);
 
@@ -594,12 +594,12 @@ TEST(DrBcgCuda, ConvergesOnTridiagonalSinglePrecision) {
     std::vector<float> x(n * block_size, 0.0F);
 
     constexpr float single_precision_tolerance = 1e-5F;
-    CudaDrBcgConfig<float> config{
+    cils::CudaDrBcgConfig<float> config{
         .tolerance = single_precision_tolerance,
         .max_iterations = static_cast<int>(n),
         .block_size = block_size,
         .disable_tensor_cores = false,
-        .qr_backend = QrBackend::Householder,
+        .qr_backend = cils::QrBackend::Householder,
         .fused_xi = false};
 
     int iters = run_cuda_dr_bcg(A, b, x, L, config);
@@ -627,12 +627,12 @@ TEST(DrBcgCuda, ConvergesOn1138BusCholQRDx) {
     }
 
     std::vector<double> x_cholqrdx(n * block_size, 0.0);
-    CudaDrBcgConfig<double> config{
+    cils::CudaDrBcgConfig<double> config{
         .tolerance = tolerance,
         .max_iterations = static_cast<int>(n),
         .block_size = block_size,
         .disable_tensor_cores = false,
-        .qr_backend = QrBackend::CholQRDx,
+        .qr_backend = cils::QrBackend::CholQRDx,
         .fused_xi = false};
 
     int iters_dx = run_cuda_dr_bcg(A, b, x_cholqrdx, L, config);
@@ -642,7 +642,7 @@ TEST(DrBcgCuda, ConvergesOn1138BusCholQRDx) {
                            << n << " iterations";
 
     std::vector<double> x_householder(n * block_size, 0.0);
-    config.qr_backend = QrBackend::Householder;
+    config.qr_backend = cils::QrBackend::Householder;
 
     int iters_householder = run_cuda_dr_bcg(A, b, x_householder, L, config);
 
@@ -677,12 +677,12 @@ TEST(DrBcgCuda, ConvergesOn1138BusFusedDx) {
     }
 
     std::vector<double> x_dx(n * block_size, 0.0);
-    CudaDrBcgConfig<double> config{
+    cils::CudaDrBcgConfig<double> config{
         .tolerance = tolerance,
         .max_iterations = static_cast<int>(n),
         .block_size = block_size,
         .disable_tensor_cores = false,
-        .qr_backend = QrBackend::CholQRDx,
+        .qr_backend = cils::QrBackend::CholQRDx,
         .fused_xi = true};
 
     int iters_dx = run_cuda_dr_bcg(A, b, x_dx, L, config);
@@ -692,7 +692,7 @@ TEST(DrBcgCuda, ConvergesOn1138BusFusedDx) {
                            << n << " iterations";
 
     std::vector<double> x_householder(n * block_size, 0.0);
-    config.qr_backend = QrBackend::Householder;
+    config.qr_backend = cils::QrBackend::Householder;
 
     int iters_householder = run_cuda_dr_bcg(A, b, x_householder, L, config);
 

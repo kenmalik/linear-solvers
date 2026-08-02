@@ -125,6 +125,8 @@ std::vector<T> prepare_split_dense_input(
 
 } // namespace
 
+namespace cils {
+
 template <cils::detail::SupportedType T>
 std::vector<T>
 prepare_rhs(const std::optional<mat_utils::MatReader<>> &rhs_reader,
@@ -158,3 +160,5 @@ template std::vector<double> prepare_initial_guess<double>(
 template std::vector<float> prepare_initial_guess<float>(
     const std::optional<mat_utils::MatReader<>> &, const std::optional<mat_utils::MatReader<>> &,
     std::size_t, std::size_t);
+
+} // namespace cils

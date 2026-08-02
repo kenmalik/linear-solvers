@@ -14,35 +14,35 @@
 
 namespace {
 
-std::optional<Algorithm> parse_algorithm(const std::string &s) {
+std::optional<cils::Algorithm> parse_algorithm(const std::string &s) {
     if (s == "cg") {
-        return Algorithm::CG;
+        return cils::Algorithm::CG;
     }
     if (s == "dr-bcg") {
-        return Algorithm::DR_BCG;
+        return cils::Algorithm::DR_BCG;
     }
     return std::nullopt;
 }
 
-std::optional<Implementation> parse_implementation(const std::string &s) {
+std::optional<cils::Implementation> parse_implementation(const std::string &s) {
     if (s == "mkl") {
-        return Implementation::MKL;
+        return cils::Implementation::MKL;
     }
     if (s == "cuda") {
-        return Implementation::CUDA;
+        return cils::Implementation::CUDA;
     }
     return std::nullopt;
 }
 
-std::optional<QrBackend> parse_qr_backend(const std::string &s) {
+std::optional<cils::QrBackend> parse_qr_backend(const std::string &s) {
     if (s == "householder") {
-        return QrBackend::Householder;
+        return cils::QrBackend::Householder;
     }
     if (s == "cholqr") {
-        return QrBackend::CholQR;
+        return cils::QrBackend::CholQR;
     }
     if (s == "cholqr-dx") {
-        return QrBackend::CholQRDx;
+        return cils::QrBackend::CholQRDx;
     }
     return std::nullopt;
 }
@@ -93,6 +93,8 @@ std::optional<MatArg> parse_mat_arg(const std::string &s,
 }
 
 } // namespace
+
+namespace cils {
 
 std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
     using mat_utils::MatReader;
@@ -282,3 +284,5 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
         return std::nullopt;
     }
 }
+
+} // namespace cils
