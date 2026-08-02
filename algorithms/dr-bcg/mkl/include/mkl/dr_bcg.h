@@ -1,13 +1,11 @@
 #pragma once
 
-#include <mkl.h>
-#include <mkl_spblas.h>
-
-#include "common/mkl_matrices.h"
+struct CSRMatrix;
+struct DenseMatrix;
 
 namespace cils::mkl {
 
-struct Config {
+struct DrBcgConfig {
     double tolerance;
     int max_iterations;
 };
@@ -27,7 +25,7 @@ struct Config {
 /// column max_iterations- maximum number of iterations
 ///
 /// @return number of iterations performed
-int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
-          DenseMatrix &X, Config config) noexcept;
+int dr_bcg(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
+           DenseMatrix &X, DrBcgConfig config) noexcept;
 
 } // namespace cils::mkl

@@ -1,0 +1,20 @@
+#pragma once
+
+#include <cublas_v2.h>
+#include <cusparse_v2.h>
+
+namespace cils::cuda {
+
+struct CgConfig {
+    double tolerance = 1e-6;  // NOLINT
+    int max_iterations = 100; // NOLINT
+    bool real_residual = false;
+    cudaStream_t stream = nullptr;
+};
+
+int cg(cusparseHandle_t cusparse, cublasHandle_t cublas,
+       cusparseSpMatDescr_t A, cusparseDnVecDescr_t b,
+       cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
+       CgConfig config);
+
+} // namespace cils::cuda

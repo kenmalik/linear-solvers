@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include "cg/mkl.h"
+#include "mkl/cg.h"
 
 #include "common/log.h"
 #include "common/mkl_matrices.h"
@@ -15,10 +15,10 @@
 #include <cmath>
 #endif
 
-namespace cg::mkl {
+namespace cils::mkl {
 
-int solve(const CSRMatrix &A, const std::vector<double> &b,
-          std::vector<double> &x, const CSRMatrix &L, Config config) {
+int cg(const CSRMatrix &A, const std::vector<double> &b,
+       std::vector<double> &x, const CSRMatrix &L, CgConfig config) {
     CpuTimerRange solve_range{g_timer, "solve"};
 
     assert(A.descr.type == SPARSE_MATRIX_TYPE_GENERAL);
@@ -134,4 +134,4 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
     return iter;
 }
 
-} // namespace cg::mkl
+} // namespace cils::mkl

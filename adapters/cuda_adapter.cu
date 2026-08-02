@@ -5,7 +5,7 @@
 #include "qr_backend.h"
 
 #ifdef SOLVERS_BUILD_CG
-#include "cg/cuda.h"
+#include "cuda/cg.cuh"
 #endif
 
 #ifdef SOLVERS_BUILD_DR_BCG
@@ -106,12 +106,12 @@ int run_cuda_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A, cons
 
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    int iters = cg::cuda::solve(cusparse, cublas, A_mat.get(),
-                                b_descr, x_descr, L_mat.get(),
-                                {.tolerance = tolerance,
-                                 .max_iterations = max_iterations,
-                                 .real_residual = false,
-                                 .stream = stream});
+    int iters = cils::cuda::cg(cusparse, cublas, A_mat.get(),
+                               b_descr, x_descr, L_mat.get(),
+                               {.tolerance = tolerance,
+                                .max_iterations = max_iterations,
+                                .real_residual = false,
+                                .stream = stream});
 
     CUDA_CHECK(cudaMemcpyAsync(x.data(), d_x, sizeof(double) * x.size(),
                                cudaMemcpyDeviceToHost, stream));
@@ -194,9 +194,9 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                 throw std::runtime_error("'--fused-xi' requires double precision (MathDx does not support float)");
             }
         } else if (config.qr_backend == QrBackend::CholQR) {
-            iters = cils::cuda::solve<T, cils::cuda::CholeskyQr<T>>(handles, A_mat.get(), x_descr, b_descr,
-                                                                    L_mat.get(), config.tolerance, config.max_iterations,
-                                                                    stream);
+            iters = cils::cuda::dr_bcg<T, cils::cuda::CholeskyQr<T>>(handles, A_mat.get(), x_descr, b_descr,
+                                                                     L_mat.get(), config.tolerance, config.max_iterations,
+                                                                     stream);
         } else if (config.qr_backend == QrBackend::CholQRDx) {
             if constexpr (std::is_same_v<T, double>) {
 #ifdef SOLVERS_BUILD_MATHDX
@@ -210,9 +210,9 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                 throw std::runtime_error("QR backend 'cholqr-dx' requires double precision (MathDx does not support float)");
             }
         } else {
-            iters = cils::cuda::solve<T>(handles, A_mat.get(), x_descr, b_descr,
-                                         L_mat.get(), config.tolerance, config.max_iterations,
-                                         stream);
+            iters = cils::cuda::dr_bcg<T>(handles, A_mat.get(), x_descr, b_descr,
+                                          L_mat.get(), config.tolerance, config.max_iterations,
+                                          stream);
         }
         CUDA_CHECK(cudaMemcpyAsync(x.data(), d_x, sizeof(T) * x.size(),
                                    cudaMemcpyDeviceToHost, stream));
@@ -287,8 +287,8 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                 throw std::runtime_error("'--fused-xi' requires double precision (MathDx does not support float)");
             }
         } else if (config.qr_backend == QrBackend::CholQR) {
-            iters = cils::cuda::solve<T, cils::cuda::CholeskyQr<T>>(handles, A_mat.get(), x_descr, b_descr,
-                                                                    config.tolerance, config.max_iterations, stream);
+            iters = cils::cuda::dr_bcg<T, cils::cuda::CholeskyQr<T>>(handles, A_mat.get(), x_descr, b_descr,
+                                                                     config.tolerance, config.max_iterations, stream);
         } else if (config.qr_backend == QrBackend::CholQRDx) {
             if constexpr (std::is_same_v<T, double>) {
 #ifdef SOLVERS_BUILD_MATHDX
@@ -301,8 +301,8 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                 throw std::runtime_error("QR backend 'cholqr-dx' requires double precision (MathDx does not support float)");
             }
         } else {
-            iters = cils::cuda::solve<T>(handles, A_mat.get(), x_descr, b_descr,
-                                         config.tolerance, config.max_iterations, stream);
+            iters = cils::cuda::dr_bcg<T>(handles, A_mat.get(), x_descr, b_descr,
+                                          config.tolerance, config.max_iterations, stream);
         }
         CUDA_CHECK(cudaMemcpyAsync(x.data(), d_x, sizeof(T) * x.size(),
                                    cudaMemcpyDeviceToHost, stream));

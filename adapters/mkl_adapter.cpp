@@ -3,7 +3,7 @@
 #include "mkl_adapter.h"
 
 #ifdef SOLVERS_BUILD_CG
-#include "cg/mkl.h"
+#include "mkl/cg.h"
 #endif
 
 #ifdef SOLVERS_BUILD_DR_BCG
@@ -80,9 +80,9 @@ int run_mkl_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
     L_csr.descr.mode = SPARSE_FILL_MODE_LOWER;
     L_csr.descr.diag = SPARSE_DIAG_NON_UNIT;
 
-    return cg::mkl::solve(A_csr, b, x, L_csr,
-                          {.tolerance = tolerance,
-                           .max_iterations = max_iterations});
+    return cils::mkl::cg(A_csr, b, x, L_csr,
+                         {.tolerance = tolerance,
+                          .max_iterations = max_iterations});
 }
 
 #endif // SOLVERS_BUILD_CG
@@ -105,9 +105,9 @@ int run_mkl_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
     DenseMatrix b_dm{.rows = n, .cols = config.block_size, .data = b};
     DenseMatrix x_dm{.rows = n, .cols = config.block_size, .data = x};
 
-    return cils::mkl::solve(A_csr, L_csr, b_dm, x_dm,
-                            {.tolerance = config.tolerance,
-                             .max_iterations = config.max_iterations});
+    return cils::mkl::dr_bcg(A_csr, L_csr, b_dm, x_dm,
+                             {.tolerance = config.tolerance,
+                              .max_iterations = config.max_iterations});
 }
 
 #endif // SOLVERS_BUILD_DR_BCG

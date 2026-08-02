@@ -7,9 +7,9 @@
 #include <mkl_spblas.h>
 #include <mkl_types.h>
 
-namespace cg::mkl {
+namespace cils::mkl {
 
-struct Config {
+struct CgConfig {
     double tolerance = 1e-6;  // NOLINT
     int max_iterations = 100; // NOLINT
     bool real_residual = false;
@@ -29,7 +29,7 @@ struct Config {
 /// @param real_residual  if true, recompute r = b - A*x exactly each iteration
 ///                       instead of updating r = r - alpha*q (avoids drift)
 /// @return number of iterations performed
-int solve(const CSRMatrix &A, const std::vector<double> &b,
-          std::vector<double> &x, const CSRMatrix &L, Config config);
+int cg(const CSRMatrix &A, const std::vector<double> &b,
+       std::vector<double> &x, const CSRMatrix &L, CgConfig config);
 
-} // namespace cg::mkl
+} // namespace cils::mkl

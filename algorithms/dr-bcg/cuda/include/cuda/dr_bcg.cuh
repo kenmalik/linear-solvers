@@ -23,8 +23,8 @@
 namespace cils::cuda {
 
 template <cils::detail::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
-int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-          cusparseDnMatDescr_t B, T tolerance, int max_iterations, cudaStream_t stream) {
+int dr_bcg(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+           cusparseDnMatDescr_t B, T tolerance, int max_iterations, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
     cils::detail::CudaTimerRange solve_range{cils::detail::g_event_timer, "solve", stream};
 
@@ -131,9 +131,9 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 }
 
 template <cils::detail::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
-int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-          cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
-          T tolerance, int max_iterations, cudaStream_t stream) {
+int dr_bcg(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
+           T tolerance, int max_iterations, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
     cils::detail::CudaTimerRange solve_range{cils::detail::g_event_timer, "solve", stream};
 

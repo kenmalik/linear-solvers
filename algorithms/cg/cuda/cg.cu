@@ -1,4 +1,4 @@
-#include "cg/cuda.h"
+#include "cuda/cg.cuh"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
@@ -84,12 +84,12 @@ struct HandleStreamGuard {
 
 } // namespace
 
-namespace cg::cuda {
+namespace cils::cuda {
 
-int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
-          cusparseSpMatDescr_t A, cusparseDnVecDescr_t b, // NOLINT
-          cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
-          Config config) {
+int cg(cusparseHandle_t cusparse, cublasHandle_t cublas,
+       cusparseSpMatDescr_t A, cusparseDnVecDescr_t b, // NOLINT
+       cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
+       CgConfig config) {
     NVTX3_FUNC_RANGE();
 
     HandleStreamGuard handle_stream_guard(cusparse, cublas, config.stream);
@@ -347,4 +347,4 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
     return iterations;
 }
 
-} // namespace cg::cuda
+} // namespace cils::cuda
