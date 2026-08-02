@@ -460,7 +460,7 @@ TEST(CgMkl, ConvergesOn1138Bus) {
     std::vector<double> b(n, 1.0);
     std::vector<double> x(n, 0.0);
 
-    int iters = run_mkl_cg(A, b, x, L, tolerance, static_cast<int>(n));
+    int iters = cils::run_mkl_cg(A, b, x, L, tolerance, static_cast<int>(n));
 
     EXPECT_LT(iters, n) << "CG (MKL) did not converge within " << n << " iterations";
 }
@@ -477,7 +477,7 @@ TEST(DrBcgMkl, ConvergesOn1138Bus) {
     std::vector<double> b(n * block_size, 1.0);
     std::vector<double> x(n * block_size, 0.0);
 
-    MklDrBcgConfig config{
+    cils::MklDrBcgConfig config{
         .tolerance = tolerance,
         .max_iterations = static_cast<int>(n),
         .block_size = block_size};

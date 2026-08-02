@@ -19,6 +19,8 @@
 #include <span>
 #include <utility>
 
+namespace cils {
+
 CSRMatrix read_mkl(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &reader) {
     const std::size_t nnz = reader.nonzero_count();
     std::span<double> values = reader.values<double>();
@@ -109,3 +111,5 @@ int run_mkl_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
 }
 
 #endif // SOLVERS_BUILD_DR_BCG
+
+} // namespace cils
