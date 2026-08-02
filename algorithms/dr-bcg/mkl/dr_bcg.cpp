@@ -22,6 +22,9 @@
 // ---------------------------------------------------------------------------
 namespace {
 
+using cils::mkl::CSRMatrix;
+using cils::mkl::DenseMatrix;
+
 enum class Transpose : std::uint8_t { True,
                                       False };
 

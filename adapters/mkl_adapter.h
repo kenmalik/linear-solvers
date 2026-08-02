@@ -8,7 +8,7 @@
 
 namespace cils {
 
-CSRMatrix read_mkl(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &reader);
+mkl::CSRMatrix read_mkl(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &reader);
 
 int run_mkl_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                const std::vector<double> &b, std::vector<double> &x,

@@ -1,9 +1,9 @@
 #pragma once
 
+namespace cils::mkl {
+
 struct CSRMatrix;
 struct DenseMatrix;
-
-namespace cils::mkl {
 
 struct DrBcgConfig {
     double tolerance;

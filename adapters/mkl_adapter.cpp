@@ -21,11 +21,11 @@
 
 namespace cils {
 
-CSRMatrix read_mkl(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &reader) {
+mkl::CSRMatrix read_mkl(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &reader) {
     const std::size_t nnz = reader.nonzero_count();
     std::span<double> values = reader.values<double>();
 
-    CSRMatrix csr{
+    mkl::CSRMatrix csr{
         .rows = static_cast<MKL_INT>(reader.rows()),
         .cols = static_cast<MKL_INT>(reader.cols()),
         .values = {values.begin(), values.end()},
@@ -102,8 +102,8 @@ int run_mkl_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
     L_csr.descr.diag = SPARSE_DIAG_NON_UNIT;
 
     int n = static_cast<int>(A.rows());
-    DenseMatrix b_dm{.rows = n, .cols = config.block_size, .data = b};
-    DenseMatrix x_dm{.rows = n, .cols = config.block_size, .data = x};
+    mkl::DenseMatrix b_dm{.rows = n, .cols = config.block_size, .data = b};
+    mkl::DenseMatrix x_dm{.rows = n, .cols = config.block_size, .data = x};
 
     return cils::mkl::dr_bcg(A_csr, L_csr, b_dm, x_dm,
                              {.tolerance = config.tolerance,

@@ -5,6 +5,8 @@
 
 #include <mkl.h>
 
+namespace cils::mkl {
+
 // CSR sparse matrix descriptor
 struct CSRMatrix {
     MKL_INT rows{};
@@ -25,3 +27,5 @@ struct DenseMatrix {
     MKL_INT cols{};
     std::vector<double> data;
 };
+
+} // namespace cils::mkl
