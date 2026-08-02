@@ -30,7 +30,7 @@ if(SOLVERS_BUILD_MKL)
         target_link_libraries(solver_adapters PRIVATE cg::mkl)
     endif()
     if(SOLVERS_BUILD_DR_BCG)
-        target_link_libraries(solver_adapters PRIVATE dr_bcg::mkl)
+        target_link_libraries(solver_adapters PRIVATE cils::mkl)
     endif()
 endif()
 

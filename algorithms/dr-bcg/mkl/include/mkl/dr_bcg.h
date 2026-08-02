@@ -5,7 +5,7 @@
 
 #include "common/mkl_matrices.h"
 
-namespace dr_bcg::mkl {
+namespace cils::mkl {
 
 struct Config {
     double tolerance;
@@ -30,4 +30,4 @@ struct Config {
 int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
           DenseMatrix &X, Config config) noexcept;
 
-} // namespace dr_bcg::mkl
+} // namespace cils::mkl

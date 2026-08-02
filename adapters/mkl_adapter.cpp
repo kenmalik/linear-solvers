@@ -7,7 +7,7 @@
 #endif
 
 #ifdef SOLVERS_BUILD_DR_BCG
-#include "dr_bcg/mkl.h"
+#include "mkl/dr_bcg.h"
 #endif
 
 #include "common/mkl_matrices.h"
@@ -103,9 +103,9 @@ int run_mkl_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
     DenseMatrix b_dm{.rows = n, .cols = config.block_size, .data = b};
     DenseMatrix x_dm{.rows = n, .cols = config.block_size, .data = x};
 
-    return dr_bcg::mkl::solve(A_csr, L_csr, b_dm, x_dm,
-                              {.tolerance = config.tolerance,
-                               .max_iterations = config.max_iterations});
+    return cils::mkl::solve(A_csr, L_csr, b_dm, x_dm,
+                            {.tolerance = config.tolerance,
+                             .max_iterations = config.max_iterations});
 }
 
 #endif // SOLVERS_BUILD_DR_BCG

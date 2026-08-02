@@ -1,4 +1,4 @@
-#include "dr_bcg/mkl.h"
+#include "mkl/dr_bcg.h"
 
 #include "common/log.h"
 #include "common/mkl_checks.h"
@@ -134,7 +134,7 @@ void invert_square(std::vector<double> &A_data, MKL_INT n) {
 
 } // namespace
 
-namespace dr_bcg::mkl {
+namespace cils::mkl {
 
 int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
           DenseMatrix &X, Config config) noexcept {
@@ -305,4 +305,4 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
     return iterations;
 }
 
-} // namespace dr_bcg::mkl
+} // namespace cils::mkl
