@@ -20,7 +20,7 @@
 
 namespace cils::dr_bcg::cuda::detail {
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 class RelativeResidualNormConvergence {
   public:
     [[nodiscard]] RelativeResidualNormConvergence(Handles &handles,
@@ -130,7 +130,7 @@ class RelativeResidualNormConvergence {
 };
 
 // xi = (s' * A * s)^-1
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 void compute_xi(Handles &handles, cusparseSpMatDescr_t A,
                 cusparseDnMatDescr_t s_desc, cusparseDnMatDescr_t temp,
                 DeviceBuffer<T> &d, LuWorkspace<T> &lu_ws, std::int64_t n,
@@ -163,7 +163,7 @@ void compute_xi(Handles &handles, cusparseSpMatDescr_t A,
 }
 
 // X = X + s * xi * sigma
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 void update_X(Handles &handles, DeviceBuffer<T> &d, T *d_X, std::int64_t n,
               std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range X_range{"X = X + s * xi * sigma"};
@@ -189,7 +189,7 @@ void update_X(Handles &handles, DeviceBuffer<T> &d, T *d_X, std::int64_t n,
 }
 
 // sigma = zeta * sigma
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 void update_sigma(Handles &handles, DeviceBuffer<T> &d, std::int64_t s,
                   cudaStream_t stream) {
     nvtx3::scoped_range sigma_range{"sigma = zeta * sigma"};
@@ -212,7 +212,7 @@ void update_sigma(Handles &handles, DeviceBuffer<T> &d, std::int64_t s,
 }
 
 // [w, zeta] = qr(w - A * s * xi, 'econ')
-template <cils::SupportedType T, QrPolicy<T> Qr>
+template <cils::detail::SupportedType T, QrPolicy<T> Qr>
 void update_w_zeta(Handles &handles, Qr &qr, cusparseSpMatDescr_t A,
                    cusparseDnMatDescr_t temp, cusparseDnMatDescr_t w_desc,
                    DeviceBuffer<T> &d, std::int64_t n, std::int64_t s,
@@ -246,7 +246,7 @@ void update_w_zeta(Handles &handles, Qr &qr, cusparseSpMatDescr_t A,
 }
 
 // s = w + s * zeta'
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 void update_s(Handles &handles, DeviceBuffer<T> &d, std::int64_t n,
               std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range s_range{"s = w + s * zeta'"};
@@ -279,7 +279,7 @@ void update_s(Handles &handles, DeviceBuffer<T> &d, std::int64_t n,
 }
 
 // w = w - L^-1 * A * s * xi
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 void update_w(Handles &handles, cusparseSpMatDescr_t A,
               cusparseDnMatDescr_t s_desc, cusparseDnMatDescr_t temp,
               cusparseSpMatDescr_t L, DeviceBuffer<T> &d,
@@ -316,7 +316,7 @@ void update_w(Handles &handles, cusparseSpMatDescr_t A,
 }
 
 // [w, zeta] = qr(w)
-template <cils::SupportedType T, QrPolicy<T> Qr>
+template <cils::detail::SupportedType T, QrPolicy<T> Qr>
 void orthonormalize_w(Qr &qr, Handles &handles, DeviceBuffer<T> &d,
                       std::int64_t n, std::int64_t s, cudaStream_t stream) {
     nvtx3::scoped_range w_zeta_range{"[w zeta] = QR(w)"};
@@ -328,7 +328,7 @@ void orthonormalize_w(Qr &qr, Handles &handles, DeviceBuffer<T> &d,
 }
 
 // s = (L^-1)' * w + s * zeta'
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 void update_s_preconditioned(Handles &handles, cusparseDnMatDescr_t temp,
                              cusparseDnMatDescr_t w_desc, cusparseSpMatDescr_t L,
                              DeviceBuffer<T> &d, const SpsmCache<T> &spsm_t,
@@ -369,7 +369,7 @@ void update_s_preconditioned(Handles &handles, cusparseDnMatDescr_t temp,
 #ifdef SOLVERS_BUILD_MATHDX
 
 // As = A * s
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 class [[nodiscard]] AsCalculator {
   public:
     AsCalculator(cusparseHandle_t cusparse, std::int64_t n, std::int64_t s,

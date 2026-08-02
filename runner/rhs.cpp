@@ -13,7 +13,7 @@ namespace {
 
 constexpr std::uint32_t rhs_seed = 0x5EED1234U;
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 std::vector<T> generate_random_rhs(std::size_t size) {
     std::mt19937 gen(rhs_seed); // NOLINT
     std::normal_distribution<T> dist(0.0, 1.0);
@@ -23,12 +23,12 @@ std::vector<T> generate_random_rhs(std::size_t size) {
     return rhs;
 }
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 std::vector<T> generate_zero_initial_guess(std::size_t size) {
     return std::vector<T>(size, T{0});
 }
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 std::vector<T>
 prepare_dense_input(const std::optional<mat_utils::MatReader<>> &reader,
                     std::size_t expected_rows, std::size_t expected_cols,
@@ -59,7 +59,7 @@ void validate_dense_input(const mat_utils::MatReader<> &reader,
     }
 }
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 std::vector<T> prepare_split_dense_input(
     const std::optional<mat_utils::MatReader<>> &first_reader,
     const std::optional<mat_utils::MatReader<>> &rest_reader,
@@ -125,7 +125,7 @@ std::vector<T> prepare_split_dense_input(
 
 } // namespace
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 std::vector<T>
 prepare_rhs(const std::optional<mat_utils::MatReader<>> &rhs_reader,
             const std::optional<mat_utils::MatReader<>> &rhs_rest_reader,
@@ -135,7 +135,7 @@ prepare_rhs(const std::optional<mat_utils::MatReader<>> &rhs_reader,
                                         generate_random_rhs<T>);
 }
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 std::vector<T>
 prepare_initial_guess(const std::optional<mat_utils::MatReader<>> &x_reader,
                       const std::optional<mat_utils::MatReader<>> &x_rest_reader,

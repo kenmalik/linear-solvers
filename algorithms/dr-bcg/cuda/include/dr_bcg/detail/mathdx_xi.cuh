@@ -211,7 +211,7 @@ void launch_xi(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, int m, int ld,
 // Fused MathDx reduced-system (xi) chain helper for DR-BCG.
 // Owns the small N*N workspaces and dispatches the compile-time-N kernel chain.
 // Used by the fused solve loop (mathdx_fused.cuh) alongside MathDxCholeskyQr2.
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 class MathDxXiChain {
   public:
     struct ProblemSize {

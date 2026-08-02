@@ -9,7 +9,7 @@
 
 namespace cils::dr_bcg::cuda::detail {
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 class DeviceBuffer {
   public:
     T *w = nullptr;

@@ -28,7 +28,7 @@ concept QrPolicy = requires(P &p, T *&d_Q, T *&d_R, const T *d_A, int m, int n,
     { p.check(n, stage, stream) } -> std::same_as<void>;
 };
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 __global__ void copy_upper_triangular_kernel(T *dst, const T *src,
                                              const int ld_src, const int n) {
     std::size_t row = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -39,7 +39,7 @@ __global__ void copy_upper_triangular_kernel(T *dst, const T *src,
     }
 }
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 void copy_upper_triangular(T *dst, const T *src, int ld_src, int n,
                            cudaStream_t stream) {
     constexpr int block_n = 16;
@@ -49,7 +49,7 @@ void copy_upper_triangular(T *dst, const T *src, int ld_src, int n,
         dst, src, ld_src, n);
 }
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 class HouseholderQr {
   public:
     HouseholderQr(const HouseholderQr &) = delete;
@@ -167,7 +167,7 @@ class HouseholderQr {
     int d_numfloats_orgqr = 0;
 };
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 class CholeskyQr {
   public:
     CholeskyQr(const CholeskyQr &) = delete;

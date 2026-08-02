@@ -129,7 +129,7 @@ int run_cuda_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A, cons
 
 #ifdef SOLVERS_BUILD_DR_BCG
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                     const std::vector<T> &b, std::vector<T> &x,
                     const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
@@ -228,7 +228,7 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
     return iters;
 }
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                     const std::vector<T> &b, std::vector<T> &x,
                     CudaDrBcgConfig<T> config) {

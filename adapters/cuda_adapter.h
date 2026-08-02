@@ -15,7 +15,7 @@ int run_cuda_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                 double tolerance, int max_iterations,
                 bool disable_tensor_cores = false);
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 struct CudaDrBcgConfig {
     T tolerance;
     int max_iterations;
@@ -25,13 +25,13 @@ struct CudaDrBcgConfig {
     bool fused_xi;
 };
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                     const std::vector<T> &b, std::vector<T> &x,
                     const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
                     CudaDrBcgConfig<T> config);
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                     const std::vector<T> &b, std::vector<T> &x,
                     CudaDrBcgConfig<T> config);

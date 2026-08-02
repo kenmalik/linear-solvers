@@ -10,7 +10,7 @@
 
 namespace {
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 struct DeviceBuffers {
     DeviceBuffers(std::int64_t n) noexcept {
         CUDA_CHECK(cudaMalloc(&d_r, sizeof(T) * n));

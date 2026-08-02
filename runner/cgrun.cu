@@ -117,7 +117,7 @@ int run_cg(const Args &args) {
     return iters;
 }
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 int run_dr_bcg_impl(const Args &args) {
     std::size_t n = args.A.rows();
     int s = args.block_size;

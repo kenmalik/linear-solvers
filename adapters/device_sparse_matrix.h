@@ -13,7 +13,7 @@
 
 namespace cils::internal {
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 class DeviceSparseMatrix {
   public:
     explicit DeviceSparseMatrix(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &ssm_A) {

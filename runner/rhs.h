@@ -8,13 +8,13 @@
 #include <optional>
 #include <vector>
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 std::vector<T>
 prepare_rhs(const std::optional<mat_utils::MatReader<>> &rhs_reader,
             const std::optional<mat_utils::MatReader<>> &rhs_rest_reader,
             std::size_t expected_rows, std::size_t expected_cols);
 
-template <cils::SupportedType T>
+template <cils::detail::SupportedType T>
 std::vector<T>
 prepare_initial_guess(const std::optional<mat_utils::MatReader<>> &x_reader,
                       const std::optional<mat_utils::MatReader<>> &x_rest_reader,

@@ -22,7 +22,7 @@
 
 namespace cils::dr_bcg::cuda {
 
-template <cils::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
+template <cils::detail::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, T tolerance, int max_iterations, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
@@ -130,7 +130,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     return iterations;
 }
 
-template <cils::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
+template <cils::detail::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
 int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
           T tolerance, int max_iterations, cudaStream_t stream) {
