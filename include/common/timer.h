@@ -12,6 +12,8 @@
 #include <unordered_set>
 #include <vector>
 
+namespace cils::detail {
+
 template <bool Enabled>
 class CpuTimer;
 
@@ -112,3 +114,5 @@ inline CpuTimer<timer_enabled> g_timer; // NOLINT
 using CpuTimerRange = CpuTimer<timer_enabled>::ScopedRange;
 
 static_assert(timer_enabled || sizeof(g_timer) == 1, "disabled CPU timer should have size of 1 byte");
+
+} // namespace cils::detail

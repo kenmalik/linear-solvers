@@ -17,6 +17,9 @@
 
 namespace cils::mkl {
 
+using cils::detail::CpuTimerRange;
+using cils::detail::g_timer;
+
 int cg(const CSRMatrix &A, const std::vector<double> &b,
        std::vector<double> &x, const CSRMatrix &L, CgConfig config) {
     CpuTimerRange solve_range{g_timer, "solve"};

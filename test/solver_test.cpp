@@ -62,7 +62,7 @@ std::vector<std::string> read_csv_ranges(const std::filesystem::path &path) {
 } // namespace
 
 TEST(Timer, ReportsSectionsInFirstOccurrenceOrder) {
-    CpuTimer<true> timer;
+    cils::detail::CpuTimer<true> timer;
 
     timer.start("iteration");
     timer.stop("iteration");
@@ -84,7 +84,7 @@ TEST(Timer, ReportsSectionsInFirstOccurrenceOrder) {
 }
 
 TEST(Timer, SuppressesDuplicateRowsBeforeReportAggregation) {
-    CpuTimer<true> timer;
+    cils::detail::CpuTimer<true> timer;
 
     timer.start("iteration");
     timer.stop("iteration");
@@ -108,6 +108,8 @@ TEST(Timer, SuppressesDuplicateRowsBeforeReportAggregation) {
 }
 
 TEST(Timer, ReportsRaiiSectionsInFirstOccurrenceOrder) {
+    using cils::detail::CpuTimer;
+
     CpuTimer<true> timer;
 
     {
@@ -134,6 +136,8 @@ TEST(Timer, ReportsRaiiSectionsInFirstOccurrenceOrder) {
 }
 
 TEST(Timer, ReportsNestedRaiiSectionsOnceInEntryOrder) {
+    using cils::detail::CpuTimer;
+
     CpuTimer<true> timer;
 
     {

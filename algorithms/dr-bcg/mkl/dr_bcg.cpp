@@ -139,6 +139,9 @@ void invert_square(std::vector<double> &A_data, MKL_INT n) {
 
 namespace cils::mkl {
 
+using cils::detail::CpuTimerRange;
+using cils::detail::g_timer;
+
 int dr_bcg(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
            DenseMatrix &X, DrBcgConfig config) noexcept {
     CpuTimerRange solve_range{g_timer, "solve"};
