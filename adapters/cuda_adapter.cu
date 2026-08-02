@@ -96,8 +96,8 @@ int run_cuda_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A, cons
     cusparseDnVecDescr_t x_descr = nullptr;
     CUSPARSE_CHECK(cusparseCreateDnVec(&x_descr, x.size(), d_x, CUDA_R_64F));
 
-    cils::internal::DeviceSparseMatrixDouble A_mat{A};
-    cils::internal::DeviceSparseMatrixDouble L_mat{L};
+    cils::detail::DeviceSparseMatrixDouble A_mat{A};
+    cils::detail::DeviceSparseMatrixDouble L_mat{L};
 
     CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -169,8 +169,8 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
     CUSPARSE_CHECK(cusparseCreateDnMat(&x_descr, n, config.block_size, n, d_x,
                                        cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
-    cils::internal::DeviceSparseMatrix<T> A_mat{A};
-    cils::internal::DeviceSparseMatrix<T> L_mat{L};
+    cils::detail::DeviceSparseMatrix<T> A_mat{A};
+    cils::detail::DeviceSparseMatrix<T> L_mat{L};
 
     CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -263,7 +263,7 @@ int run_cuda_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
     CUSPARSE_CHECK(cusparseCreateDnMat(&x_descr, n, config.block_size, n, d_x,
                                        cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
-    cils::internal::DeviceSparseMatrix<T> A_mat{A};
+    cils::detail::DeviceSparseMatrix<T> A_mat{A};
 
     CUDA_CHECK(cudaDeviceSynchronize());
 

@@ -11,7 +11,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace cils::internal {
+namespace cils::detail {
 
 template <cils::detail::SupportedType T>
 class DeviceSparseMatrix {
@@ -147,4 +147,4 @@ class DeviceSparseMatrix {
 using DeviceSparseMatrixFloat = DeviceSparseMatrix<float>;
 using DeviceSparseMatrixDouble = DeviceSparseMatrix<double>;
 
-} // namespace cils::internal
+} // namespace cils::detail
