@@ -1,21 +1,29 @@
-#include "dr_bcg/mkl.h"
+#include "mkl/dr_bcg.h"
 
 #include "common/log.h"
 #include "common/mkl_checks.h"
+#include "common/mkl_matrices.h"
 #include "common/timer.h"
 
+#include <mkl_cblas.h>
+#include <mkl_lapacke.h>
+#include <mkl_spblas.h>
+#include <mkl_types.h>
+
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-
-#include <mkl.h>
-#include <mkl_lapacke.h>
-#include <mkl_spblas.h>
+#include <utility>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 namespace {
+
+using cils::mkl::CSRMatrix;
+using cils::mkl::DenseMatrix;
 
 enum class Transpose : std::uint8_t { True,
                                       False };
@@ -129,10 +137,13 @@ void invert_square(std::vector<double> &A_data, MKL_INT n) {
 
 } // namespace
 
-namespace dr_bcg::mkl {
+namespace cils::mkl {
 
-int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
-          DenseMatrix &X, Config config) noexcept {
+using cils::detail::CpuTimerRange;
+using cils::detail::g_timer;
+
+int dr_bcg(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
+           DenseMatrix &X, DrBcgConfig config) noexcept {
     CpuTimerRange solve_range{g_timer, "solve"};
 
     const MKL_INT n = A.rows;
@@ -238,7 +249,7 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
             sparse_mm(A, Transpose::False, -1.0, X_col1, 1.0, r1);
 
             residual_norm = cblas_dnrm2(n, r1.data.data(), 1);
-            cils::log(residual_norm / b_norm);
+            cils::detail::log(residual_norm / b_norm);
         }
 
         if (residual_norm / b_norm < config.tolerance) {
@@ -300,4 +311,4 @@ int solve(const CSRMatrix &A, const CSRMatrix &L, const DenseMatrix &B,
     return iterations;
 }
 
-} // namespace dr_bcg::mkl
+} // namespace cils::mkl

@@ -10,10 +10,13 @@
 #include <cuda_runtime.h>
 #include <cusparse.h>
 
-namespace dr_bcg::cuda {
+namespace cils::cuda {
 
-// TODO: Clean up configuration to avoid this forward declaration.
 struct Handles;
+
+} // namespace cils::cuda
+
+namespace cils::cuda::detail {
 
 // Orthonormalization policy used by the fused xi chain (solve_fused_dx). The
 // fused loop is QR-agnostic; this algorithm-layer selector lets the adapter
@@ -46,4 +49,4 @@ int solve_fused_dx(Handles &handles, cusparseSpMatDescr_t A,
                    double tolerance, int max_iterations, FusedXiQr qr,
                    cudaStream_t stream);
 
-} // namespace dr_bcg::cuda
+} // namespace cils::cuda::detail

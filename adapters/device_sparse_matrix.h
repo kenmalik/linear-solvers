@@ -1,7 +1,7 @@
 #pragma once
 
-#include "common/type_info.h"
-#include "cuda_checks.h"
+#include "common/cuda_checks.h"
+#include "common/cuda_type.cuh"
 
 #include <mat_utils/mat_reader.h>
 
@@ -11,27 +11,32 @@
 #include <cstdint>
 #include <vector>
 
-template <SupportedType T>
+namespace cils::detail {
+
+template <cils::detail::SupportedType T>
 class DeviceSparseMatrix {
   public:
-    explicit DeviceSparseMatrix(const mat_utils::SpMatReader &ssm_A) {
+    explicit DeviceSparseMatrix(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &ssm_A) {
+        std::span<std::size_t> jc = ssm_A.column_pointers();
+        std::span<std::size_t> ir = ssm_A.row_indices();
+        std::span<T> values = ssm_A.values<T>();
+
         std::size_t min_row =
-            *std::min_element(ssm_A.ir(), ssm_A.ir() + ssm_A.nnz());
-        std::size_t min_col = ssm_A.jc()[0];
-        bool is_one_based = (min_row == 1 || min_col == 1);
-        assert(!is_one_based && "Matrix is expected to be 0 based");
+            *std::ranges::min_element(ssm_A.row_indices());
+        std::size_t min_col = jc[0];
+        assert(min_row != 1 && min_col != 1 && "Matrix is expected to be 0 based");
 
         {
             // For SPD, verify diagonal entries exist and are positive
             std::vector<bool> has_diag(ssm_A.rows(), false);
             std::vector<double> diag_vals;
             for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
-                for (std::size_t p = ssm_A.jc()[j]; p < ssm_A.jc()[j + 1];
+                for (std::size_t p = jc[j]; p < jc[j + 1];
                      ++p) {
-                    std::size_t i = ssm_A.ir()[p];
+                    std::size_t i = ir[p];
                     if (i == j) {
                         has_diag[i] = true;
-                        diag_vals.push_back(ssm_A.data()[p]);
+                        diag_vals.push_back(values[p]);
                     }
                 }
             }
@@ -46,20 +51,16 @@ class DeviceSparseMatrix {
             assert(negative_diags == 0 && "SPD check: all diagonals positive");
         }
 
-        // Use index arrays from the reader directly (no copies)
-        const std::size_t *ir_ptr = ssm_A.ir();
-        const std::size_t *jc_ptr = ssm_A.jc();
-
         CUDA_CHECK(
             cudaMalloc(&d_rowPtr, sizeof(std::int64_t) * (ssm_A.rows() + 1)));
-        CUDA_CHECK(cudaMalloc(&d_colInd, sizeof(std::int64_t) * ssm_A.nnz()));
-        CUDA_CHECK(cudaMalloc(&d_vals, sizeof(T) * ssm_A.nnz()));
+        CUDA_CHECK(cudaMalloc(&d_colInd, sizeof(std::int64_t) * ssm_A.nonzero_count()));
+        CUDA_CHECK(cudaMalloc(&d_vals, sizeof(T) * ssm_A.nonzero_count()));
 
         // Step 1: Count entries per row to build CSR row pointers
         std::vector<std::size_t> rowCounts(ssm_A.rows(), 0);
         for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
-            for (std::size_t p = jc_ptr[j]; p < jc_ptr[j + 1]; ++p) {
-                std::size_t row = ir_ptr[p];
+            for (std::size_t p = jc[j]; p < jc[j + 1]; ++p) {
+                std::size_t row = ir[p];
                 ++rowCounts[row];
             }
         }
@@ -73,15 +74,15 @@ class DeviceSparseMatrix {
         // Step 3: Fill CSR arrays using another pass
         std::vector<std::size_t> rowInsertPos =
             csrRowPtr; // Current insert position for each row
-        std::vector<std::size_t> csrColInd(ssm_A.nnz());
-        std::vector<T> csrVal(ssm_A.nnz());
+        std::vector<std::size_t> csrColInd(ssm_A.nonzero_count());
+        std::vector<T> csrVal(ssm_A.nonzero_count());
 
         for (std::size_t j = 0; j < ssm_A.cols(); ++j) {
-            for (std::size_t p = jc_ptr[j]; p < jc_ptr[j + 1]; ++p) {
-                std::size_t row = ir_ptr[p];
+            for (std::size_t p = jc[j]; p < jc[j + 1]; ++p) {
+                std::size_t row = ir[p];
                 std::size_t insertPos = rowInsertPos[row]++;
                 csrColInd[insertPos] = j;
-                csrVal[insertPos] = static_cast<T>(ssm_A.data()[p]);
+                csrVal[insertPos] = static_cast<T>(values[p]);
             }
         }
 
@@ -107,8 +108,8 @@ class DeviceSparseMatrix {
 
         constexpr cusparseIndexType_t idxType = CUSPARSE_INDEX_64I;
         CUSPARSE_CHECK(cusparseCreateCsr(
-            &A, ssm_A.rows(), ssm_A.cols(), ssm_A.nnz(), d_rowPtr, d_colInd,
-            d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, cuda_type<T>));
+            &A, ssm_A.rows(), ssm_A.cols(), ssm_A.nonzero_count(), d_rowPtr, d_colInd,
+            d_vals, idxType, idxType, CUSPARSE_INDEX_BASE_ZERO, cils::detail::cuda_type<T>));
     }
 
     DeviceSparseMatrix(const DeviceSparseMatrix &) = delete;
@@ -145,3 +146,5 @@ class DeviceSparseMatrix {
 
 using DeviceSparseMatrixFloat = DeviceSparseMatrix<float>;
 using DeviceSparseMatrixDouble = DeviceSparseMatrix<double>;
+
+} // namespace cils::detail

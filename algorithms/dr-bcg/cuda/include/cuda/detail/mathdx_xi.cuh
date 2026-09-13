@@ -15,19 +15,19 @@
 
 #ifdef SOLVERS_BUILD_MATHDX
 
-#include <cuda_runtime.h>
-#include <stdexcept>
-#include <string>
+#include "mathdx_qr.cuh"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
-#include "common/type_info.h"
-#include "dr_bcg/mathdx_qr.cuh"
 
 #include <cublasdx.hpp>
+#include <cuda_runtime.h>
 #include <cusolverdx.hpp>
 
-namespace dr_bcg::mathdx_detail {
+#include <stdexcept>
+#include <string>
+
+namespace cils::cuda::detail {
 
 // Gram of two distinct panels: G += s^T * AS, accumulated across row-tiles.
 //
@@ -208,12 +208,10 @@ void launch_xi(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, int m, int ld,
     CUDA_CHECK_LAST();
 }
 
-} // namespace dr_bcg::mathdx_detail
-
 // Fused MathDx reduced-system (xi) chain helper for DR-BCG.
 // Owns the small N*N workspaces and dispatches the compile-time-N kernel chain.
 // Used by the fused solve loop (mathdx_fused.cuh) alongside MathDxCholeskyQr2.
-template <SupportedType T>
+template <cils::detail::SupportedType T>
 class MathDxXiChain {
   public:
     struct ProblemSize {
@@ -271,7 +269,7 @@ class MathDxXiChain {
     void apply(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, int m, int n,
                cudaStream_t stream) {
         assert(n < m && "Expect cols to be less than rows for DR-BCG");
-        CudaTimerRange rng{g_event_timer, "xi:func", stream};
+        cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "xi:func", stream};
 
         dispatch(d_s, d_AS, d_sigma, d_X, d_U, {.m = m, .n = n}, stream);
 
@@ -311,7 +309,7 @@ class MathDxXiChain {
   private:
     void dispatch(T *d_s, T *d_AS, T *d_sigma, T *d_X, T *d_U, ProblemSize size,
                   cudaStream_t stream) {
-        using dr_bcg::mathdx_detail::launch_xi;
+        using cils::cuda::detail::launch_xi;
         switch (size.n) {
         // NOLINTBEGIN
         case 1:
@@ -360,5 +358,7 @@ class MathDxXiChain {
     int *h_info = nullptr;
     T *h_diag = nullptr;
 };
+
+} // namespace cils::cuda::detail
 
 #endif // SOLVERS_BUILD_MATHDX

@@ -1,13 +1,12 @@
 #pragma once
 
-#include <concepts>
-#include <type_traits>
+#include "supported_type.h"
+
 #include <cuda_runtime.h>
 
-template <typename T>
-concept SupportedType = std::same_as<T, float> || std::same_as<T, double>;
+namespace cils::detail {
 
-template <SupportedType T>
+template <cils::detail::SupportedType T>
 inline constexpr cudaDataType_t cuda_type = [] {
     if constexpr (std::is_same_v<T, float>) {
         return CUDA_R_32F;
@@ -15,3 +14,5 @@ inline constexpr cudaDataType_t cuda_type = [] {
         return CUDA_R_64F;
     }
 }();
+
+} // namespace cils::detail

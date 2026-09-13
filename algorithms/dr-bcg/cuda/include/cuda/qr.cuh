@@ -2,15 +2,17 @@
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
-#include "common/type_info.h"
+#include "common/cuda_type.cuh"
 
-#include <cstddef>
 #include <cuda_runtime.h>
 #include <cusolverDn.h>
 
 #include <cassert>
 #include <concepts>
+#include <cstddef>
 #include <vector>
+
+namespace cils::cuda {
 
 struct QrDimensions {
     int m;
@@ -26,7 +28,7 @@ concept QrPolicy = requires(P &p, T *&d_Q, T *&d_R, const T *d_A, int m, int n,
     { p.check(n, stage, stream) } -> std::same_as<void>;
 };
 
-template <SupportedType T>
+template <cils::detail::SupportedType T>
 __global__ void copy_upper_triangular_kernel(T *dst, const T *src,
                                              const int ld_src, const int n) {
     std::size_t row = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -37,7 +39,7 @@ __global__ void copy_upper_triangular_kernel(T *dst, const T *src,
     }
 }
 
-template <SupportedType T>
+template <cils::detail::SupportedType T>
 void copy_upper_triangular(T *dst, const T *src, int ld_src, int n,
                            cudaStream_t stream) {
     constexpr int block_n = 16;
@@ -47,7 +49,7 @@ void copy_upper_triangular(T *dst, const T *src, int ld_src, int n,
         dst, src, ld_src, n);
 }
 
-template <SupportedType T>
+template <cils::detail::SupportedType T>
 class HouseholderQr {
   public:
     HouseholderQr(const HouseholderQr &) = delete;
@@ -68,8 +70,8 @@ class HouseholderQr {
         CUDA_CHECK(cudaMalloc(&d_dummy, sizeof(T) * dims.m * dims.n));
 
         CUSOLVER_CHECK(cusolverDnXgeqrf_bufferSize(
-            cusolverH, params, dims.m, dims.n, cuda_type<T>, d_dummy, dims.m, cuda_type<T>, d_tau,
-            cuda_type<T>, &d_lwork_geqrf, &h_lwork_geqrf));
+            cusolverH, params, dims.m, dims.n, cils::detail::cuda_type<T>, d_dummy, dims.m, cils::detail::cuda_type<T>, d_tau,
+            cils::detail::cuda_type<T>, &d_lwork_geqrf, &h_lwork_geqrf));
 
         if constexpr (std::is_same_v<T, float>) {
             CUSOLVER_CHECK(cusolverDnSorgqr_bufferSize(
@@ -109,31 +111,31 @@ class HouseholderQr {
                cusolverDnParams_t &params, cudaStream_t &stream) {
         assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
-        CudaTimerRange rng{g_event_timer, "QR:func", stream};
+        cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:func", stream};
 
         CUDA_CHECK(cudaMemcpyAsync(d_Q, d_A, sizeof(T) * m * n,
                                    cudaMemcpyDeviceToDevice, stream));
 
         {
-            CudaTimerRange rng{g_event_timer, "QR:geqrf", stream};
+            cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:geqrf", stream};
             CUSOLVER_CHECK(cusolverDnXgeqrf(
-                cusolverH, params, m, n, cuda_type<T>, d_Q, m, cuda_type<T>,
-                d_tau, cuda_type<T>, d_work, d_lwork_geqrf, h_work.data(),
+                cusolverH, params, m, n, cils::detail::cuda_type<T>, d_Q, m, cils::detail::cuda_type<T>,
+                d_tau, cils::detail::cuda_type<T>, d_work, d_lwork_geqrf, h_work.data(),
                 h_lwork_geqrf, d_info));
         }
 
         {
-            CudaTimerRange rng{g_event_timer, "QR:copy_upper_triangular", stream};
+            cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:copy_upper_triangular", stream};
             copy_upper_triangular(d_R, d_Q, m, n, stream);
         }
 
         if constexpr (std::is_same_v<T, float>) {
-            CudaTimerRange rng{g_event_timer, "QR:orgqr", stream};
+            cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:orgqr", stream};
             CUSOLVER_CHECK(cusolverDnSorgqr(
                 cusolverH, m, n, n, d_Q, m, d_tau,
                 reinterpret_cast<T *>(d_work), d_numfloats_orgqr, d_info));
         } else {
-            CudaTimerRange rng{g_event_timer, "QR:orgqr", stream};
+            cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:orgqr", stream};
             CUSOLVER_CHECK(cusolverDnDorgqr(
                 cusolverH, m, n, n, d_Q, m, d_tau,
                 reinterpret_cast<T *>(d_work), d_numfloats_orgqr, d_info));
@@ -165,7 +167,7 @@ class HouseholderQr {
     int d_numfloats_orgqr = 0;
 };
 
-template <SupportedType T>
+template <cils::detail::SupportedType T>
 class CholeskyQr {
   public:
     CholeskyQr(const CholeskyQr &) = delete;
@@ -185,8 +187,8 @@ class CholeskyQr {
         T *d_dummy = nullptr;
         CUDA_CHECK(cudaMalloc(&d_dummy, sizeof(T) * dims.n * dims.n));
         CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(
-            cusolverH, params, CUBLAS_FILL_MODE_UPPER, dims.n, cuda_type<T>, d_dummy,
-            dims.n, cuda_type<T>, &d_work_size, &h_work_size));
+            cusolverH, params, CUBLAS_FILL_MODE_UPPER, dims.n, cils::detail::cuda_type<T>, d_dummy,
+            dims.n, cils::detail::cuda_type<T>, &d_work_size, &h_work_size));
         CUDA_CHECK(cudaFree(d_dummy));
 
         if (d_work_size > 0) {
@@ -220,7 +222,7 @@ class CholeskyQr {
                cusolverDnParams_t &params, cudaStream_t &stream) {
         assert(n < m && "Expect cols to be less than rows for DR-BCG");
 
-        CudaTimerRange rng{g_event_timer, "QR:func", stream};
+        cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:func", stream};
 
         constexpr T alpha = 1;
         constexpr T beta = 0;
@@ -235,38 +237,38 @@ class CholeskyQr {
         // the full n*n Gram instead of just the triangle is negligible at
         // these n, and POTRF reads only the upper triangle anyway.
         if constexpr (std::is_same_v<T, float>) {
-            CudaTimerRange rng{g_event_timer, "QR:gram", stream};
+            cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:gram", stream};
             CUBLAS_CHECK(cublasSgemm_v2(cublasH, CUBLAS_OP_T, CUBLAS_OP_N, n, n,
                                         m, &alpha, d_A, m, d_A, m, &beta, d_gram,
                                         n));
         } else {
-            CudaTimerRange rng{g_event_timer, "QR:gram", stream};
+            cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:gram", stream};
             CUBLAS_CHECK(cublasDgemm_v2(cublasH, CUBLAS_OP_T, CUBLAS_OP_N, n, n,
                                         m, &alpha, d_A, m, d_A, m, &beta, d_gram,
                                         n));
         }
 
         {
-            CudaTimerRange rng{g_event_timer, "QR:potrf", stream};
+            cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:potrf", stream};
             CUSOLVER_CHECK(cusolverDnXpotrf(
-                cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, cuda_type<T>,
-                d_gram, n, cuda_type<T>, d_work, d_work_size, h_work.data(),
+                cusolverH, params, CUBLAS_FILL_MODE_UPPER, n, cils::detail::cuda_type<T>,
+                d_gram, n, cils::detail::cuda_type<T>, d_work, d_work_size, h_work.data(),
                 h_work_size, d_info));
         }
 
         {
-            CudaTimerRange rng{g_event_timer, "QR:copy_upper_triangular", stream};
+            cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:copy_upper_triangular", stream};
             copy_upper_triangular(d_R, d_gram, n, n, stream);
         }
 
         if constexpr (std::is_same_v<T, float>) {
-            CudaTimerRange rng{g_event_timer, "QR:trsm", stream};
+            cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:trsm", stream};
             CUBLAS_CHECK(cublasStrsm_v2(
                 cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
                 CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, m, n, &alpha,
                 d_gram, n, d_Q, m));
         } else {
-            CudaTimerRange rng{g_event_timer, "QR:trsm", stream};
+            cils::detail::CudaTimerRange rng{cils::detail::g_event_timer, "QR:trsm", stream};
             CUBLAS_CHECK(cublasDtrsm_v2(
                 cublasH, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
                 CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, m, n, &alpha,
@@ -312,3 +314,5 @@ class CholeskyQr {
     std::size_t h_work_size = 0;
     T *h_factor = nullptr;
 };
+
+} // namespace cils::cuda

@@ -1,11 +1,14 @@
 #pragma once
 
-#include <cstdint>
-#include <optional>
-
 #include <mat_utils/mat_reader.h>
 
-#include "qr_backend.h"
+#include <cstdint>
+#include <optional>
+#include <string>
+
+namespace cils {
+
+enum class QrBackend : std::uint8_t;
 
 enum class Algorithm : std::uint8_t { CG,
                                       DR_BCG };
@@ -15,12 +18,12 @@ enum class Implementation : std::uint8_t { MKL,
 struct Args {
     Algorithm algorithm;
     Implementation implementation;
-    mat_utils::SpMatReader A;
-    std::optional<mat_utils::SpMatReader> L;
-    std::optional<mat_utils::DnMatReader> b;
-    std::optional<mat_utils::DnMatReader> B;
-    std::optional<mat_utils::DnMatReader> x;
-    std::optional<mat_utils::DnMatReader> X;
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> A;
+    std::optional<mat_utils::MatReader<mat_utils::Sparsity::Sparse>> L;
+    std::optional<mat_utils::MatReader<>> b;
+    std::optional<mat_utils::MatReader<>> B;
+    std::optional<mat_utils::MatReader<>> x;
+    std::optional<mat_utils::MatReader<>> X;
     std::string timer_out;
     std::optional<std::string> output;
     bool output_b;
@@ -33,3 +36,5 @@ struct Args {
 };
 
 std::optional<Args> parse_args(int argc, char *argv[]); // NOLINT(*avoid-c-arrays)
+
+} // namespace cils

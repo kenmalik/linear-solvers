@@ -1,20 +1,27 @@
-#include "cg/mkl.h"
+#include "config.h"
+
+#include "mkl/cg.h"
 
 #include "common/log.h"
+#include "common/mkl_matrices.h"
 #include "common/timer.h"
-
-#include <cassert>
-#ifdef SOLVERS_ENABLE_VERBOSE
-#include <cmath>
-#endif
 
 #include <mkl_cblas.h>
 #include <mkl_spblas.h>
 
-namespace cg::mkl {
+#include <cassert>
+#include <vector>
+#ifdef SOLVERS_ENABLE_VERBOSE
+#include <cmath>
+#endif
 
-int solve(const CSRMatrix &A, const std::vector<double> &b,
-          std::vector<double> &x, const CSRMatrix &L, Config config) {
+namespace cils::mkl {
+
+using cils::detail::CpuTimerRange;
+using cils::detail::g_timer;
+
+int cg(const CSRMatrix &A, const std::vector<double> &b,
+       std::vector<double> &x, const CSRMatrix &L, CgConfig config) {
     CpuTimerRange solve_range{g_timer, "solve"};
 
     assert(A.descr.type == SPARSE_MATRIX_TYPE_GENERAL);
@@ -65,7 +72,7 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
     int iter = 0;
     for (iter = 0; iter < config.max_iterations; ++iter) {
 #ifdef SOLVERS_ENABLE_VERBOSE
-        cils::log(std::sqrt(residual_sq / norm_b_sq));
+        cils::detail::log(std::sqrt(residual_sq / norm_b_sq));
 #endif
 
         if (residual_sq <= tol_sq) {
@@ -130,4 +137,4 @@ int solve(const CSRMatrix &A, const std::vector<double> &b,
     return iter;
 }
 
-} // namespace cg::mkl
+} // namespace cils::mkl

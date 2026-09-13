@@ -3,45 +3,52 @@
 #include "mkl_adapter.h"
 
 #ifdef SOLVERS_BUILD_CG
-#include "cg/mkl.h"
+#include "mkl/cg.h"
 #endif
 
 #ifdef SOLVERS_BUILD_DR_BCG
-#include "dr_bcg/mkl.h"
+#include "mkl/dr_bcg.h"
 #endif
 
 #include "common/mkl_matrices.h"
 
-CSRMatrix read_mkl(const mat_utils::SpMatReader &reader) {
-    const MKL_INT n_rows = static_cast<MKL_INT>(reader.rows());
-    const MKL_INT n_cols = static_cast<MKL_INT>(reader.cols());
-    const MKL_INT nnz = static_cast<MKL_INT>(reader.nnz());
+#include <mkl_spblas.h>
+#include <mkl_types.h>
 
-    const size_t *jc = reader.jc();
-    const size_t *ir = reader.ir();
-    const double *values = reader.data();
+#include <cstddef>
+#include <span>
+#include <utility>
 
-    CSRMatrix csr;
-    csr.rows = n_rows;
-    csr.cols = n_cols;
-    csr.row_ptr.assign(n_rows + 1, 0);
-    csr.col_idx.resize(nnz);
-    csr.values.resize(nnz);
+namespace cils {
+
+mkl::CSRMatrix read_mkl(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &reader) {
+    const std::size_t nnz = reader.nonzero_count();
+    std::span<double> values = reader.values<double>();
+
+    mkl::CSRMatrix csr{
+        .rows = static_cast<MKL_INT>(reader.rows()),
+        .cols = static_cast<MKL_INT>(reader.cols()),
+        .values = {values.begin(), values.end()},
+        .row_ptr = std::vector<MKL_INT>(reader.rows() + 1, 0),
+        .col_idx = std::vector<MKL_INT>(nnz)};
 
     // Count nnz per row
-    for (MKL_INT k = 0; k < nnz; ++k) {
+    std::span<std::size_t> ir = reader.row_indices();
+    std::span<std::size_t> jc = reader.column_pointers();
+
+    for (MKL_INT k = 0; std::cmp_less(k, nnz); ++k) {
         ++csr.row_ptr[ir[k] + 1];
     }
 
     // Exclusive prefix sum → row_ptr
-    for (MKL_INT i = 0; i < n_rows; ++i) {
+    for (MKL_INT i = 0; i < csr.rows; ++i) {
         csr.row_ptr[i + 1] += csr.row_ptr[i];
     }
 
     // Scatter CSC columns into CSR rows
     std::vector<MKL_INT> cursor(csr.row_ptr.begin(),
-                                csr.row_ptr.begin() + n_rows);
-    for (MKL_INT j = 0; j < n_cols; ++j) {
+                                csr.row_ptr.begin() + csr.cols);
+    for (MKL_INT j = 0; j < csr.cols; ++j) {
         for (size_t k = jc[j]; k < jc[j + 1]; ++k) {
             MKL_INT row = static_cast<MKL_INT>(ir[k]);
             MKL_INT pos = cursor[row]++;
@@ -61,8 +68,9 @@ CSRMatrix read_mkl(const mat_utils::SpMatReader &reader) {
 
 #ifdef SOLVERS_BUILD_CG
 
-int run_mkl_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
-               std::vector<double> &x, const mat_utils::SpMatReader &L,
+int run_mkl_cg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
+               const std::vector<double> &b, std::vector<double> &x,
+               const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
                double tolerance, int max_iterations) {
     auto A_csr = read_mkl(A);
     A_csr.descr.type = SPARSE_MATRIX_TYPE_GENERAL;
@@ -72,18 +80,19 @@ int run_mkl_cg(const mat_utils::SpMatReader &A, const std::vector<double> &b,
     L_csr.descr.mode = SPARSE_FILL_MODE_LOWER;
     L_csr.descr.diag = SPARSE_DIAG_NON_UNIT;
 
-    return cg::mkl::solve(A_csr, b, x, L_csr,
-                          {.tolerance = tolerance,
-                           .max_iterations = max_iterations});
+    return cils::mkl::cg(A_csr, b, x, L_csr,
+                         {.tolerance = tolerance,
+                          .max_iterations = max_iterations});
 }
 
 #endif // SOLVERS_BUILD_CG
 
 #ifdef SOLVERS_BUILD_DR_BCG
 
-int run_mkl_dr_bcg(const mat_utils::SpMatReader &A,
+int run_mkl_dr_bcg(const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &A,
                    const std::vector<double> &b, std::vector<double> &x,
-                   const mat_utils::SpMatReader &L, MklDrBcgConfig config) {
+                   const mat_utils::MatReader<mat_utils::Sparsity::Sparse> &L,
+                   MklDrBcgConfig config) {
     auto A_csr = read_mkl(A);
     A_csr.descr.type = SPARSE_MATRIX_TYPE_GENERAL;
 
@@ -93,12 +102,14 @@ int run_mkl_dr_bcg(const mat_utils::SpMatReader &A,
     L_csr.descr.diag = SPARSE_DIAG_NON_UNIT;
 
     int n = static_cast<int>(A.rows());
-    DenseMatrix b_dm{.rows = n, .cols = config.block_size, .data = b};
-    DenseMatrix x_dm{.rows = n, .cols = config.block_size, .data = x};
+    mkl::DenseMatrix b_dm{.rows = n, .cols = config.block_size, .data = b};
+    mkl::DenseMatrix x_dm{.rows = n, .cols = config.block_size, .data = x};
 
-    return dr_bcg::mkl::solve(A_csr, L_csr, b_dm, x_dm,
-                              {.tolerance = config.tolerance,
-                               .max_iterations = config.max_iterations});
+    return cils::mkl::dr_bcg(A_csr, L_csr, b_dm, x_dm,
+                             {.tolerance = config.tolerance,
+                              .max_iterations = config.max_iterations});
 }
 
 #endif // SOLVERS_BUILD_DR_BCG
+
+} // namespace cils

@@ -1,14 +1,60 @@
-#include "cg/cuda.h"
-#include "common/cuda_event_timer.h"
-#include "common/log.h"
+#include "cuda/cg.cuh"
 
-#include <cassert>
-#include <cmath>
+#include "common/cuda_checks.h"
+#include "common/cuda_event_timer.h"
+#include "common/cuda_type.cuh"
+#include "common/log.h"
 
 #include <nvtx3/nvtx3.hpp>
 
-namespace cg::cuda {
+#include <cassert>
+#include <cmath>
+#include <cstdint>
+
 namespace {
+
+template <cils::detail::SupportedType T>
+struct DeviceBuffers {
+    DeviceBuffers(std::int64_t n) noexcept {
+        CUDA_CHECK(cudaMalloc(&d_r, sizeof(T) * n));
+        CUDA_CHECK(cudaMalloc(&d_s, sizeof(T) * n));
+        CUDA_CHECK(cudaMalloc(&d_d, sizeof(T) * n));
+        CUDA_CHECK(cudaMalloc(&d_q, sizeof(T) * n));
+
+        CUSPARSE_CHECK(cusparseCreateDnVec(&r, n, d_r, cils::detail::cuda_type<T>));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&s, n, d_s, cils::detail::cuda_type<T>));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&d, n, d_d, cils::detail::cuda_type<T>));
+        CUSPARSE_CHECK(cusparseCreateDnVec(&q, n, d_q, cils::detail::cuda_type<T>));
+    }
+
+    DeviceBuffers(const DeviceBuffers &) = delete;
+    DeviceBuffers(DeviceBuffers &&) = delete;
+    DeviceBuffers &operator=(const DeviceBuffers &) = delete;
+    DeviceBuffers &operator=(DeviceBuffers &&) = delete;
+
+    ~DeviceBuffers() noexcept {
+        CUDA_CHECK(cudaFree(d_r));
+        CUDA_CHECK(cudaFree(d_s));
+        CUDA_CHECK(cudaFree(d_d));
+        CUDA_CHECK(cudaFree(d_q));
+
+        CUSPARSE_CHECK(cusparseDestroyDnVec(r));
+        CUSPARSE_CHECK(cusparseDestroyDnVec(s));
+        CUSPARSE_CHECK(cusparseDestroyDnVec(d));
+        CUSPARSE_CHECK(cusparseDestroyDnVec(q));
+    }
+
+    cusparseDnVecDescr_t r{};
+    cusparseDnVecDescr_t s{};
+    cusparseDnVecDescr_t d{};
+    cusparseDnVecDescr_t q{};
+
+    T *d_r;
+    T *d_s;
+    T *d_d;
+    T *d_q;
+};
+
 struct HandleStreamGuard {
     cusparseHandle_t cusparse;
     cublasHandle_t cublas;
@@ -35,16 +81,19 @@ struct HandleStreamGuard {
         CUBLAS_CHECK(cublasSetStream_v2(cublas, cublas_stream));
     }
 };
+
 } // namespace
 
-int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
-          cusparseSpMatDescr_t A, cusparseDnVecDescr_t b, // NOLINT
-          cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
-          Config config) {
+namespace cils::cuda {
+
+int cg(cusparseHandle_t cusparse, cublasHandle_t cublas,
+       cusparseSpMatDescr_t A, cusparseDnVecDescr_t b, // NOLINT
+       cusparseDnVecDescr_t x, cusparseSpMatDescr_t L,
+       CgConfig config) {
     NVTX3_FUNC_RANGE();
 
     HandleStreamGuard handle_stream_guard(cusparse, cublas, config.stream);
-    CudaTimerRange solve_range{g_event_timer, "solve", config.stream};
+    cils::detail::CudaTimerRange solve_range{cils::detail::g_event_timer, "solve", config.stream};
 
     std::int64_t n = 0;
     void *d_x = nullptr;
@@ -81,7 +130,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
     }
 
     {
-        CudaTimerRange er{g_event_timer, "r = b - A * x", config.stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "r = b - A * x", config.stream};
         // Copy b into r
         CUBLAS_CHECK(cublasDcopy_v2_64(cublas, n, d_b, 1, d.d_r, 1));
         CUSPARSE_CHECK(cusparseSpMV(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
@@ -146,7 +195,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
 
     // d = M^{-1} * r
     {
-        CudaTimerRange er{g_event_timer, "d = M^{-1} * r", config.stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "d = M^{-1} * r", config.stream};
         CUSPARSE_CHECK(cusparseSpSV_solve(
             cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r,
             d.d, cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L));
@@ -187,16 +236,16 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
     int iterations = 0;
     while (iterations < config.max_iterations && residual_norm > config.tolerance * b_norm) {
         nvtx3::scoped_range iteration_range{"iteration"};
-        CudaTimerRange er{g_event_timer, "iteration", config.stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "iteration", config.stream};
 
-        cils::log(residual_norm / b_norm);
+        cils::detail::log(residual_norm / b_norm);
 
         iterations += 1;
 
         // q = A * d
         {
             nvtx3::scoped_range r{"q = A * d"};
-            CudaTimerRange er{g_event_timer, "q = A * d", config.stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "q = A * d", config.stream};
             CUSPARSE_CHECK(
                 cusparseSpMV(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE,
                              &alpha_MV_q, A, d.d, &beta_MV_q, d.q, cuda_type,
@@ -207,7 +256,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         double alpha = NAN;
         {
             nvtx3::scoped_range r{"alpha = delta / d'q"};
-            CudaTimerRange er{g_event_timer, "alpha = delta / d'q", config.stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "alpha = delta / d'q", config.stream};
             double d_dot_q = 0;
             CUBLAS_CHECK(
                 cublasDdot_v2_64(cublas, n, d.d_d, 1, d.d_q, 1, &d_dot_q));
@@ -219,7 +268,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         // x = x + alpha * d
         {
             nvtx3::scoped_range r{"x = x + alpha * d"};
-            CudaTimerRange er{g_event_timer, "x = x + alpha * d", config.stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "x = x + alpha * d", config.stream};
             CUBLAS_CHECK(cublasDaxpy_v2_64(cublas, n, &alpha, d.d_d, 1,
                                            static_cast<double *>(d_x), 1));
         }
@@ -227,7 +276,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         if (config.real_residual) {
             // r = b - A * x
             nvtx3::scoped_range r{"r = b - A * x"};
-            CudaTimerRange er{g_event_timer, "r = b - A * x", config.stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "r = b - A * x", config.stream};
             CUBLAS_CHECK(cublasDcopy_v2_64(cublas, n, d_b, 1, d.d_r, 1));
             CUSPARSE_CHECK(cusparseSpMV(
                 cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_residual_MV,
@@ -236,7 +285,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         } else {
             // r = r - alpha * q
             nvtx3::scoped_range r{"r = r - alpha * q"};
-            CudaTimerRange er{g_event_timer, "r = r - alpha * q", config.stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "r = r - alpha * q", config.stream};
             double neg_alpha = -alpha;
             CUBLAS_CHECK(
                 cublasDaxpy_v2_64(cublas, n, &neg_alpha, d.d_q, 1, d.d_r, 1));
@@ -245,7 +294,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         // residual_sq = r'r
         {
             nvtx3::scoped_range r{"residual_sq = r'r"};
-            CudaTimerRange er{g_event_timer, "residual_sq = r'r", config.stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "residual_sq = r'r", config.stream};
             CUBLAS_CHECK(
                 cublasDnrm2_v2_64(cublas, n, d.d_r, 1, &residual_norm));
             assert(std::isfinite(residual_norm));
@@ -254,7 +303,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         // s = M^{-1} * r
         {
             nvtx3::scoped_range r{"s = M^{-1} * r"};
-            CudaTimerRange er{g_event_timer, "s = M^{-1} * r", config.stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "s = M^{-1} * r", config.stream};
             CUSPARSE_CHECK(cusparseSpSV_solve(
                 cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha_SpSM, L, d.r,
                 d.s, cuda_type, CUSPARSE_SPSV_ALG_DEFAULT, desc_SpSV_L));
@@ -267,7 +316,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         double beta = NAN;
         {
             nvtx3::scoped_range r{"beta = delta_new / delta_old"};
-            CudaTimerRange er{g_event_timer, "beta = delta_new / delta_old", config.stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "beta = delta_new / delta_old", config.stream};
             delta_old = delta_new;
             CUBLAS_CHECK(
                 cublasDdot_v2_64(cublas, n, d.d_r, 1, d.d_s, 1, &delta_new));
@@ -281,7 +330,7 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
         // s is no longer needed this iteration so we can overwrite it here
         {
             nvtx3::scoped_range r{"d = s + beta * d"};
-            CudaTimerRange er{g_event_timer, "d = s + beta * d", config.stream};
+            cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "d = s + beta * d", config.stream};
             CUBLAS_CHECK(
                 cublasDaxpy_v2_64(cublas, n, &beta, d.d_d, 1, d.d_s, 1));
             CUBLAS_CHECK(cublasDcopy_v2_64(cublas, n, d.d_s, 1, d.d_d, 1));
@@ -297,4 +346,5 @@ int solve(cusparseHandle_t cusparse, cublasHandle_t cublas,
 
     return iterations;
 }
-} // namespace cg::cuda
+
+} // namespace cils::cuda

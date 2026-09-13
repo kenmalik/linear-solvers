@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-namespace cils {
+namespace cils::detail {
 
 template <typename T, bool Enabled = logging_enabled>
     requires Enabled
@@ -14,6 +14,6 @@ void log(T v) {
 
 template <typename T, bool Enabled = logging_enabled>
     requires(!Enabled)
-void log(T v) {}
+void log(T _) {}
 
-}
+} // namespace cils::detail

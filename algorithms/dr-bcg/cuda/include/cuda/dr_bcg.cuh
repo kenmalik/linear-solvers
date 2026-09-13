@@ -1,62 +1,59 @@
 #pragma once
 
-#include "dr_bcg/device_buffer.cuh"
-#include "dr_bcg/handles.cuh"
-#include "dr_bcg/initialization.cuh"
-#include "dr_bcg/iteration.cuh"
-#include "dr_bcg/math.h"
-#include "dr_bcg/qr.cuh"
+#include "cuda/detail/device_buffer.cuh"
+#include "cuda/detail/initialization.cuh"
+#include "cuda/detail/iteration.cuh"
+#include "cuda/detail/math.cuh"
+#include "cuda/handles.cuh"
+#include "cuda/qr.cuh"
 
 #include "common/cuda_checks.h"
 #include "common/cuda_event_timer.h"
-#include "common/type_info.h"
+#include "common/cuda_type.cuh"
 
 #include <cublas_v2.h>
 #include <cusolverDn.h>
 #include <cusparse_v2.h>
+#include <nvtx3/nvtx3.hpp>
 
 #include <algorithm>
-#include <type_traits>
-
-#include <nvtx3/nvtx3.hpp>
 
 // TODO: Figure out why LU workspace check was in the sigma convergence block
 
-namespace dr_bcg::cuda {
+namespace cils::cuda {
 
-template <SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
-int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-          cusparseDnMatDescr_t B, T tolerance, int max_iterations, cudaStream_t stream) {
-    static_assert(std::is_same_v<T, double>, "currently only double supported");
+template <cils::detail::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
+int dr_bcg(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+           cusparseDnMatDescr_t B, T tolerance, int max_iterations, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
-    CudaTimerRange solve_range{g_event_timer, "solve", stream};
+    cils::detail::CudaTimerRange solve_range{cils::detail::g_event_timer, "solve", stream};
 
     CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
     handles.set_stream(stream);
 
-    auto [n, s] = get_size(B);
-    DeviceBuffer<T> d(n, s);
+    auto [n, s] = detail::get_size(B);
+    detail::DeviceBuffer<T> d(n, s);
 
     const QrDimensions qr_dims{.m = static_cast<int>(n), .n = static_cast<int>(s)};
     Qr qr{handles.cusolver, handles.cusolver_params, qr_dims};
 
-    LuWorkspace<T> lu_ws;
+    detail::LuWorkspace<T> lu_ws;
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
                    static_cast<int>(s));
 
     void *d_scratch = nullptr;
 
     cusparseDnMatDescr_t temp = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
     T *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
 
-    RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
+    detail::RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
     R_calculator.calculate(B, A, X);
     {
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(R)"};
-        CudaTimerRange er{g_event_timer, "[w sigma] = QR(R)", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "[w sigma] = QR(R)", stream};
 
         // [w, sigma] = qr(R, 'econ')
         qr.solve(d.w, d.sigma, R_calculator.R_memory(), n, s, handles.cublas,
@@ -67,7 +64,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     {
         nvtx3::scoped_range s_initial_range{"s = w"};
-        CudaTimerRange er{g_event_timer, "s = w", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "s = w", stream};
 
         // s = w
         CUDA_CHECK(cudaMemcpyAsync(d.s, d.w, sizeof(T) * n * s,
@@ -75,11 +72,11 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     }
 
     cusparseDnMatDescr_t s_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
     cusparseDnMatDescr_t w_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cuda_type<T>,
+    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cils::detail::cuda_type<T>,
                                        CUSPARSE_ORDER_COL));
 
     {
@@ -92,22 +89,22 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         std::size_t buf_w_zeta = 0;
         CUSPARSE_CHECK(cusparseSpMM_bufferSize(
             handles.cusparse, op_nt, op_nt, &alpha_pos, A, s_desc, &beta_zero,
-            temp, cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
+            temp, cils::detail::cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
         CUSPARSE_CHECK(cusparseSpMM_bufferSize(
             handles.cusparse, op_nt, op_nt, &alpha_neg, A, temp, &beta_pos,
-            w_desc, cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_w_zeta));
+            w_desc, cils::detail::cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_w_zeta));
         std::size_t scratch_size = std::max(buf_xi, buf_w_zeta);
         if (scratch_size > 0) {
             CUDA_CHECK(cudaMallocAsync(&d_scratch, scratch_size, stream));
         }
     }
 
-    RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
+    detail::RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
 
     int iterations = 0;
     while (iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
-        CudaTimerRange er{g_event_timer, "iteration", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "iteration", stream};
 
         ++iterations;
 
@@ -133,48 +130,47 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     return iterations;
 }
 
-template <SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
-int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
-          cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
-          T tolerance, int max_iterations, cudaStream_t stream) {
-    static_assert(std::is_same_v<T, double>, "currently only double supported");
+template <cils::detail::SupportedType T, QrPolicy<T> Qr = HouseholderQr<T>>
+int dr_bcg(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
+           cusparseDnMatDescr_t B, cusparseSpMatDescr_t L,
+           T tolerance, int max_iterations, cudaStream_t stream) {
     NVTX3_FUNC_RANGE();
-    CudaTimerRange solve_range{g_event_timer, "solve", stream};
+    cils::detail::CudaTimerRange solve_range{cils::detail::g_event_timer, "solve", stream};
 
     CUBLAS_CHECK(cublasSetPointerMode(handles.cublas, CUBLAS_POINTER_MODE_DEVICE));
     handles.set_stream(stream);
 
-    auto [n, s] = get_size(B);
-    DeviceBuffer<T> d(n, s);
+    auto [n, s] = detail::get_size(B);
+    detail::DeviceBuffer<T> d(n, s);
 
     const QrDimensions qr_dims{.m = static_cast<int>(n), .n = static_cast<int>(s)};
     Qr qr{handles.cusolver, handles.cusolver_params, qr_dims};
 
-    LuWorkspace<T> lu_ws;
+    detail::LuWorkspace<T> lu_ws;
     lu_ws.allocate(handles.cusolver, handles.cusolver_params,
                    static_cast<int>(s));
 
     void *d_scratch = nullptr;
 
     cusparseDnMatDescr_t temp = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cuda_type<T>, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&temp, n, s, n, d.temp, cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
     cusparseDnMatDescr_t s_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cuda_type<T>, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&s_desc, n, s, n, d.s, cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
     cusparseDnMatDescr_t w_desc = nullptr;
-    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cuda_type<T>, CUSPARSE_ORDER_COL));
+    CUSPARSE_CHECK(cusparseCreateDnMat(&w_desc, n, s, n, d.w, cils::detail::cuda_type<T>, CUSPARSE_ORDER_COL));
 
-    SpsmCache<T> spsm_nt;
+    detail::SpsmCache<T> spsm_nt;
     spsm_nt.analyze(handles.cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, L,
                     w_desc, temp);
 
-    SpsmCache<T> spsm_t;
+    detail::SpsmCache<T> spsm_t;
     spsm_t.analyze(handles.cusparse, CUSPARSE_OPERATION_TRANSPOSE, L, w_desc,
                    temp);
 
     T *d_X = nullptr;
     CUSPARSE_CHECK(cusparseDnMatGetValues(X, reinterpret_cast<void **>(&d_X)));
 
-    RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
+    detail::RCalculator<T> R_calculator{handles.cusparse, n, s, stream};
     R_calculator.calculate(B, A, X);
 
     // We break [w sigma] = QR(L^-1 * R) into two steps for timing purposes:
@@ -182,7 +178,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     // 2. [w sigma] = QR(temp)
     {
         nvtx3::scoped_range w_sigma_initial_range{"temp = L^-1 * R"};
-        CudaTimerRange er{g_event_timer, "temp = L^-1 * R", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "temp = L^-1 * R", stream};
 
         sptri_solve<T>(handles.cusparse, temp,
                        CUSPARSE_OPERATION_NON_TRANSPOSE, L, R_calculator.R_descriptor(), spsm_nt);
@@ -190,7 +186,7 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
 
     {
         nvtx3::scoped_range w_sigma_initial_range{"[w sigma] = QR(temp)"};
-        CudaTimerRange er{g_event_timer, "[w sigma] = QR(temp)", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "[w sigma] = QR(temp)", stream};
 
         qr.solve(d.w, d.sigma, d.temp, n, s, handles.cublas,
                  handles.cusolver, handles.cusolver_params, stream);
@@ -208,18 +204,18 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
         std::size_t buf_xi = 0;
         CUSPARSE_CHECK(cusparseSpMM_bufferSize(
             handles.cusparse, op_nt, op_nt, &alpha_pos, A, s_desc, &beta_zero,
-            temp, cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
+            temp, cils::detail::cuda_type<T>, CUSPARSE_SPMM_ALG_DEFAULT, &buf_xi));
         if (buf_xi > 0) {
             CUDA_CHECK(cudaMallocAsync(&d_scratch, buf_xi, stream));
         }
     }
 
-    RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
+    detail::RelativeResidualNormConvergence<T> convergence{handles, A, X, B, tolerance, n, stream};
 
     int iterations = 0;
     while (iterations < max_iterations) {
         nvtx3::scoped_range iteration_range{"iteration"};
-        CudaTimerRange er{g_event_timer, "iteration", stream};
+        cils::detail::CudaTimerRange er{cils::detail::g_event_timer, "iteration", stream};
 
         ++iterations;
 
@@ -247,4 +243,4 @@ int solve(Handles &handles, cusparseSpMatDescr_t A, cusparseDnMatDescr_t X,
     return iterations;
 }
 
-} // namespace dr_bcg::cuda
+} // namespace cils::cuda

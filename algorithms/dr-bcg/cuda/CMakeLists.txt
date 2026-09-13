@@ -16,57 +16,25 @@ target_link_libraries(
     solvers_internal
 )
 
-# MathDx instantiation is encapsulated in this dedicated static library
-# with CUDA_RESOLVE_DEVICE_SYMBOLS ON, performing the device link internally
-# and exposing plain C++ entry points.
-#
-# Downstream targets link it like usual with no device-LTO plumbing necessary.
-if(SOLVERS_BUILD_MATHDX)
-    if(CMAKE_VERSION VERSION_LESS 3.25)
-        message(FATAL_ERROR
-            "SOLVERS_BUILD_MATHDX requires CMake >= 3.25 for CUDA device LTO")
+# Dev-only anchor TU so clangd can resolve headers in this INTERFACE-only
+# target (see clangd_anchor.cu for why). EXCLUDE_FROM_ALL keeps it out of
+# `ninja`/`make` by default -- it still gets a compile_commands.json entry,
+# which is all clangd needs, without ever being linked into a real binary.
+# Skipped outside Debug so CI/release configures don't pay for it.
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_library(cuda_dr_bcg_clangd_anchor OBJECT EXCLUDE_FROM_ALL clangd_anchor.cu)
+    target_link_libraries(cuda_dr_bcg_clangd_anchor PRIVATE cuda_dr_bcg solver_config)
+
+    if(SOLVERS_BUILD_MATHDX)
+        solvers_mathdx_target_sm(_anchor_mathdx_sm)
+        target_link_libraries(cuda_dr_bcg_clangd_anchor PRIVATE
+            mathdx::cublasdx mathdx::cusolverdx_fatbin)
+        target_compile_definitions(cuda_dr_bcg_clangd_anchor PRIVATE
+            MATHDX_TARGET_SM=${_anchor_mathdx_sm}0)
+        target_compile_options(cuda_dr_bcg_clangd_anchor PRIVATE
+            $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+            $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>)
+        unset(_anchor_mathdx_sm)
     endif()
-
-    add_library(cuda_dr_bcg_mathdx STATIC mathdx_solve.cu)
-    add_library(dr_bcg::cuda_mathdx ALIAS cuda_dr_bcg_mathdx)
-
-    target_include_directories(cuda_dr_bcg_mathdx PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
-    target_link_libraries(cuda_dr_bcg_mathdx
-        PUBLIC cuda_dr_bcg
-        PRIVATE mathdx::cublasdx mathdx::cusolverdx_fatbin solver_config)
-
-    # cuSolverDx needs std::tuple in device code and cuBLASDx uses extended
-    # lambdas internally.
-    target_compile_options(cuda_dr_bcg_mathdx PRIVATE
-        $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-        $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>)
-
-    # cuBLASDx/cuSolverDx compile-time descriptors (cublasdx::SM<>,
-    # cusolverdx::SM<>) take a single target SM, so this target can only ever
-    # be device-LTO'd for one real architecture at a time. Derive it from
-    # CMAKE_CUDA_ARCHITECTURES (the same variable driving the rest of the
-    # CUDA build) instead of hardcoding it, so it tracks whatever GPU the
-    # build is actually targeting.
-    list(GET CMAKE_CUDA_ARCHITECTURES 0 _mathdx_sm)
-    string(REGEX REPLACE "-(real|virtual)$" "" _mathdx_sm "${_mathdx_sm}")
-    list(LENGTH CMAKE_CUDA_ARCHITECTURES _mathdx_sm_count)
-    if(_mathdx_sm_count GREATER 1)
-        message(WARNING
-            "CMAKE_CUDA_ARCHITECTURES lists multiple architectures "
-            "(${CMAKE_CUDA_ARCHITECTURES}); MathDx only supports one target "
-            "SM, using the first: ${_mathdx_sm}")
-    endif()
-
-    target_compile_definitions(cuda_dr_bcg_mathdx PRIVATE
-        MATHDX_TARGET_SM=${_mathdx_sm}0)
-
-    set_target_properties(cuda_dr_bcg_mathdx PROPERTIES
-        CUDA_SEPARABLE_COMPILATION ON
-        CUDA_RESOLVE_DEVICE_SYMBOLS ON
-        INTERPROCEDURAL_OPTIMIZATION ON  # CUDA device LTO (-dlto)
-        CUDA_ARCHITECTURES "${_mathdx_sm}-real")
-
-    unset(_mathdx_sm)
-    unset(_mathdx_sm_count)
 endif()
+

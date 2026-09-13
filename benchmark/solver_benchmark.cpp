@@ -25,8 +25,8 @@ static constexpr double tolerance = 1e-6;
 #ifdef SOLVERS_BUILD_CG
 
 static void BM_CgMkl(benchmark::State &state) {
-    mat_utils::SpMatReader A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
-    mat_utils::SpMatReader L{BENCHMARK_DATA_DIR "/G2_circuit_ichol.mat", {}, "L"};
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> L{BENCHMARK_DATA_DIR "/G2_circuit_ichol.mat", {}, "L"};
     int n = A.rows();
     std::vector<double> b(n, 1.0);
 
@@ -44,8 +44,8 @@ BENCHMARK(BM_CgMkl)->MinWarmUpTime(0.5);
 
 static void BM_DrBcgMkl(benchmark::State &state) {
     int block_size = state.range(0);
-    mat_utils::SpMatReader A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
-    mat_utils::SpMatReader L{BENCHMARK_DATA_DIR "/G2_circuit_ichol.mat", {}, "L"};
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> L{BENCHMARK_DATA_DIR "/G2_circuit_ichol.mat", {}, "L"};
     int n = A.rows();
     std::vector<double> b(n * block_size, 1.0);
 
@@ -66,8 +66,8 @@ BENCHMARK(BM_DrBcgMkl)->ArgsProduct({{1, 2, 4, 8, 16, 32, 64}})->MinWarmUpTime(0
 #ifdef SOLVERS_BUILD_CG
 
 static void BM_CgCuda(benchmark::State &state) {
-    mat_utils::SpMatReader A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
-    mat_utils::SpMatReader L{BENCHMARK_DATA_DIR "/G2_circuit_ichol.mat", {}, "L"};
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> L{BENCHMARK_DATA_DIR "/G2_circuit_ichol.mat", {}, "L"};
     int n = A.rows();
     std::vector<double> b(n, 1.0);
 
@@ -85,8 +85,8 @@ BENCHMARK(BM_CgCuda)->MinWarmUpTime(0.5);
 
 static void BM_DrBcgCuda(benchmark::State &state) {
     int block_size = state.range(0);
-    mat_utils::SpMatReader A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
-    mat_utils::SpMatReader L{BENCHMARK_DATA_DIR "/G2_circuit_ichol.mat", {}, "L"};
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> A{BENCHMARK_DATA_DIR "/G2_circuit.mat", {"Problem"}, "A"};
+    mat_utils::MatReader<mat_utils::Sparsity::Sparse> L{BENCHMARK_DATA_DIR "/G2_circuit_ichol.mat", {}, "L"};
     int n = A.rows();
     std::vector<double> b(n * block_size, 1.0);
 

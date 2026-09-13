@@ -1,4 +1,4 @@
-add_library(cuda_cg cuda_cg.cu)
+add_library(cuda_cg cg.cu)
 add_library(cg::cuda ALIAS cuda_cg)
 
 target_include_directories(cuda_cg PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)

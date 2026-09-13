@@ -1,45 +1,104 @@
 #include "parser.h"
+#include "qr_backend.h"
 
+#include <cstddef>
 #include <cxxopts.hpp>
 #include <exception>
 #include <iostream>
+#include <memory>
+#include <optional>
+#include <regex>
 #include <string>
 #include <utility>
+#include <vector>
 
-static std::optional<Algorithm> parse_algorithm(const std::string &s) {
+namespace {
+
+std::optional<cils::Algorithm> parse_algorithm(const std::string &s) {
     if (s == "cg") {
-        return Algorithm::CG;
+        return cils::Algorithm::CG;
     }
     if (s == "dr-bcg") {
-        return Algorithm::DR_BCG;
+        return cils::Algorithm::DR_BCG;
     }
     return std::nullopt;
 }
 
-static std::optional<Implementation> parse_implementation(const std::string &s) {
+std::optional<cils::Implementation> parse_implementation(const std::string &s) {
     if (s == "mkl") {
-        return Implementation::MKL;
+        return cils::Implementation::MKL;
     }
     if (s == "cuda") {
-        return Implementation::CUDA;
+        return cils::Implementation::CUDA;
     }
     return std::nullopt;
 }
 
-static std::optional<QrBackend> parse_qr_backend(const std::string &s) {
+std::optional<cils::QrBackend> parse_qr_backend(const std::string &s) {
     if (s == "householder") {
-        return QrBackend::Householder;
+        return cils::QrBackend::Householder;
     }
     if (s == "cholqr") {
-        return QrBackend::CholQR;
+        return cils::QrBackend::CholQR;
     }
     if (s == "cholqr-dx") {
-        return QrBackend::CholQRDx;
+        return cils::QrBackend::CholQRDx;
     }
     return std::nullopt;
 }
 
+struct MatArg {
+    std::string file;
+    std::vector<std::string> parent_arrays;
+    std::string field;
+};
+
+// Format: mat_file_path[:parent_arrays/field]
+// If the `:parent_arrays/field` suffix is omitted, default_parent_arrays and
+// default_field are used instead.
+std::optional<MatArg> parse_mat_arg(const std::string &s,
+                                    std::vector<std::string> default_parent_arrays,
+                                    std::string default_field) {
+    if (s.find(':') == std::string::npos) {
+        if (s.empty()) {
+            return std::nullopt;
+        }
+        return MatArg{.file = s, .parent_arrays = std::move(default_parent_arrays), .field = std::move(default_field)};
+    }
+
+    static const std::regex pattern(R"(^([^:]+):((?:/[^/]+)+)$)");
+    std::smatch match;
+    if (!std::regex_match(s, match, pattern)) {
+        return std::nullopt;
+    }
+
+    std::string file = match[1];
+    std::string path = match[2];
+
+    std::vector<std::string> components;
+    size_t start = 1; // skip leading '/'
+    while (start < path.size()) {
+        size_t end = path.find('/', start);
+        if (end == std::string::npos) {
+            end = path.size();
+        }
+        components.push_back(path.substr(start, end - start));
+        start = end + 1;
+    }
+
+    std::string field = std::move(components.back());
+    components.pop_back();
+
+    return MatArg{.file = std::move(file), .parent_arrays = std::move(components), .field = std::move(field)};
+}
+
+} // namespace
+
+namespace cils {
+
 std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arrays)
+    using mat_utils::MatReader;
+
     cxxopts::Options options("cgrun",
                              "Run conjugate gradient variants on .mat files");
 
@@ -71,99 +130,151 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
     options.parse_positional({"algorithm", "implementation", "A", "L"});
     options.positional_help("<algorithm> <implementation> <A> [L]");
 
-    try {
-        auto result = options.parse(argc, argv);
+    auto parse_mat_option = [&options](const std::string &name, const std::string &value,
+                                       std::vector<std::string> default_parent_arrays,
+                                       std::string default_field) -> std::optional<MatArg> {
+        auto arg = parse_mat_arg(value, std::move(default_parent_arrays), std::move(default_field));
+        if (!arg) {
+            std::cerr << "Invalid format for --" << name << ": " << value << "\n"
+                      << "Expected format: file[:/parent_arrays/field]\n\n";
+            std::cerr << options.help();
+        }
+        return arg;
+    };
 
-        if (!result.contains("algorithm")) {
+    try {
+        auto parsed = options.parse(argc, argv);
+
+        if (!parsed.contains("algorithm")) {
             std::cerr << "Missing required argument: algorithm\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        auto algorithm = parse_algorithm(result["algorithm"].as<std::string>());
+        auto algorithm = parse_algorithm(parsed["algorithm"].as<std::string>());
         if (!algorithm) {
-            std::cerr << "Unknown algorithm: " << result["algorithm"].as<std::string>() << "\n"
+            std::cerr << "Unknown algorithm: " << parsed["algorithm"].as<std::string>() << "\n"
                       << "Available: cg, dr-bcg\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        if (!result.contains("implementation")) {
+        if (!parsed.contains("implementation")) {
             std::cerr << "Missing required argument: implementation\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        auto implementation = parse_implementation(result["implementation"].as<std::string>());
+        auto implementation = parse_implementation(parsed["implementation"].as<std::string>());
         if (!implementation) {
-            std::cerr << "Unknown implementation: " << result["implementation"].as<std::string>() << "\n"
+            std::cerr << "Unknown implementation: " << parsed["implementation"].as<std::string>() << "\n"
                       << "Available: mkl, cuda\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        if (!result.contains("A")) {
+        if (!parsed.contains("A")) {
             std::cerr << "Missing required argument: A\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
 
-        mat_utils::SpMatReader A_reader{
-            result["A"].as<std::string>(), {"Problem"}, "A"};
-
-        double tolerance = result["tolerance"].as<double>();
-        std::optional<int> max_iterations;
-        if (result.contains("max-iterations")) {
-            max_iterations = result["max-iterations"].as<int>();
+        auto A_arg = parse_mat_option("A", parsed["A"].as<std::string>(), {"Problem"}, "A");
+        if (!A_arg) {
+            return std::nullopt;
         }
-        int block_size = result["block-size"].as<int>();
-        bool disable_tensor_cores = result["no-tensor-cores"].as<bool>();
-        bool fused_xi = result["fused-xi"].as<bool>();
-        auto qr_backend = parse_qr_backend(result["qr-backend"].as<std::string>());
+        MatReader<mat_utils::Sparsity::Sparse> A_reader{A_arg->file, A_arg->parent_arrays, A_arg->field};
+
+        double tolerance = parsed["tolerance"].as<double>();
+        std::optional<int> max_iterations;
+        if (parsed.contains("max-iterations")) {
+            max_iterations = parsed["max-iterations"].as<int>();
+        }
+        int block_size = parsed["block-size"].as<int>();
+        bool disable_tensor_cores = parsed["no-tensor-cores"].as<bool>();
+        bool fused_xi = parsed["fused-xi"].as<bool>();
+        auto qr_backend = parse_qr_backend(parsed["qr-backend"].as<std::string>());
         if (!qr_backend) {
             std::cerr << "Unknown QR backend: "
-                      << result["qr-backend"].as<std::string>() << "\n"
+                      << parsed["qr-backend"].as<std::string>() << "\n"
                       << "Available: householder, cholqr, cholqr-dx\n\n";
             std::cerr << options.help();
             return std::nullopt;
         }
-        std::optional<mat_utils::DnMatReader> b_reader;
-        if (result.contains("b")) {
-            b_reader.emplace(result["b"].as<std::string>(), std::vector<std::string>{}, "b");
+        std::optional<MatReader<>> b_reader;
+        if (parsed.contains("b")) {
+            auto b_arg = parse_mat_option("b", parsed["b"].as<std::string>(), {}, "b");
+            if (!b_arg) {
+                return std::nullopt;
+            }
+            b_reader.emplace(b_arg->file, b_arg->parent_arrays, b_arg->field);
         }
-        std::optional<mat_utils::DnMatReader> B_reader;
-        if (result.contains("B")) {
-            B_reader.emplace(result["B"].as<std::string>(), std::vector<std::string>{}, "B");
+        std::optional<MatReader<>> B_reader;
+        if (parsed.contains("B")) {
+            auto B_arg = parse_mat_option("B", parsed["B"].as<std::string>(), {}, "B");
+            if (!B_arg) {
+                return std::nullopt;
+            }
+            B_reader.emplace(B_arg->file, B_arg->parent_arrays, B_arg->field);
         }
-        std::optional<mat_utils::DnMatReader> x_reader;
-        if (result.contains("x")) {
-            x_reader.emplace(result["x"].as<std::string>(), std::vector<std::string>{}, "x");
+        std::optional<MatReader<>> x_reader;
+        if (parsed.contains("x")) {
+            auto x_arg = parse_mat_option("x", parsed["x"].as<std::string>(), {}, "x");
+            if (!x_arg) {
+                return std::nullopt;
+            }
+            x_reader.emplace(x_arg->file, x_arg->parent_arrays, x_arg->field);
         }
-        std::optional<mat_utils::DnMatReader> X_reader;
-        if (result.contains("X")) {
-            X_reader.emplace(result["X"].as<std::string>(), std::vector<std::string>{}, "X");
+        std::optional<MatReader<>> X_reader;
+        if (parsed.contains("X")) {
+            auto X_arg = parse_mat_option("X", parsed["X"].as<std::string>(), {}, "X");
+            if (!X_arg) {
+                return std::nullopt;
+            }
+            X_reader.emplace(X_arg->file, X_arg->parent_arrays, X_arg->field);
         }
-        auto timer_out = result["timer-out"].as<std::string>();
+        auto timer_out = parsed["timer-out"].as<std::string>();
         if (!timer_out.ends_with(".csv")) {
             timer_out += ".csv";
         }
 
         std::optional<std::string> output;
-        if (result.contains("output")) {
-            output = result["output"].as<std::string>();
+        if (parsed.contains("output")) {
+            output = parsed["output"].as<std::string>();
             if (!output->ends_with(".mat")) {
                 *output += ".mat";
             }
         }
-        bool output_b = result["output-b"].as<bool>();
+        bool output_b = parsed["output-b"].as<bool>();
 
-        if (result.contains("L")) {
-            mat_utils::SpMatReader L_reader{
-                result["L"].as<std::string>(), {}, "L"};
-            return Args{.algorithm = *algorithm, .implementation = *implementation, .A = std::move(A_reader), .L = std::move(L_reader), .b = std::move(b_reader), .B = std::move(B_reader), .x = std::move(x_reader), .X = std::move(X_reader), .timer_out = timer_out, .output = std::move(output), .output_b = output_b, .tolerance = tolerance, .max_iterations = max_iterations, .block_size = block_size, .disable_tensor_cores = disable_tensor_cores, .qr_backend = *qr_backend, .fused_xi = fused_xi};
+        Args res{.algorithm = *algorithm,
+                 .implementation = *implementation,
+                 .A = std::move(A_reader),
+                 .L = std::nullopt,
+                 .b = std::move(b_reader),
+                 .B = std::move(B_reader),
+                 .x = std::move(x_reader),
+                 .X = std::move(X_reader),
+                 .timer_out = timer_out,
+                 .output = std::move(output),
+                 .output_b = output_b,
+                 .tolerance = tolerance,
+                 .max_iterations = max_iterations,
+                 .block_size = block_size,
+                 .disable_tensor_cores = disable_tensor_cores,
+                 .qr_backend = *qr_backend,
+                 .fused_xi = fused_xi};
+
+        if (parsed.contains("L")) {
+            auto L_arg = parse_mat_option("L", parsed["L"].as<std::string>(), {}, "L");
+            if (!L_arg) {
+                return std::nullopt;
+            }
+            MatReader<mat_utils::Sparsity::Sparse> L_reader{L_arg->file, L_arg->parent_arrays, L_arg->field};
+            res.L = std::move(L_reader);
         }
 
-        return Args{.algorithm = *algorithm, .implementation = *implementation, .A = std::move(A_reader), .L = std::nullopt, .b = std::move(b_reader), .B = std::move(B_reader), .x = std::move(x_reader), .X = std::move(X_reader), .timer_out = timer_out, .output = std::move(output), .output_b = output_b, .tolerance = tolerance, .max_iterations = max_iterations, .block_size = block_size, .disable_tensor_cores = disable_tensor_cores, .qr_backend = *qr_backend, .fused_xi = fused_xi};
+        return res;
     } catch (const cxxopts::exceptions::exception &e) {
         std::cerr << e.what() << "\n\n";
         std::cerr << options.help();
@@ -173,3 +284,5 @@ std::optional<Args> parse_args(int argc, char *argv[]) { // NOLINT(*avoid-c-arra
         return std::nullopt;
     }
 }
+
+} // namespace cils
